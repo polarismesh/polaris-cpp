@@ -1,0 +1,109 @@
+{
+"namespace":"Test",
+"outbounds":[
+  {
+    "sources": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "num": {
+            "value": "reg"
+          }
+        }
+      }
+    ],
+    "destinations": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "type": "REGEX",
+            "value": "s*"
+          }
+        },
+        "priority": 0,
+        "weight": 20
+      }
+    ]
+  },
+  {
+    "sources": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "num": {
+            "value": "reg3"
+          }
+        }
+      }
+    ],
+    "destinations": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "type": "REGEX",
+            "value": "s.*"
+          }
+        },
+        "priority": 0,
+        "weight": 20
+      },
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "t1"
+          }
+        },
+        "priority": 1,
+        "weight": 20
+      }
+    ]
+  },
+  {
+    "sources": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "num": {
+            "value": "reg4"
+          }
+        }
+      }
+    ],
+    "destinations": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "type": "REGEX",
+            "value": "s.*"
+          }
+        },
+        "priority": 0,
+        "weight": 20
+      },
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "t1"
+          }
+        },
+        "priority": 1,
+        "weight": 20
+      }
+    ]
+  }
+
+]
+}

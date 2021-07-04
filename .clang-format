@@ -1,0 +1,16 @@
+Language: Cpp
+BasedOnStyle: Google
+Standard: Cpp03
+IndentWidth: 2
+TabWidth: 2
+ContinuationIndentWidth: 4
+ColumnLimit: 100
+AccessModifierOffset: -2
+AlignConsecutiveAssignments: true
+UseTab: Never
+
+# Only sort headers in each include block
+SortIncludes: true
+IncludeBlocks: Preserve
+
+ConstructorInitializerAllOnOneLineOrOnePerLine: false

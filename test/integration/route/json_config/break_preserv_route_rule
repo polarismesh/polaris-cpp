@@ -1,0 +1,150 @@
+{
+"namespace":"Test",
+"outbounds":[
+{
+    "sources": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "num": {
+            "value": "2"
+          }
+        }
+      }
+    ],
+    "destinations": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "s1"
+          }
+        },
+        "priority": 0,
+        "weight": 10
+      },
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "s2"
+          }
+        },
+        "priority": 1,
+        "weight": 20
+      },
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "s3"
+          }
+        },
+        "priority": 2,
+        "weight": 30
+      }
+    ]
+  },
+{
+    "sources": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "num": {
+            "value": "3"
+          }
+        }
+      }
+    ],
+    "destinations": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "s1"
+          }
+        },
+        "priority": 0,
+        "weight": 20
+      },
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "s2"
+          }
+        },
+        "priority": 0,
+        "weight": 20
+      },
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "s3"
+          }
+        },
+        "priority": 1,
+        "weight": 20
+      }
+    ]
+  },
+{
+    "sources": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "num": {
+            "value": "5"
+          }
+        }
+      }
+    ],
+    "destinations": [
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "s1"
+          }
+        },
+        "priority": 0,
+        "weight": 20,
+        "isolate": true
+      },
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "s2"
+          }
+        },
+        "priority": 1,
+        "weight": 20
+      },
+      {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+          "set": {
+            "value": "s3"
+          }
+        },
+        "priority": 2,
+        "weight": 20
+      }
+    ]
+  }
+]
+}
