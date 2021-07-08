@@ -11,10 +11,14 @@
 //  language governing permissions and limitations under the License.
 //
 
-#ifndef POLARIS_CPP_POLARIS_GRPC_HTTP2_CLIENT_H_
-#define POLARIS_CPP_POLARIS_GRPC_HTTP2_CLIENT_H_
+#ifndef POLARIS_CPP_POLARIS_GRPC_HTTP2_H_
+#define POLARIS_CPP_POLARIS_GRPC_HTTP2_H_
 
-#include <nghttp2/nghttp2.h>
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS  // nghttp2 header include inttypes.h
+#endif
+
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -23,12 +27,14 @@
 #include <string>
 #include <vector>
 
-#include "buffer.h"
-#include "header.h"
+#include <nghttp2/nghttp2.h>
+
+#include "grpc/buffer.h"
+#include "grpc/header.h"
+#include "grpc/status.h"
 #include "polaris/log.h"
 #include "reactor/event.h"
 #include "reactor/reactor.h"
-#include "status.h"
 #include "utils/scoped_ptr.h"
 
 namespace polaris {
@@ -254,4 +260,4 @@ private:
 }  // namespace grpc
 }  // namespace polaris
 
-#endif  //  POLARIS_CPP_POLARIS_GRPC_HTTP2_CLIENT_H_
+#endif  //  POLARIS_CPP_POLARIS_GRPC_HTTP2_H_

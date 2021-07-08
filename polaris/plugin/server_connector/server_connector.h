@@ -24,8 +24,7 @@
 #include <vector>
 
 #include "config/seed_server.h"
-#include "grpc/grpc_client.h"
-#include "grpc/http2_client.h"
+#include "grpc/client.h"
 #include "grpc/status.h"
 #include "model/model_impl.h"
 #include "model/return_code.h"

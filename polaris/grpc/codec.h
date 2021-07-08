@@ -11,21 +11,17 @@
 //  language governing permissions and limitations under the License.
 //
 
-#ifndef POLARIS_CPP_POLARIS_GRPC_GRPC_CODEC_H_
-#define POLARIS_CPP_POLARIS_GRPC_GRPC_CODEC_H_
+#ifndef POLARIS_CPP_POLARIS_GRPC_CODEC_H_
+#define POLARIS_CPP_POLARIS_GRPC_CODEC_H_
 
 #include <stddef.h>
 #include <stdint.h>
 
 #include <vector>
 
-#include "buffer.h"
+#include <google/protobuf/message.h>
 
-namespace google {
-namespace protobuf {
-class Message;
-}
-}  // namespace google
+#include "grpc/buffer.h"
 
 namespace polaris {
 namespace grpc {
@@ -90,4 +86,4 @@ private:
 }  // namespace grpc
 }  // namespace polaris
 
-#endif  //  POLARIS_CPP_POLARIS_GRPC_GRPC_CODEC_H_
+#endif  //  POLARIS_CPP_POLARIS_GRPC_CODEC_H_

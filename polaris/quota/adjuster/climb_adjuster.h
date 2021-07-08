@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include "grpc/grpc_client.h"
+#include "grpc/client.h"
 #include "metric/metric_connector.h"
 #include "polaris/defs.h"
 #include "quota/adjuster/climb_config.h"

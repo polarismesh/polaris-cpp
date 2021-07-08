@@ -14,11 +14,12 @@
 #ifndef POLARIS_CPP_POLARIS_GRPC_ZERO_COPY_INPUT_STREAM_IMPL_H_
 #define POLARIS_CPP_POLARIS_GRPC_ZERO_COPY_INPUT_STREAM_IMPL_H_
 
-#include <google/protobuf/io/zero_copy_stream.h>
-#include <google/protobuf/stubs/port.h>
 #include <stdint.h>
 
-#include "buffer.h"
+#include <google/protobuf/io/zero_copy_stream.h>
+#include <google/protobuf/stubs/port.h>
+
+#include "grpc/buffer.h"
 #include "logger.h"
 #include "utils/scoped_ptr.h"
 

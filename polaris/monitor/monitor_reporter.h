@@ -22,7 +22,7 @@
 #include <string>
 
 #include "engine/executor.h"
-#include "grpc/grpc_client.h"
+#include "grpc/client.h"
 #include "grpc/status.h"
 #include "model/return_code.h"
 #include "plugin/stat_reporter/stat_reporter.h"

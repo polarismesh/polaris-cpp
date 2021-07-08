@@ -15,7 +15,7 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "grpc/grpc_codec.h"
+#include "grpc/codec.h"
 
 #include <arpa/inet.h>
 #include <gtest/gtest.h>

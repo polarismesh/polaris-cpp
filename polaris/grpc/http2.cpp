@@ -11,15 +11,11 @@
 //  language governing permissions and limitations under the License.
 //
 
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS  // nghttp2 header include inttypes.h
-#endif
-#include "http2_client.h"
+#include "grpc/http2.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
@@ -36,9 +32,6 @@
 #include <algorithm>
 #include <vector>
 
-#include "grpc/buffer.h"
-#include "grpc/header.h"
-#include "grpc/status.h"
 #include "logger.h"
 #include "utils/indestructible.h"
 #include "utils/string_utils.h"

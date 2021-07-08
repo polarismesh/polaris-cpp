@@ -15,8 +15,8 @@
 //  language governing permissions and limitations under the License.
 //
 
-#ifndef POLARIS_CPP_POLARIS_GRPC_GRPC_CLIENT_H_
-#define POLARIS_CPP_POLARIS_GRPC_GRPC_CLIENT_H_
+#ifndef POLARIS_CPP_POLARIS_GRPC_CLIENT_H_
+#define POLARIS_CPP_POLARIS_GRPC_CLIENT_H_
 
 #include <stdint.h>
 
@@ -25,10 +25,10 @@
 #include <vector>
 
 #include "grpc/buffer.h"
-#include "grpc_codec.h"
-#include "http2_client.h"
+#include "grpc/codec.h"
+#include "grpc/http2.h"
+#include "grpc/status.h"
 #include "polaris/defs.h"
-#include "status.h"
 #include "utils/scoped_ptr.h"
 
 namespace google {
@@ -239,4 +239,4 @@ private:
 }  // namespace grpc
 }  // namespace polaris
 
-#endif  //  POLARIS_CPP_POLARIS_GRPC_GRPC_CLIENT_H_
+#endif  //  POLARIS_CPP_POLARIS_GRPC_CLIENT_H_

@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "grpc/grpc_client.h"
+#include "grpc/client.h"
 #include "model/model_impl.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
