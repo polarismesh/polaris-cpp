@@ -98,7 +98,7 @@ uint64_t TokenBucket::RefreshToken(int64_t remote_left, int64_t ack_quota,
                                    uint64_t current_time) {
   int64_t last_token_remote_total   = remote_quota_.remote_token_total_;
   remote_quota_.remote_token_total_ = remote_left;
-  uint64_t next_report_time         = 0;
+  uint64_t next_report_time         = Time::kMaxTime;
   if (remote_quota_expired) {  // 初始化或配额已经过期
     int64_t remote_token_left  = remote_quota_.remote_token_left_;
     int64_t remote_token_total = remote_quota_.remote_token_total_;
@@ -246,7 +246,7 @@ uint64_t RemoteAwareQpsBucket::SetRemoteQuota(const RemoteQuotaResult& remote_qu
   std::map<uint64_t, TokenBucket>::iterator bucket_it;
   const std::map<uint64_t, QuotaUsage>& remote_usage =
       remote_quota_result.remote_usage_.quota_usage_;
-  uint64_t next_report_time = 0;
+  uint64_t next_report_time = Time::kMaxTime;
   for (std::map<uint64_t, QuotaUsage>::const_iterator it = remote_usage.begin();
        it != remote_usage.end(); ++it) {
     bucket_it = token_buckets_.find(it->first);
@@ -268,7 +268,7 @@ uint64_t RemoteAwareQpsBucket::SetRemoteQuota(const RemoteQuotaResult& remote_qu
     uint64_t report_time = bucket.RefreshToken(remote_quota, local_used, current_bucket_time,
                                                current_time >= last_remote_sync_time_ + it->first,
                                                current_time % it->first);
-    if (report_time > 0 && (report_time < next_report_time || next_report_time == 0)) {
+    if (report_time < next_report_time) {
       next_report_time = report_time;
     }
   }

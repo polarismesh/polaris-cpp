@@ -40,9 +40,12 @@ struct RateLimitAmount {
 
 // 限流上报配置
 struct RateLimitReport {
-  RateLimitReport() : interval_(0), amount_percent_(0) {}
+  RateLimitReport() : interval_(0), jitter_(0), amount_percent_(0) {}
   uint32_t interval_;        // 配额固定上报周期，单位ms
+  uint32_t jitter_;          // 上报周期抖动范围
   uint32_t amount_percent_;  // 配额使用达到百分比上报，值范围(0, 100]
+
+  uint32_t IntervalWithJitter() const;
 };
 
 // 限流动作类型

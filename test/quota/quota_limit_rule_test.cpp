@@ -135,6 +135,13 @@ TEST(RateLimitRuleTest, InitReport) {
 
   rule.mutable_report()->mutable_amountpercent()->set_value(50);
   ASSERT_TRUE(rate_limit_rule.Init(rule));
+
+  rule.mutable_report()->mutable_interval()->set_nanos(50 * 1000 * 1000);
+  ASSERT_TRUE(rate_limit_rule.Init(rule));
+  ASSERT_EQ(rate_limit_rule.GetRateLimitReport().interval_, 40);
+  ASSERT_EQ(rate_limit_rule.GetRateLimitReport().jitter_, 20);
+  ASSERT_GE(rate_limit_rule.GetRateLimitReport().IntervalWithJitter(), 40);
+  ASSERT_LE(rate_limit_rule.GetRateLimitReport().IntervalWithJitter(), 60);
 }
 
 TEST(RateLimitRuleTest, SortByPriority) {

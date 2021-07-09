@@ -44,6 +44,8 @@ bool RateLimitWindowKey::operator==(const RateLimitWindowKey& rhs) const {
          this->regex_labels_ == rhs.regex_labels_;
 }
 
+uint32_t RateLimitReport::IntervalWithJitter() const { return interval_ + rand() % jitter_; }
+
 RateLimitRule::RateLimitRule()
     : priority_(0), limit_resource_(v1::Rule::QPS), limit_type_(v1::Rule::GLOBAL),
       amount_mode_(v1::Rule::GLOBAL_TOTAL), action_type_(kRateLimitActionReject), disable_(true),
@@ -139,8 +141,8 @@ bool RateLimitRule::InitMatch(const google::protobuf::Map<std::string, v1::Match
 }
 
 bool RateLimitRule::InitReportConfig(const v1::Rule& rule) {
-  static const uint64_t kDefaultLimitReportInterval = 100;       // 默认上报间隔
-  static const uint64_t kMinRateLimitReportInterval = 20;        // 最小限流上报周期
+  static const uint64_t kDefaultLimitReportInterval = 40;        // 默认上报间隔
+  static const uint64_t kMinRateLimitReportInterval = 2;         // 最小限流上报周期
   static const uint64_t kMaxRateLimitReportInterval = 5 * 1000;  // 最大限流上报周期
   static const uint64_t kRateLimitReportAmountPresent = 80;  // 默认满足百分之80的请求后立刻限流上报
   static const uint64_t kMaxRateLimitReportAmountPresent = 100;  // 最大实时上报百分比
@@ -166,6 +168,13 @@ bool RateLimitRule::InitReportConfig(const v1::Rule& rule) {
   } else {
     report_.interval_ = kDefaultLimitReportInterval;
   }
+
+  // 设置 jitter
+  report_.jitter_ = report_.interval_ * 4 / 10;
+  if (report_.jitter_ < 1) {
+    report_.jitter_ = 1;
+  }
+  report_.interval_ = report_.interval_ - report_.jitter_ / 2;
   return true;
 }
 
