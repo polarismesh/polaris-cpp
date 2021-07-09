@@ -236,6 +236,11 @@ public:
   /// @param labels labels信息
   void SetLabels(const std::map<std::string, std::string>& labels);
 
+  /// @brief 设置需要传递的LocalityAware的信息
+  ///
+  /// @param locality_aware_info LocalityAware的信息
+  void SetLocalityAwareInfo(uint64_t locality_aware_info);
+
 private:
   friend class ServiceCallResultGetter;
   ServiceCallResultImpl* impl;

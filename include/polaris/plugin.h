@@ -344,13 +344,15 @@ public:
 
 /// @brief
 struct InstanceGauge {
-  InstanceGauge() : call_ret_status(kCallRetOk), call_ret_code(0), call_daley(0) {}
+  InstanceGauge() : call_ret_status(kCallRetOk), call_ret_code(0), call_daley(0),
+                    locality_aware_info(0) {}
   std::string service_name;
   std::string service_namespace;
   std::string instance_id;
   CallRetStatus call_ret_status;
   int call_ret_code;
   uint64_t call_daley;
+  uint64_t locality_aware_info;
 
   ServiceKey source_service_key;
   std::map<std::string, std::string> subset_;

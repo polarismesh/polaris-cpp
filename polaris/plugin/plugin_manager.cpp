@@ -28,6 +28,7 @@
 #include "plugin/health_checker/tcp_detector.h"
 #include "plugin/health_checker/udp_detector.h"
 #include "plugin/load_balancer/l5_csthash.h"
+#include "plugin/load_balancer/locality_aware/locality_aware.h"
 #include "plugin/load_balancer/maglev/maglev.h"
 #include "plugin/load_balancer/ringhash/ringhash.h"
 #include "plugin/load_balancer/simple_hash.h"
@@ -92,6 +93,7 @@ Plugin* MaglevLoadBalancerFactory() { return new MaglevLoadBalancer(); }
 Plugin* L5CstHashLoadBalancerFactory() { return new L5CstHashLoadBalancer(); }
 Plugin* SimpleHashLoadBalancerFactory() { return new SimpleHashLoadBalancer(); }
 Plugin* CMurmurHashLoadBalancerFactory() { return new L5CstHashLoadBalancer(true); }
+Plugin* LocalityAwareLoadBalancerFactory() { return new LocalityAwareLoadBalancer(); }
 Plugin* DefaultWeightAdjusterFactory() { return new DefaultWeightAdjuster(); }
 
 Plugin* RuleServiceRouterFactory() { return new RuleServiceRouter(); }
@@ -118,6 +120,8 @@ PluginManager::PluginManager() {
   RegisterPlugin(kLoadBalanceTypeMaglevHash, kPluginLoadBalancer, MaglevLoadBalancerFactory);
   RegisterPlugin(kLoadBalanceTypeL5CstHash, kPluginLoadBalancer, L5CstHashLoadBalancerFactory);
   RegisterPlugin(kLoadBalanceTypeSimpleHash, kPluginLoadBalancer, SimpleHashLoadBalancerFactory);
+  RegisterPlugin(kLoadBalanceTypeLocalityAware, kPluginLoadBalancer,
+                 LocalityAwareLoadBalancerFactory);
   RegisterPlugin(kLoadBalanceTypeCMurmurHash, kPluginLoadBalancer, CMurmurHashLoadBalancerFactory);
 
   RegisterPlugin(kPluginDefaultWeightAdjuster, kPluginWeightAdjuster, DefaultWeightAdjusterFactory);

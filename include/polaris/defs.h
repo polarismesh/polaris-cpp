@@ -91,6 +91,8 @@ const static LoadBalanceType kLoadBalanceTypeL5CstHash = "l5cst";
 const static LoadBalanceType kLoadBalanceTypeSimpleHash = "simpleHash";
 // 兼容brpc c_murmur的一致性哈希
 const static LoadBalanceType kLoadBalanceTypeCMurmurHash = "cMurmurHash";
+// 兼容brpc locality_aware的负载均衡
+const static LoadBalanceType kLoadBalanceTypeLocalityAware = "localityAware";
 // 使用全局配置的负载均衡算法
 const static LoadBalanceType kLoadBalanceTypeDefaultConfig = "default";
 

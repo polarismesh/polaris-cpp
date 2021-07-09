@@ -106,7 +106,7 @@ int Instance::GetPort() const { return impl->port_; }
 
 std::string& Instance::GetVpcId() { return impl->vpc_id_; }
 
-std::string& Instance::GetId() { return impl->id_; }
+std::string& Instance::GetId() const { return impl->id_; }
 
 uint64_t Instance::GetLocalId() { return impl->local_id_; }
 
@@ -140,9 +140,11 @@ std::string& Instance::GetCampus() { return impl->campus_; }
 
 uint64_t Instance::GetHash() { return impl->hash_; }
 
+uint64_t Instance::GetLocalityAwareInfo() { return impl->locality_aware_info_; }
+
 Instance::InstanceImpl::InstanceImpl()
     : port_(0), weight_(0), local_id_(0), priority_(0), is_healthy_(true), is_isolate_(false),
-      hash_(0), dynamic_weight_(100) {
+      hash_(0), dynamic_weight_(100), locality_aware_info_(0) {
   localValue_ = new InstanceLocalValue();
 }
 
@@ -178,6 +180,7 @@ const Instance::InstanceImpl& Instance::InstanceImpl::operator=(
   internal_set_name_                  = impl.internal_set_name_;
   InstanceLocalValue* old_local_value = localValue_;
   localValue_                         = impl.localValue_;
+  locality_aware_info_                = impl.locality_aware_info_;
   localValue_->IncrementRef();
   if (old_local_value != NULL) {
     old_local_value->DecrementRef();
@@ -246,6 +249,9 @@ void InstanceSetter::CopyLocalValue(const InstanceSetter& setter) {
   oldVal->DecrementRef();
 }
 
+void InstanceSetter::SetLocalityAwareInfo(uint64_t locality_aware_info) {
+  instance_.impl->locality_aware_info_ = locality_aware_info;
+}
 ///////////////////////////////////////////////////////////////////////////////
 ServiceBase::ServiceBase() {
   impl_             = new ServiceBaseImpl();

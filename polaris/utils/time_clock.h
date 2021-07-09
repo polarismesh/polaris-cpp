@@ -39,6 +39,11 @@ public:
   /// @return uint64_t
   static uint64_t GetCurrentTimeMs();
 
+  /// @brief 获取当前微秒级时间
+  ///
+  /// @return uint64_t
+  static uint64_t GetCurrentTimeUs();
+
   /// @brief 获取某个时间减去当前时间的差值
   ///
   /// @param ts 要计算的时间

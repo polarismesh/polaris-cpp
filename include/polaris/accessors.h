@@ -126,6 +126,8 @@ public:
 
   uint64_t GetDelay();
 
+  uint64_t GetLocalityAwareInfo();
+
 private:
   const ServiceCallResult& result_;
 };
@@ -167,6 +169,8 @@ public:
   void SetLocalValue(InstanceLocalValue* localValue);
 
   void CopyLocalValue(const InstanceSetter& setter);
+
+  void SetLocalityAwareInfo(uint64_t locality_aware_info);
 
 private:
   Instance& instance_;

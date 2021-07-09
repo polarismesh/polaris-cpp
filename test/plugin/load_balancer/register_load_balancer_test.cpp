@@ -206,6 +206,8 @@ TEST_F(RegisterLoadBalancerTest, TestRegisterLoadBalancer) {
   for (int i = 0; i < 5000; ++i) {
     LoadBalancer *load_balancer = service_context->GetLoadBalancer(kLoadBalanceTypeWeightedRandom);
     ASSERT_EQ(load_balancer->GetLoadBalanceType(), kLoadBalanceTypeWeightedRandom);
+    load_balancer = service_context->GetLoadBalancer(kLoadBalanceTypeLocalityAware);
+    ASSERT_EQ(load_balancer->GetLoadBalanceType(), kLoadBalanceTypeLocalityAware);
     load_balancer = service_context->GetLoadBalancer(kLoadBalanceTypeSimpleHash);
     ASSERT_EQ(load_balancer->GetLoadBalanceType(), kLoadBalanceTypeSimpleHash);
     load_balancer = service_context->GetLoadBalancer(kLoadBalanceTypeSelfDefine);

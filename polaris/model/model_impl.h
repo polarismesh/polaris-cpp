@@ -82,6 +82,7 @@ public:
   uint64_t hash_;
   InstanceLocalValue* localValue_;
   uint32_t dynamic_weight_;
+  uint64_t locality_aware_info_;  // 默认值为0,启用la后为非0值
 
   InstanceImpl();
 
