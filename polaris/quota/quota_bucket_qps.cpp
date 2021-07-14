@@ -31,7 +31,7 @@ namespace polaris {
 
 TokenBucket::TokenBucket()
     : global_max_amount_(0), local_max_amount_(0), bucket_time_(0), bucket_stat_(0),
-      pending_bucket_time_(0), pending_bucket_stat_(0) {}
+      pending_bucket_time_(0), pending_bucket_stat_(0), last_use_up_time_(0) {}
 
 TokenBucket::TokenBucket(const TokenBucket& other) {
   global_max_amount_   = other.global_max_amount_.Load();
@@ -40,6 +40,7 @@ TokenBucket::TokenBucket(const TokenBucket& other) {
   bucket_stat_         = other.bucket_stat_.Load();
   pending_bucket_time_ = other.pending_bucket_time_;
   pending_bucket_stat_ = other.pending_bucket_stat_;
+  last_use_up_time_    = other.last_use_up_time_;
 }
 
 void TokenBucket::Init(const RateLimitAmount& amount, uint64_t current_time,
@@ -126,12 +127,21 @@ uint64_t TokenBucket::RefreshToken(int64_t remote_left, int64_t ack_quota,
     if (remote_left > 0) {
       int64_t remote_used = global_max_amount_ - new_remote_token_left;
       if (remote_used > 0 && new_remote_token_left > 0) {
-        int64_t left_time = new_remote_token_left * current_time / remote_used;
-        if (left_time < 80) {
-          next_report_time = left_time / 2 + 1;
+        next_report_time = new_remote_token_left * current_time / remote_used / 2 + 1;
+        POLARIS_LOG(LOG_TRACE, "next report time by qps:%" PRIu64 "", next_report_time);
+      }
+      if (last_use_up_time_ < current_time) {
+        last_use_up_time_ = current_time;
+      } else {
+        uint64_t use_up_report_time = (last_use_up_time_ - current_time) / 2 + 1;
+        if (use_up_report_time < next_report_time) {
+          next_report_time = use_up_report_time;
+          POLARIS_LOG(LOG_TRACE, "next report time last use up:%" PRIu64 "", next_report_time);
         }
-        POLARIS_LOG(LOG_TRACE, "left time: %" PRId64 " report time:%" PRIu64 "", left_time,
-                    next_report_time);
+      }
+    } else {
+      if (last_use_up_time_ > current_time) {
+        last_use_up_time_ = current_time;
       }
     }
   }
@@ -265,11 +275,20 @@ uint64_t RemoteAwareQpsBucket::SetRemoteQuota(const RemoteQuotaResult& remote_qu
         remote_quota_result.local_usage_->create_server_time_ / it->first == current_bucket_time) {
       local_used = local_usage->quota_usage_[bucket_it->first].quota_allocated_;
     }
-    uint64_t report_time = bucket.RefreshToken(remote_quota, local_used, current_bucket_time,
-                                               current_time >= last_remote_sync_time_ + it->first,
-                                               current_time % it->first);
+    uint64_t time_in_bucket = current_time % it->first;
+    uint64_t report_time =
+        bucket.RefreshToken(remote_quota, local_used, current_bucket_time,
+                            current_time >= last_remote_sync_time_ + it->first, time_in_bucket);
     if (report_time < next_report_time) {
       next_report_time = report_time;
+    }
+
+    if (remote_quota < 0) {  // 检查下一次同步时到下一个周期是否太晚了
+      uint64_t next_time_befor_use_up = it->first - time_in_bucket + bucket.LastUseUpTime() / 2;
+      if (next_time_befor_use_up < next_report_time) {
+        next_report_time = next_time_befor_use_up;
+        POLARIS_LOG(LOG_TRACE, "next bucket report time:%" PRIu64 "", next_report_time);
+      }
     }
   }
   last_remote_sync_time_.Store(current_time);

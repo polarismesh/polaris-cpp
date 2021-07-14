@@ -104,7 +104,7 @@ TEST_F(TokenBucketTest, RefreshTokenWithLeft) {
   uint64_t expect_bucket_time = current_time / 1000;
   // 还剩10次，不需要加快上报
   uint64_t report_time = token_bucket_.RefreshToken(10, 0, expect_bucket_time, false, 0);
-  ASSERT_EQ(report_time, Time::kMaxTime);
+  ASSERT_EQ(report_time, 1);
   for (int i = 0; i < 20; ++i) {
     int64_t left_quota;
     bool result = token_bucket_.GetToken(acquire_amount_, expect_bucket_time, true, left_quota);
@@ -122,7 +122,7 @@ TEST_F(TokenBucketTest, RefreshTokenWithLeft) {
       // 远端还剩6次，本地已上报2次，本地共使用3次，还剩5次
       // 80ms消耗5次，剩余需要80ms，还无需加快上报
       report_time = token_bucket_.RefreshToken(6, 2, expect_bucket_time, false, 80);
-      ASSERT_EQ(report_time, Time::kMaxTime);
+      ASSERT_EQ(report_time, 80 / 2 + 1);
     }
     if (i == 3) {
       // 远端还剩4次，本地又上报1次，共使用4次，100ms消耗7次，需要42ms，需加快上报

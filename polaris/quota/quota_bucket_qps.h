@@ -68,6 +68,8 @@ public:
   // 更新配额限额
   void UpdateLimitAmount(const RateLimitAmount& limit_amount, int64_t local_max_amount);
 
+  uint64_t LastUseUpTime() const { return last_use_up_time_; }
+
 private:
   sync::Atomic<int64_t> global_max_amount_;  // 规则中配置的周期分配配额总量
   int64_t local_max_amount_;  // 离线分配时配额数，local模式等于global_max_amount_
@@ -77,6 +79,7 @@ private:
   uint64_t pending_bucket_time_;        // 正在上报未应答的配额bucket时间
   int64_t pending_bucket_stat_;         // 正在上报未应答的配额bucket计数
   RemoteQuotaInfo remote_quota_;        // 远程配额信息
+  uint64_t last_use_up_time_;           // 上个周期使用完配额的时间
 };
 
 // 记录本地配额使用信息和服务器同步的配额信息
