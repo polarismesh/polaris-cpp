@@ -96,7 +96,7 @@ void TokenBucket::ReturnToken(int64_t acquire_amount, bool use_remote_quota) {
 
 uint64_t TokenBucket::RefreshToken(int64_t remote_left, int64_t ack_quota,
                                    uint64_t current_bucket_time, bool remote_quota_expired,
-                                   uint64_t current_time) {
+                                   uint64_t time_in_bucket) {
   int64_t last_token_remote_total   = remote_quota_.remote_token_total_;
   remote_quota_.remote_token_total_ = remote_left;
   uint64_t next_report_time         = Time::kMaxTime;
@@ -127,21 +127,23 @@ uint64_t TokenBucket::RefreshToken(int64_t remote_left, int64_t ack_quota,
     if (remote_left > 0) {
       int64_t remote_used = global_max_amount_ - new_remote_token_left;
       if (remote_used > 0 && new_remote_token_left > 0) {
-        next_report_time = new_remote_token_left * current_time / remote_used / 2 + 1;
+        // 按当前周期已用配额计算剩余配额还需要多少时间用完
+        next_report_time = new_remote_token_left * time_in_bucket / remote_used / 2 + 1;
         POLARIS_LOG(LOG_TRACE, "next report time by qps:%" PRIu64 "", next_report_time);
       }
-      if (last_use_up_time_ < current_time) {
-        last_use_up_time_ = current_time;
+      if (last_use_up_time_ < time_in_bucket) {
+        last_use_up_time_ = time_in_bucket;  // 当前周期配额消耗比上周期慢
       } else {
-        uint64_t use_up_report_time = (last_use_up_time_ - current_time) / 2 + 1;
+        // 按上个周期的QPS计算，当前周期时间到配额用完的一半作为下次上报间隔
+        uint64_t use_up_report_time = (last_use_up_time_ - time_in_bucket) / 2 + 1;
         if (use_up_report_time < next_report_time) {
           next_report_time = use_up_report_time;
           POLARIS_LOG(LOG_TRACE, "next report time last use up:%" PRIu64 "", next_report_time);
         }
       }
     } else {
-      if (last_use_up_time_ > current_time) {
-        last_use_up_time_ = current_time;
+      if (last_use_up_time_ > time_in_bucket) {
+        last_use_up_time_ = time_in_bucket;  // 当前周期配额消耗比上周期快
       }
     }
   }
@@ -283,7 +285,8 @@ uint64_t RemoteAwareQpsBucket::SetRemoteQuota(const RemoteQuotaResult& remote_qu
       next_report_time = report_time;
     }
 
-    if (remote_quota < 0) {  // 检查下一次同步时到下一个周期是否太晚了
+    if (remote_quota < 0) {
+      // 配额已用完，如果下一次同步配额已经到了下一个周期，在配额用完之前至少同步一次
       uint64_t next_time_befor_use_up = it->first - time_in_bucket + bucket.LastUseUpTime() / 2;
       if (next_time_befor_use_up < next_report_time) {
         next_report_time = next_time_befor_use_up;
