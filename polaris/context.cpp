@@ -63,28 +63,36 @@ ServiceRouterChain* ServiceContext::GetServiceRouterChain() { return impl_->serv
 LoadBalancer* ServiceContext::GetLoadBalancer(LoadBalanceType load_balance_type) {
   if (load_balance_type == kLoadBalanceTypeDefaultConfig) {
     return impl_->load_balancer_;
-  } else if (load_balance_type < kLoadBalanceTypeDefaultConfig) {
-    LoadBalancer* load_balancer = impl_->lb_table_[load_balance_type];
+  } else {
+    LoadBalancer* load_balancer = impl_->lb_map_.Get(load_balance_type);
     if (load_balancer != NULL) {
       return load_balancer;
     }
+
+    // 读取失败，创建并尝试插入
     Config* config = Config::CreateEmptyConfig();
     Plugin* plugin = NULL;
-    PluginManager::Instance().GetLoadBalancePlugin(load_balance_type, plugin);
+    PluginManager::Instance().GetPlugin(load_balance_type, kPluginLoadBalancer, plugin);
     load_balancer = dynamic_cast<LoadBalancer*>(plugin);
-    POLARIS_ASSERT(load_balancer != NULL);
+    if (load_balancer == NULL) {
+      delete config;
+      POLARIS_LOG(LOG_ERROR, "failed to get load balance plugin : %s", load_balance_type.c_str());
+      return NULL;
+    }
     ReturnCode ret_code = load_balancer->Init(config, impl_->context_);
     delete config;
-    POLARIS_ASSERT(ret_code == kReturnOk);
-    if (ATOMIC_CAS(&impl_->lb_table_[load_balance_type], NULL, load_balancer)) {
+    if (ret_code != kReturnOk) {
+      POLARIS_LOG(LOG_ERROR, "failed to init load balancer : %s", load_balance_type.c_str());
+      return NULL;
+    }
+    LoadBalancer* old_load_balancer =
+        impl_->lb_map_.PutIfAbsent(load_balancer->GetLoadBalanceType(), load_balancer);
+    if (old_load_balancer == NULL) {
       return load_balancer;
     } else {
       delete load_balancer;
-      return impl_->lb_table_[load_balance_type];
+      return old_load_balancer;
     }
-  } else {
-    POLARIS_ASSERT(load_balance_type <= kLoadBalanceTypeDefaultConfig);
-    return NULL;
   }
 }
 
@@ -98,13 +106,10 @@ HealthCheckerChain* ServiceContext::GetHealthCheckerChain() { return impl_->heal
 
 ServiceContextImpl* ServiceContext::GetServiceContextImpl() { return impl_; }
 
-ServiceContextImpl::ServiceContextImpl() {
-  context_              = NULL;
-  service_router_chain_ = NULL;
-  load_balancer_        = NULL;
-  for (int i = 0; i < kLoadBalanceTypeDefaultConfig; ++i) {
-    lb_table_[i] = NULL;
-  }
+ServiceContextImpl::ServiceContextImpl() : lb_map_(ValueNoOp, ValueDelete) {
+  context_               = NULL;
+  service_router_chain_  = NULL;
+  load_balancer_         = NULL;
   weight_adjuster_       = NULL;
   circuit_breaker_chain_ = NULL;
   health_checker_chain_  = NULL;
@@ -116,11 +121,6 @@ ServiceContextImpl::~ServiceContextImpl() {
   if (service_router_chain_ != NULL) {
     delete service_router_chain_;
     service_router_chain_ = NULL;
-  }
-  for (int i = 0; i < kLoadBalanceTypeDefaultConfig; ++i) {
-    if (lb_table_[i] != NULL) {
-      delete lb_table_[i];
-    }
   }
   if (weight_adjuster_ != NULL) {
     delete weight_adjuster_;
@@ -151,9 +151,10 @@ ReturnCode ServiceContextImpl::Init(const ServiceKey& service_key, Config* confi
   }
 
   // 初始化负载均衡插件
-  plugin_config           = config->GetSubConfig("loadBalancer");
-  Plugin* plugin          = NULL;
-  std::string plugin_name = plugin_config->GetStringOrDefault("type", kPluginDefaultLoadBalancer);
+  plugin_config  = config->GetSubConfig("loadBalancer");
+  Plugin* plugin = NULL;
+  std::string plugin_name =
+      plugin_config->GetStringOrDefault("type", kLoadBalanceTypeWeightedRandom);
   PluginManager::Instance().GetPlugin(plugin_name, kPluginLoadBalancer, plugin);
   load_balancer_ = dynamic_cast<LoadBalancer*>(plugin);
   if (load_balancer_ == NULL) {
@@ -167,7 +168,7 @@ ReturnCode ServiceContextImpl::Init(const ServiceKey& service_key, Config* confi
   }
   ret = load_balancer_->Init(plugin_config, context);
   delete plugin_config;
-  lb_table_[load_balancer_->GetLoadBalanceType()] = load_balancer_;
+  lb_map_.PutIfAbsent(load_balancer_->GetLoadBalanceType(), load_balancer_);
   if (ret != kReturnOk) {
     return ret;
   }

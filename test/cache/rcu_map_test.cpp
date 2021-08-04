@@ -139,4 +139,42 @@ TEST_F(RcuMapTest, MultiThreadTest) {
   delete thread_time_mgr;
 }
 
+class RcuMapNoOpTest : public ::testing::Test {
+protected:
+  virtual void SetUp() { rcu_map_ = new RcuMap<int, int>(ValueNoOp, ValueNoOp); }
+
+  virtual void TearDown() {
+    if (rcu_map_ != NULL) {
+      delete rcu_map_;
+      rcu_map_ = NULL;
+    }
+  }
+
+protected:
+  RcuMap<int, int> *rcu_map_;
+};
+
+TEST_F(RcuMapNoOpTest, PutIfAbsentTest) {
+  for (int i = 0; i < 1000; ++i) {
+    int key        = i;
+    int *value     = new int(i);
+    int *old_value = rcu_map_->PutIfAbsent(key, value);
+    ASSERT_TRUE(old_value == NULL);
+    old_value = rcu_map_->PutIfAbsent(key, value);
+    ASSERT_FALSE(old_value == NULL);
+    rcu_map_->Delete(key);
+    old_value = rcu_map_->PutIfAbsent(key, value);
+    ASSERT_TRUE(old_value == NULL);
+  }
+
+  std::vector<int *> values;
+  rcu_map_->GetAllValuesWithRef(values);
+  for (size_t i = 0; i < values.size(); ++i) {
+    if (values[i] != NULL) {
+      delete values[i];
+      values[i] = NULL;
+    }
+  }
+}
+
 }  // namespace polaris

@@ -26,16 +26,10 @@ namespace polaris {
 
 class ServiceData;
 
-const char kPluginDefaultServerConnector[]  = "grpc";
-const char kPluginDefaultLocalRegistry[]    = "inmemory";
-const char kPluginDefaultStatReporter[]     = "default";
-const char kPluginDefaultAlertReporter[]    = "default";
-const char kPluginDefaultLoadBalancer[]     = "weightedRandom";
-const char kPluginRingHashLoadBalancer[]    = "ringHash";
-const char kPluginMaglevLoadBalancer[]      = "maglev";
-const char kPluginL5CstHashLoadBalancer[]   = "l5cst";
-const char kPluginSimpleHashLoadBalancer[]  = "simpleHash";
-const char kPluginCMurmurHashLoadBalancer[] = "cMurmurHash";
+const char kPluginDefaultServerConnector[] = "grpc";
+const char kPluginDefaultLocalRegistry[]   = "inmemory";
+const char kPluginDefaultStatReporter[]    = "default";
+const char kPluginDefaultAlertReporter[]   = "default";
 
 const char kPluginDefaultWeightAdjuster[] = "default";
 
@@ -76,12 +70,11 @@ public:
   static PluginManager& Instance();
 
   // 通过类型创建负载均衡插件
-  ReturnCode GetLoadBalancePlugin(LoadBalanceType load_balace_type, Plugin*& plugin);
+  //  ReturnCode GetLoadBalancePlugin(LoadBalanceType load_balace_type, Plugin*& plugin);
 
 private:
   sync::Mutex lock_;
   std::map<std::string, PluginFactory> plugin_factory_map_;
-  std::map<LoadBalanceType, PluginFactory> lb_plugin_factor_map_;
 
   sync::Mutex instancePreUpdatelock_;
   std::vector<InstancePreUpdateHandler> instancePreUpdateHandlers_;

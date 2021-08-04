@@ -278,6 +278,40 @@ uint64_t ServiceBase::DecrementAndGetRef() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+InstancesSet::InstancesSet(const std::vector<Instance*>& instances) {
+  impl_ = new InstancesSetImpl(instances);
+}
+
+InstancesSet::InstancesSet(const std::vector<Instance*>& instances,
+                           const std::map<std::string, std::string>& subset) {
+  impl_ = new InstancesSetImpl(instances, subset);
+}
+
+InstancesSet::InstancesSet(const std::vector<Instance*>& instances,
+                           const std::map<std::string, std::string>& subset,
+                           const std::string& recover_info) {
+  impl_ = new InstancesSetImpl(instances, subset, recover_info);
+}
+
+InstancesSet::~InstancesSet() { delete impl_; }
+
+const std::vector<Instance*>& InstancesSet::GetInstances() const { return impl_->instances_; }
+
+const std::map<std::string, std::string>& InstancesSet::GetSubset() const { return impl_->subset_; }
+
+const std::string& InstancesSet::GetRecoverInfo() const { return impl_->recover_info_; }
+
+void InstancesSet::SetSelector(Selector* selector) { impl_->selector_.Reset(selector); }
+
+Selector* InstancesSet::GetSelector() { return impl_->selector_.Get(); }
+
+void InstancesSet::AcquireSelectorCreationLock() { impl_->selector_creation_mutex_.Lock(); }
+
+void InstancesSet::ReleaseSelectorCreationLock() { impl_->selector_creation_mutex_.Unlock(); }
+
+InstancesSetImpl* InstancesSet::GetInstancesSetImpl() { return impl_; }
+
+///////////////////////////////////////////////////////////////////////////////
 const char* DataTypeToStr(ServiceDataType data_type) {
   switch (data_type) {
     case kServiceDataInstances:

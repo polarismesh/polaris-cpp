@@ -113,13 +113,12 @@ PluginManager::PluginManager() {
   RegisterPlugin(kPluginDefaultStatReporter, kPluginStatReporter, MonitorStatReporterFactory);
   RegisterPlugin(kPluginDefaultAlertReporter, kPluginAlertReporter, LogAlertReporterFactory);
 
-  RegisterPlugin(kPluginDefaultLoadBalancer, kPluginLoadBalancer, RandomLoadBalancerFactory);
-  RegisterPlugin(kPluginRingHashLoadBalancer, kPluginLoadBalancer, RingHashLoadBalancerFactory);
-  RegisterPlugin(kPluginMaglevLoadBalancer, kPluginLoadBalancer, MaglevLoadBalancerFactory);
-  RegisterPlugin(kPluginL5CstHashLoadBalancer, kPluginLoadBalancer, L5CstHashLoadBalancerFactory);
-  RegisterPlugin(kPluginSimpleHashLoadBalancer, kPluginLoadBalancer, SimpleHashLoadBalancerFactory);
-  RegisterPlugin(kPluginCMurmurHashLoadBalancer, kPluginLoadBalancer,
-                 CMurmurHashLoadBalancerFactory);
+  RegisterPlugin(kLoadBalanceTypeWeightedRandom, kPluginLoadBalancer, RandomLoadBalancerFactory);
+  RegisterPlugin(kLoadBalanceTypeRingHash, kPluginLoadBalancer, RingHashLoadBalancerFactory);
+  RegisterPlugin(kLoadBalanceTypeMaglevHash, kPluginLoadBalancer, MaglevLoadBalancerFactory);
+  RegisterPlugin(kLoadBalanceTypeL5CstHash, kPluginLoadBalancer, L5CstHashLoadBalancerFactory);
+  RegisterPlugin(kLoadBalanceTypeSimpleHash, kPluginLoadBalancer, SimpleHashLoadBalancerFactory);
+  RegisterPlugin(kLoadBalanceTypeCMurmurHash, kPluginLoadBalancer, CMurmurHashLoadBalancerFactory);
 
   RegisterPlugin(kPluginDefaultWeightAdjuster, kPluginWeightAdjuster, DefaultWeightAdjusterFactory);
 
@@ -153,24 +152,6 @@ ReturnCode PluginManager::RegisterPlugin(const std::string& name, PluginType plu
     return kReturnPluginError;
   }
   plugin_factory_map_[name_with_type] = plugin_factory;
-  if (plugin_type == kPluginLoadBalancer) {
-    Plugin* plugin              = plugin_factory();
-    LoadBalancer* load_balancer = dynamic_cast<LoadBalancer*>(plugin);
-    if (load_balancer == NULL) {
-      POLARIS_LOG(LOG_ERROR, "register plugin type %s with name %s cannot create load balancer",
-                  PluginTypeToString(plugin_type), name.c_str());
-      delete plugin;
-      return kReturnPluginError;
-    }
-    LoadBalanceType load_balancer_type = load_balancer->GetLoadBalanceType();
-    delete load_balancer;
-    if (lb_plugin_factor_map_.count(load_balancer_type) > 0) {
-      POLARIS_LOG(LOG_WARN, "load balancer type %d already register with name %s, skip it",
-                  load_balancer_type, name.c_str());
-    } else {
-      lb_plugin_factor_map_[load_balancer_type] = plugin_factory;
-    }
-  }
   return kReturnOk;
 }
 
@@ -182,22 +163,6 @@ ReturnCode PluginManager::GetPlugin(const std::string& name, PluginType plugin_t
   if (it == plugin_factory_map_.end()) {
     POLARIS_LOG(LOG_ERROR, "get plugin error: plugin type %s with name %s not exist",
                 PluginTypeToString(plugin_type), name.c_str());
-    lock_.Unlock();
-    return kReturnPluginError;
-  }
-  PluginFactory plugin_factory = it->second;
-  lock_.Unlock();
-  plugin = plugin_factory();
-  return kReturnOk;
-}
-
-ReturnCode PluginManager::GetLoadBalancePlugin(LoadBalanceType load_balace_type, Plugin*& plugin) {
-  lock_.Lock();
-  std::map<LoadBalanceType, PluginFactory>::iterator it =
-      lb_plugin_factor_map_.find(load_balace_type);
-  if (it == lb_plugin_factor_map_.end()) {
-    POLARIS_LOG(LOG_ERROR, "get load balancer plugin error: plugin type %d not exist",
-                load_balace_type);
     lock_.Unlock();
     return kReturnPluginError;
   }

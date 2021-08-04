@@ -106,14 +106,16 @@ ReturnCode CanaryServiceRouter::DoRoute(RouteInfo& route_info, RouteResult* rout
     subset["canary"] = cache_key.canary_value_;
     if (recover_all) {
       cache_value->current_data_ = new InstancesSet(result, subset, cache_key.canary_value_);
-      if (!prior_result->recover_all_ && prior_result->recover_all_.Cas(false, true)) {
+      if (!prior_result->GetInstancesSetImpl()->recover_all_ &&
+          prior_result->GetInstancesSetImpl()->recover_all_.Cas(false, true)) {
         context_impl->GetServiceRecord()->InstanceRecoverAll(
             service_key,
             new RecoverAllRecord(Time::GetCurrentTimeMs(), cache_key.canary_value_, true));
       }
     } else {
       cache_value->current_data_ = new InstancesSet(result, subset);
-      if (prior_result->recover_all_ && prior_result->recover_all_.Cas(true, false)) {
+      if (prior_result->GetInstancesSetImpl()->recover_all_ &&
+          prior_result->GetInstancesSetImpl()->recover_all_.Cas(true, false)) {
         context_impl->GetServiceRecord()->InstanceRecoverAll(
             service_key,
             new RecoverAllRecord(Time::GetCurrentTimeMs(), cache_key.canary_value_, false));
@@ -121,7 +123,7 @@ ReturnCode CanaryServiceRouter::DoRoute(RouteInfo& route_info, RouteResult* rout
     }
     router_cache_->PutWithRef(cache_key, cache_value);
   }
-  cache_value->current_data_->count_++;
+  cache_value->current_data_->GetInstancesSetImpl()->count_++;
   service_instances->UpdateAvailableInstances(cache_value->current_data_);
   cache_value->DecrementRef();
   route_result->SetServiceInstances(service_instances);

@@ -111,45 +111,30 @@ public:
   virtual int Select(const Criteria& criteria) = 0;
 };
 
-// 实例分组，用于记录路由计算的结果
-class InstancesSet : public ServiceBase {
+class InstancesSetImpl {
 public:
-  explicit InstancesSet(const std::vector<Instance*>& instances) : instances_(instances) {}
+  explicit InstancesSetImpl(const std::vector<Instance*>& instances) : instances_(instances) {}
 
-  InstancesSet(const std::vector<Instance*>& instances,
-               const std::map<std::string, std::string>& subset)
+  InstancesSetImpl(const std::vector<Instance*>& instances,
+                   const std::map<std::string, std::string>& subset)
       : instances_(instances), subset_(subset) {}
 
-  InstancesSet(const std::vector<Instance*>& instances,
-               const std::map<std::string, std::string>& subset, const std::string& recover_info)
+  InstancesSetImpl(const std::vector<Instance*>& instances,
+                   const std::map<std::string, std::string>& subset,
+                   const std::string& recover_info)
       : instances_(instances), subset_(subset), recover_info_(recover_info) {}
 
-  virtual ~InstancesSet() {}
-
-  const std::vector<Instance*>& GetInstances() const { return instances_; }
-
-  const std::map<std::string, std::string>& GetSubset() const { return subset_; }
-
-  const std::string& GetRecoverInfo() const { return recover_info_; }
-
-  void SetSelector(Selector* selector) { selector_.Reset(selector); }
-
-  Selector* GetSelector() { return selector_.Get(); }
-
-  void AcquireSelectorCreationLock() { selector_creation_mutex_.Lock(); }
-
-  void ReleaseSelectorCreationLock() { selector_creation_mutex_.Unlock(); }
+public:
+  sync::Atomic<bool> recover_all_;  // 用来标记这个集合计算的下一个路由是否发生了全死全活
+  sync::Atomic<int> count_;  // 记录这个Set被访问的次数
 
 private:
+  friend class InstancesSet;
   std::vector<Instance*> instances_;
   std::map<std::string, std::string> subset_;  // 所属的subset
   std::string recover_info_;
   ScopedPtr<Selector> selector_;
   sync::Mutex selector_creation_mutex_;
-
-public:
-  sync::Atomic<bool> recover_all_;  // 用来标记这个集合计算的下一个路由是否发生了全死全活
-  sync::Atomic<int> count_;  // 记录这个Set被访问的次数
 };
 
 struct RouterStatData {

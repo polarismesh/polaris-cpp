@@ -59,7 +59,7 @@ public:
       new_set.push_back(old_set[i]);
     }
     InstancesSet *new_instances_set = new InstancesSet(new_set);
-    new_instances_set->count_++;
+    new_instances_set->GetInstancesSetImpl()->count_++;
     service_instances->UpdateAvailableInstances(new_instances_set);
     new_instances_set->DecrementRef();
     result->SetServiceInstances(service_instances);

@@ -252,7 +252,7 @@ ReturnCode SetDivisionServiceRouter::DoRoute(RouteInfo& route_info, RouteResult*
   route_info.SetRouterFlag(GetIncompatibleServiceRouter(), false);
 
   // 更新route_result
-  cache_value->current_data_->count_++;
+  cache_value->current_data_->GetInstancesSetImpl()->count_++;
   service_instances->UpdateAvailableInstances(cache_value->current_data_);
   cache_value->DecrementRef();
   route_result->SetServiceInstances(service_instances);

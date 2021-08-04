@@ -60,7 +60,7 @@ private:
   Context* context_;
   ServiceRouterChain* service_router_chain_;
   LoadBalancer* load_balancer_;
-  LoadBalancer* lb_table_[kLoadBalanceTypeDefaultConfig];
+  RcuMap<LoadBalanceType, LoadBalancer> lb_map_;
   WeightAdjuster* weight_adjuster_;
   CircuitBreakerChain* circuit_breaker_chain_;
   HealthCheckerChain* health_checker_chain_;

@@ -137,6 +137,41 @@ private:
   ServiceBaseImpl* impl_;
 };
 
+/// @brief 实例分组，用于记录路由计算的结果
+class Selector;
+class InstancesSetImpl;
+class InstancesSet : public ServiceBase {
+public:
+  explicit InstancesSet(const std::vector<Instance*>& instances);
+
+  InstancesSet(const std::vector<Instance*>& instances,
+               const std::map<std::string, std::string>& subset);
+
+  InstancesSet(const std::vector<Instance*>& instances,
+               const std::map<std::string, std::string>& subset, const std::string& recover_info);
+
+  virtual ~InstancesSet();
+
+  const std::vector<Instance*>& GetInstances() const;
+
+  const std::map<std::string, std::string>& GetSubset() const;
+
+  const std::string& GetRecoverInfo() const;
+
+  void SetSelector(Selector* selector);
+
+  Selector* GetSelector();
+
+  void AcquireSelectorCreationLock();
+
+  void ReleaseSelectorCreationLock();
+
+  InstancesSetImpl* GetInstancesSetImpl();
+
+private:
+  InstancesSetImpl* impl_;
+};
+
 class Service;
 class ServiceDataImpl;
 

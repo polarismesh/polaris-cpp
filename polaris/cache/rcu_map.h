@@ -39,6 +39,11 @@ void ValueDecrementRef(Value* value) {
   value->DecrementRef();
 }
 
+template <typename Value>
+void ValueDelete(Value* value) {
+  delete value;
+}
+
 /// @brief 双缓冲少写多读Map
 ///
 /// 两个map，read map提供无锁读，dirty map加锁写
@@ -79,6 +84,10 @@ public:
   /// 如果key对应的value已存在，则将旧的value加入待释放列表，内部线程会延迟一定时间释放
   /// 如果传入的value为NULL，则效果等同于调用Delete方法删除key
   void Update(const Key& key, Value* value);
+
+  /// @brief 添加新的Key,Value
+  /// 如果key对应的value已存在，返回false
+  Value* PutIfAbsent(const Key& key, Value* value);
 
   /// @brief 删除指定key，并将value加入待释放列表
   void Delete(const Key& key);
@@ -237,6 +246,22 @@ void RcuMap<Key, Value>::Update(const Key& key, Value* value) {
     }
     (*dirty_map_)[key] = new_value;
   }
+}
+
+template <typename Key, typename Value>
+Value* RcuMap<Key, Value>::PutIfAbsent(const Key& key, Value* value) {
+  // 加锁将数据写入dirty map。
+  sync::MutexGuard mutex_guard(dirty_lock_);
+  typename InnerMap::iterator it = dirty_map_->find(key);
+  if (it != dirty_map_->end()) {
+    return it->second->value_;
+  }
+
+  MapValue* new_value   = new MapValue();
+  new_value->used_time_ = Time::GetCurrentTimeMs();  // 插入操作设置时间
+  new_value->value_     = value;
+  (*dirty_map_)[key]    = new_value;
+  return NULL;
 }
 
 template <typename Key, typename Value>
