@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package v1;
+
+enum RetCode {
+    BaseCodeForProto3       = 0;
+    ExecuteSuccess          = 200000;  // 执行成功
+    ExecuteContinue         = 200100;  // 接口调用成功
+    DataNoChange            = 200001;  // 数据没有改变
+    EmptyRequest            = 400002;  // 注册、反注册、心跳、服务发现 请求为空
+    InvalidDiscoverResource = 400004;  // 服务发现 资源类型错误
+    InvalidNamespaceName    = 400110;  // 注册、反注册、心跳、服务路由发现 请求命名空间不合法
+    InvalidServiceName      = 400120;  // 注册、反注册、心跳、服务发现 请求服务名不合法
+    InvalidServiceToken     = 400122;  // 注册、反注册、心跳 请求token无效
+    InvalidInstanceID       = 400130;  // 反注册、心跳 请求实例ID不存在
+    InvalidInstanceHost     = 400131;  // 注册、反注册、心跳 请求host不合法
+    InvalidInstancePort     = 400132;  // 注册、反注册、心跳 请求port不合法
+    HealthCheckNotOpen      = 400140;  // 心跳 请求服务端不支持心跳请求
+    HeartbeatOnDisabledIns  = 400141;  // 心跳 请求实例未开启心跳检查
+    HeartbeatExceedLimit    = 400142;  // 心跳 请求频率太高
+    HeartbeatException      = 400143;  // 心跳 执行失败
+    ExistedResource         = 400201;  // 注册 请求的实例已存在
+    NotFoundResource        = 400202;  // 注册请求、服务发现 请求服务不存在，反注册、心跳 请求实例或实例对应的服务不存在
+    NotFoundService         = 400301;
+    NotFoundRouting         = 400302;
+    NotFoundInstance        = 400303;
+    NotFoundServiceAlias    = 400304;
+    NotFoundNamespace       = 400305;
+    NotFoundSourceService   = 400306;
+    CMDBNotFindHost         = 404001;  // 客户端上报 CMDB中未找到Host
+    Unauthorized            = 401000;  // 注册、反注册、心跳 请求token鉴权失败
+    ExecuteException        = 500000;  // 注册、反注册、心跳 请求计算实例ID失败，服务发现生成应答包失败
+    StoreLayerException     = 500001;  // 注册、反注册 请求操作存储层失败
+    CMDBPluginException     = 500002;  // 客户端上报 执行CMDB插件失败
+}

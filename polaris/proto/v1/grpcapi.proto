@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package v1;
+
+import "v1/client.proto";
+import "v1/service.proto";
+import "v1/request.proto";
+import "v1/response.proto";
+import "v1/ratelimit.proto";
+import "v1/metric.proto";
+
+service PolarisGRPC {
+	// 客户端上报
+	rpc ReportClient(Client) returns(Response) {}
+
+	// 被调方注册服务实例
+	rpc RegisterInstance(Instance) returns(Response) {}
+	// 被调方反注册服务实例
+	rpc DeregisterInstance(Instance) returns(Response) {}
+
+	// 统一发现接口
+	rpc Discover(stream DiscoverRequest) returns(stream DiscoverResponse) {}
+
+	// 被调方上报心跳
+	rpc Heartbeat(Instance) returns(Response) {}
+}
+
+service GrpcAPI {
+	rpc CollectSDKAPIStatistics(stream SDKAPIStatistics) returns(stream StatResponse) {}
+
+	rpc CollectServiceStatistics(stream ServiceStatistics) returns(stream StatResponse) {}
+
+	rpc CollectSDKConfiguration(SDKConfig) returns(StatResponse) {}
+
+	rpc CollectSDKCache(stream ServiceInfo) returns(stream StatResponse) {}
+
+	rpc CollectCircuitBreak(stream ServiceCircuitbreak) returns(stream StatResponse) {}
+}
+
+service RateLimitGRPC {
+	// 限流KEY初始化
+	rpc InitializeQuota(RateLimitRequest) returns(RateLimitResponse) {}
+	// 获取限流配额
+	rpc AcquireQuota(stream RateLimitRequest) returns(stream RateLimitResponse) {}
+}
+
+// 统计接口
+service MetricGRPC {
+	// 初始化统计周期
+	rpc Init(MetricInitRequest) returns(MetricResponse) {}
+	// 查询汇总统计数据
+	rpc Query(stream MetricQueryRequest) returns(stream MetricResponse) {}
+	// 上报统计数据，并返回上报状态（成功or失败）
+	rpc Report(stream MetricRequest) returns(stream MetricResponse) {}
+}

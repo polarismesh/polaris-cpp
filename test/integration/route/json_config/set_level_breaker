@@ -1,0 +1,52 @@
+{
+    "name": "cb3",
+    "namespace":"Test",
+    "service_namespace":"Test",
+    "inbounds": [
+     {
+      "sources": [
+       {
+        "service": "*",
+        "namespace": "Test"
+       }
+      ],
+      "destinations": [
+       {
+        "service": "*",
+        "namespace": "Test",
+        "metadata": {
+         "set": {
+          "type": "REGEX",
+          "value": ".*"
+         }
+        },
+        "scope": "ALL",
+        "metricWindow": "10s",
+        "metricPrecision": 30,
+        "updateInterval": "1s",
+        "recover": {
+         "sleepWindow": "20s",
+         "maxRetryAfterHalfOpen": 100,
+         "requestRateAfterHalfOpen": [
+          20,
+          40
+         ],
+         "successRateToClose": 90
+        },
+        "policy": {
+         "errorRate": {
+          "enable": true,
+          "requestVolumeThreshold": 50,
+          "errorRateToPreserved": 10,
+          "errorRateToOpen": 40
+         }
+        }
+       }
+      ]
+     }
+    ],
+    "owners": "bilinhe",
+    "comment": "",
+    "business": "",
+    "department": ""
+   }
