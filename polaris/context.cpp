@@ -174,10 +174,9 @@ ReturnCode ServiceContextImpl::Init(const ServiceKey& service_key, Config* confi
   }
 
   // 初始化探活插件
-  plugin_config = config->GetSubConfig("healthCheck");
-  health_checker_chain_ =
-      new HealthCheckerChainImpl(service_key, context->GetLocalRegistry(), circuit_breaker_chain_);
-  ret = health_checker_chain_->Init(plugin_config, context);
+  plugin_config         = config->GetSubConfig("healthCheck");
+  health_checker_chain_ = new HealthCheckerChainImpl(service_key, context->GetLocalRegistry());
+  ret                   = health_checker_chain_->Init(plugin_config, context);
   delete plugin_config;
   if (ret != kReturnOk) {
     return ret;

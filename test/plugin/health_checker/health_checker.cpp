@@ -73,9 +73,8 @@ protected:
     service_key_.name_      = "test_service_name";
     local_registry_         = new MockLocalRegistry();
     circuit_breaker_chain_  = new FakeCircuitBreakerChain();
-    health_checker_chain_ = new HealthCheckerChainImpl(
-        service_key_, local_registry_, static_cast<CircuitBreakerChain *>(circuit_breaker_chain_));
-    ReturnCode ret = health_checker_chain_->Init(default_config_, NULL);
+    health_checker_chain_   = new HealthCheckerChainImpl(service_key_, local_registry_);
+    ReturnCode ret          = health_checker_chain_->Init(default_config_, NULL);
     ASSERT_EQ(ret, kReturnOk);
   }
 

@@ -143,7 +143,7 @@ public:
 
   virtual ReturnCode Init(Config* config, Context* context) = 0;
 
-  virtual ReturnCode DetectInstance() = 0;
+  virtual ReturnCode DetectInstance(CircuitBreakerChain& circuit_breaker_chain) = 0;
 
   virtual std::vector<HealthChecker*> GetHealthCheckers() = 0;
 };
