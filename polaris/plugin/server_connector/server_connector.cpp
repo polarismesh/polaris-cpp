@@ -38,6 +38,7 @@
 #include "polaris/context.h"
 #include "polaris/log.h"
 #include "polaris/polaris.h"
+#include "provider/request.h"
 #include "sync/future.h"
 #include "utils/time_clock.h"
 
@@ -671,47 +672,7 @@ ReturnCode GrpcServerConnector::RegisterInstance(const InstanceRegisterRequest& 
   }
 
   // 设置服务信息
-  v1::Instance* instance = new v1::Instance();
-  InstanceRegisterRequestAccessor request(req);
-  instance->mutable_service_token()->set_value(request.GetServiceToken());
-  instance->mutable_namespace_()->set_value(request.GetServiceNamespace());
-  instance->mutable_service()->set_value(request.GetServiceName());
-
-  // 设置实例信息  注册不设置 id 和 health status
-  instance->mutable_host()->set_value(request.GetHost());
-  instance->mutable_port()->set_value(static_cast<uint32_t>(request.GetPort()));
-  if (request.HasVpcId()) {
-    instance->mutable_vpc_id()->set_value(request.GetVpcId());
-  }
-  if (request.HasProtocol()) {
-    instance->mutable_protocol()->set_value(request.GetProtocol());
-  }
-  if (request.HasVersion()) {
-    instance->mutable_version()->set_value(request.GetVersion());
-  }
-  if (request.HasPriority()) {
-    instance->mutable_priority()->set_value(static_cast<uint32_t>(request.GetPriority()));
-  }
-  if (request.HasWeight()) {
-    instance->mutable_weight()->set_value(static_cast<uint32_t>(request.GetWeight()));
-  }
-  // 设置实例metadata
-  if (request.HasMetadata()) {
-    const std::map<std::string, std::string>& metadata_value      = request.GetMetadata();
-    google::protobuf::Map<std::string, std::string>* req_metadata = instance->mutable_metadata();
-    std::map<std::string, std::string>::const_iterator it;
-    for (it = metadata_value.begin(); it != metadata_value.end(); it++) {
-      (*req_metadata)[it->first] = it->second;
-    }
-  }
-
-  // 设置健康检查信息
-  if (request.HasHealthCheckFlag() && request.GetHealthCheckFlag()) {
-    ::v1::HealthCheck* health_check = instance->mutable_health_check();
-    health_check->set_type(::v1::HealthCheck_HealthCheckType_HEARTBEAT);
-    ::v1::HeartbeatHealthCheck* heartbeat = health_check->mutable_heartbeat();
-    heartbeat->mutable_ttl()->set_value(request.GetTtl());
-  }
+  v1::Instance* instance = req.GetImpl().ToPb();
 
   // 序列化并提交请求，获取应答future等待，request交给超时检查任务释放
   Future<v1::Response>* future = block_request->SendRequest(instance);
@@ -746,20 +707,7 @@ ReturnCode GrpcServerConnector::DeregisterInstance(const InstanceDeregisterReque
     return kReturnNetworkFailed;
   }
 
-  v1::Instance* instance = new v1::Instance();
-  InstanceDeregisterRequestAccessor request(req);
-  instance->mutable_service_token()->set_value(request.GetServiceToken());
-  if (request.HasInstanceId()) {
-    instance->mutable_id()->set_value(request.GetInstanceId());
-  } else {
-    instance->mutable_namespace_()->set_value(request.GetServiceNamespace());
-    instance->mutable_service()->set_value(request.GetServiceName());
-    instance->mutable_host()->set_value(request.GetHost());
-    instance->mutable_port()->set_value(request.GetPort());
-    if (request.HasVpcId()) {
-      instance->mutable_vpc_id()->set_value(request.GetVpcId());
-    }
-  }
+  v1::Instance* instance = req.GetImpl().ToPb();
 
   Future<v1::Response>* future = block_request->SendRequest(instance);
   if (!future->Wait(block_request->GetTimeout()) || !future->IsReady()) {
@@ -780,7 +728,6 @@ ReturnCode GrpcServerConnector::DeregisterInstance(const InstanceDeregisterReque
 
 ReturnCode GrpcServerConnector::InstanceHeartbeat(const InstanceHeartbeatRequest& req,
                                                   uint64_t timeout_ms) {
-  InstanceHeartbeatRequestAccessor request(req);
   if (timeout_ms == 0) {
     return kReturnInvalidArgument;
   }
@@ -790,19 +737,7 @@ ReturnCode GrpcServerConnector::InstanceHeartbeat(const InstanceHeartbeatRequest
     return kReturnNetworkFailed;
   }
 
-  v1::Instance* instance = new v1::Instance();
-  instance->mutable_service_token()->set_value(request.GetServiceToken());
-  if (!request.HasInstanceId()) {
-    instance->mutable_namespace_()->set_value(request.GetServiceNamespace());
-    instance->mutable_service()->set_value(request.GetServiceName());
-    instance->mutable_host()->set_value(request.GetHost());
-    instance->mutable_port()->set_value(request.GetPort());
-    if (request.HasVpcId()) {
-      instance->mutable_vpc_id()->set_value(request.GetVpcId());
-    }
-  } else {
-    instance->mutable_id()->set_value(request.GetInstanceId());
-  }
+  v1::Instance* instance = req.GetImpl().ToPb();
 
   Future<v1::Response>* future = block_request->SendRequest(instance);
   if (!future->Wait(block_request->GetTimeout()) || !future->IsReady()) {

@@ -17,13 +17,10 @@
 #include <map>
 #include <string>
 
-#include "polaris/context.h"
 #include "polaris/defs.h"
 #include "polaris/noncopyable.h"
 
 namespace polaris {
-
-class InstanceRegisterRequestImpl;
 
 /// @brief 服务实例注册请求
 ///
@@ -45,47 +42,42 @@ public:
   /// @brief 析构服务实例注册请求对象
   ~InstanceRegisterRequest();
 
-  /// @brief 设置请求流水号。可选，默认随机流水号
-  ///
-  /// @param flow_id 用于跟踪请求的流水号
-  void SetFlowId(uint64_t flow_id);
-
-  /// @brief 设置请求超时时间。可选，默认为全局配置的API超时时间
+  /// @brief 设置请求超时时间。可选，默认为SDK配置的API超时时间
   ///
   /// @param timeout 设置请求超时时间，可选，单位ms
   void SetTimeout(uint64_t timeout);
 
-  /// @brief 设置服务实例的VPC ID
+  /// @brief 设置服务实例的VPC ID。可选，默认为空
   ///
   /// @param vpc_id 服务实例的host:port所在vpc id
   void SetVpcId(const std::string& vpc_id);
 
-  /// @brief 设置服务实例协议。可选，不填默认为空
+  /// @brief 设置服务实例协议。可选，默认为空
   ///
   /// @param protocol 服务实例协议
   void SetProtocol(const std::string& protocol);
 
-  /// @brief 设置服务实例权重。可选，不设默认为100
+  /// @brief 设置服务实例权重。可选，默认为100
   ///
   /// @param weight 服务实例权重
   void SetWeight(int weight);
 
-  /// @brief 设置服务实例优先级。可选，不设置默认为0
+  /// @brief 设置服务实例优先级。可选，置默认为0
   ///
   /// @param priority 服务实例优先级
   void SetPriority(int priority);
 
-  /// @brief 设置服务实例版本信息。可选，不设置默认为空
+  /// @brief 设置服务实例版本信息。可选，默认为空
   ///
   /// @param version 服务实例版本
   void SetVersion(const std::string& version);
 
-  /// @brief 设置服务实例的metada数据
+  /// @brief 设置服务实例的metada数据。可选，默认为空
   ///
   /// @param metadata 服务实例metadata
   void SetMetadata(const std::map<std::string, std::string>& metadata);
 
-  /// @brief 设置服务实例是否开启健康检查。可选。默认不开启
+  /// @brief 设置服务实例是否开启健康检查。可选，默认不开启
   ///
   /// @param health_check_flag
   void SetHealthCheckFlag(bool health_check_flag);
@@ -102,12 +94,17 @@ public:
   /// @param ttl 心跳检查ttl
   void SetTtl(int ttl);
 
-private:
-  friend class InstanceRegisterRequestAccessor;
-  InstanceRegisterRequestImpl* impl;
-};
+  /// @brief 设置请求流水号。可选，默认随机流水号
+  ///
+  /// @param flow_id 用于跟踪请求的流水号
+  void SetFlowId(uint64_t flow_id);
 
-class InstanceDeregisterRequestImpl;
+  class Impl;
+  Impl& GetImpl() const;
+
+private:
+  Impl* impl_;
+};
 
 /// @brief 服务实例反注册请求
 class InstanceDeregisterRequest : Noncopyable {
@@ -132,6 +129,11 @@ public:
   /// @brief 析构服务实例反注册请求对象
   ~InstanceDeregisterRequest();
 
+  /// @brief 设置请求超时时间。可选，默认为全局配置的API超时时间
+  ///
+  /// @param timeout 设置请求超时时间，可选，单位ms
+  void SetTimeout(uint64_t timeout);
+
   /// @brief 设置服务实例的VPC ID
   ///
   /// @param vpc_id 服务实例的host:port所在vpc id
@@ -142,17 +144,12 @@ public:
   /// @param flow_id 用于跟踪请求的流水号
   void SetFlowId(uint64_t flow_id);
 
-  /// @brief 设置请求超时时间。可选，默认为全局配置的API超时时间
-  ///
-  /// @param timeout 设置请求超时时间，可选，单位ms
-  void SetTimeout(uint64_t timeout);
+  class Impl;
+  Impl& GetImpl() const;
 
 private:
-  friend class InstanceDeregisterRequestAccessor;
-  InstanceDeregisterRequestImpl* impl;
+  Impl* impl_;
 };
-
-class InstanceHeartbeatRequestImpl;
 
 /// @brief 服务实例心跳上报请求
 class InstanceHeartbeatRequest : Noncopyable {
@@ -192,19 +189,22 @@ public:
   /// @param timeout 设置请求超时时间，可选，单位ms
   void SetTimeout(uint64_t timeout);
 
+  class Impl;
+  Impl& GetImpl() const;
+
 private:
-  friend class InstanceHeartbeatRequestAccessor;
-  InstanceHeartbeatRequestImpl* impl;
+  Impl* impl_;
 };
 
-class ProviderApiImpl;
+// forward declaration
+class Context;
+class Config;
 
-/// @brief POLARIS服务端API的主接口
+/// @brief Provider API 被调服务实例用于注册、反注册、心跳上报
 ///
-/// 提供服务端需要的注册、反注册和心跳上报功能。服务启动后先进行注册，注册成功会返回服务实例ID。
-/// 然后可使用该服务实例ID进行反注册和心跳上报
-/// @note 服务端接口必须在请求中传入服务token。服务token可在polaris OSS上查看
-/// @note 该接口线程安全
+/// 服务启动后先进行注册，注册成功会返回服务实例ID。然后可使用该服务实例ID进行反注册和心跳上报
+/// @note 服务端接口必须在请求中传入服务token。服务token可在polaris 控制台上查看
+/// @note 该接口线程安全，整个进程创建一个即可
 class ProviderApi : Noncopyable {
 public:
   ~ProviderApi();
@@ -268,9 +268,13 @@ public:
   /// @return ProviderApi* 创建失败返回NULL
   static ProviderApi* CreateWithDefaultFile();
 
+  class Impl;
+  Impl& GetImpl() const;
+
 private:
-  explicit ProviderApi(ProviderApiImpl* impl);
-  ProviderApiImpl* impl_;
+  explicit ProviderApi(Impl* impl);
+
+  Impl* impl_;
 };
 
 }  // namespace polaris

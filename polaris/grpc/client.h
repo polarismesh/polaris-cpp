@@ -24,18 +24,14 @@
 #include <string>
 #include <vector>
 
+#include <google/protobuf/message.h>
+
 #include "grpc/buffer.h"
 #include "grpc/codec.h"
 #include "grpc/http2.h"
 #include "grpc/status.h"
 #include "polaris/defs.h"
 #include "utils/scoped_ptr.h"
-
-namespace google {
-namespace protobuf {
-class Message;
-}
-}  // namespace google
 
 namespace polaris {
 

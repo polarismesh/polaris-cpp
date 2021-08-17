@@ -24,6 +24,7 @@
 #include "polaris/consumer.h"
 #include "polaris/defs.h"
 #include "polaris/log.h"
+#include "provider/request.h"
 #include "test_utils.h"
 #include "utils/file_utils.h"
 
@@ -255,31 +256,31 @@ TEST_F(PolarisApiReqTest, UpdateCallResult) {
 TEST_F(PolarisApiReqTest, RegisterInstance) {
   polaris_register_instance_req* register_req =
       polaris_register_instance_req_new("Test", "c.api.cpp.test", "token", "127.0.0.1", 80);
-  polaris::InstanceRegisterRequestAccessor accessor(*register_req->request_);
-  ASSERT_EQ(accessor.GetServiceNamespace(), "Test");
-  ASSERT_EQ(accessor.GetServiceName(), "c.api.cpp.test");
-  ASSERT_EQ(accessor.GetServiceToken(), "token");
-  ASSERT_EQ(accessor.GetHost(), "127.0.0.1");
-  ASSERT_EQ(accessor.GetPort(), 80);
   polaris_register_instance_req_set_vpc_id(register_req, "vpc1");
-  ASSERT_EQ(accessor.GetVpcId(), "vpc1");
   polaris_register_instance_req_set_protocol(register_req, "tcp");
-  ASSERT_EQ(accessor.GetProtocol(), "tcp");
   polaris_register_instance_req_set_weight(register_req, 50);
-  ASSERT_EQ(accessor.GetWeight(), 50);
   polaris_register_instance_req_set_priority(register_req, 1);
-  ASSERT_EQ(accessor.GetPriority(), 1);
   polaris_register_instance_req_set_version(register_req, "v1");
-  ASSERT_EQ(accessor.GetVersion(), "v1");
   polaris_register_instance_req_add_metadata(register_req, "key1", "value1");
-  ASSERT_EQ(accessor.GetMetadata().size(), 1);
   polaris_register_instance_req_set_health_check_flag(register_req, true);
-  ASSERT_EQ(accessor.GetHealthCheckFlag(), true);
-  ASSERT_EQ(accessor.GetHealthCheckType(), polaris::kHeartbeatHealthCheck);
   polaris_register_instance_req_set_health_check_ttl(register_req, 8);
-  ASSERT_EQ(accessor.GetTtl(), 8);
+  v1::Instance* instance = register_req->request_->GetImpl().ToPb();
+  ASSERT_EQ(instance->namespace_().value(), "Test");
+  ASSERT_EQ(instance->service().value(), "c.api.cpp.test");
+  ASSERT_EQ(instance->service_token().value(), "token");
+  ASSERT_EQ(instance->host().value(), "127.0.0.1");
+  ASSERT_EQ(instance->port().value(), 80);
+  ASSERT_EQ(instance->vpc_id().value(), "vpc1");
+  ASSERT_EQ(instance->protocol().value(), "tcp");
+  ASSERT_EQ(instance->weight().value(), 50);
+  ASSERT_EQ(instance->priority().value(), 1);
+  ASSERT_EQ(instance->version().value(), "v1");
+  ASSERT_EQ(instance->metadata_size(), 1);
+  ASSERT_EQ(instance->health_check().type(), v1::HealthCheck::HEARTBEAT);
+  ASSERT_EQ(instance->health_check().heartbeat().ttl().value(), 8);
   polaris_register_instance_req_set_timeout(register_req, 20);
-  ASSERT_EQ(accessor.GetTimeout(), 20);
+  ASSERT_EQ(register_req->request_->GetImpl().GetTimeout(), 20);
+  delete instance;
 
   int ret = polaris_api_register_instance(api_, register_req);
   ASSERT_EQ(ret, kReturnNetworkFailed);
@@ -289,16 +290,17 @@ TEST_F(PolarisApiReqTest, RegisterInstance) {
 TEST_F(PolarisApiReqTest, DeregisterInstance) {
   polaris_deregister_instance_req* deregister_req =
       polaris_deregister_instance_req_new("Test", "c.api.cpp.test", "token", "127.0.0.1", 80);
-  polaris::InstanceDeregisterRequestAccessor accessor(*deregister_req->request_);
-  ASSERT_EQ(accessor.GetServiceNamespace(), "Test");
-  ASSERT_EQ(accessor.GetServiceName(), "c.api.cpp.test");
-  ASSERT_EQ(accessor.GetServiceToken(), "token");
-  ASSERT_EQ(accessor.GetHost(), "127.0.0.1");
-  ASSERT_EQ(accessor.GetPort(), 80);
   polaris_deregister_instance_req_set_vpc_id(deregister_req, "vpc1");
   polaris_deregister_instance_req_set_timeout(deregister_req, 20);
-  ASSERT_EQ(accessor.GetVpcId(), "vpc1");
-  ASSERT_EQ(accessor.GetTimeout(), 20);
+  v1::Instance* instance = deregister_req->request_->GetImpl().ToPb();
+  ASSERT_EQ(instance->namespace_().value(), "Test");
+  ASSERT_EQ(instance->service().value(), "c.api.cpp.test");
+  ASSERT_EQ(instance->service_token().value(), "token");
+  ASSERT_EQ(instance->host().value(), "127.0.0.1");
+  ASSERT_EQ(instance->port().value(), 80);
+  ASSERT_EQ(instance->vpc_id().value(), "vpc1");
+  ASSERT_EQ(deregister_req->request_->GetImpl().GetTimeout(), 20);
+  delete instance;
 
   int ret = polaris_api_deregister_instance(api_, deregister_req);
   ASSERT_EQ(ret, kReturnNetworkFailed);
@@ -308,16 +310,18 @@ TEST_F(PolarisApiReqTest, DeregisterInstance) {
 TEST_F(PolarisApiReqTest, InstanceHeartbeat) {
   polaris_instance_heartbeat_req* heartbeat_req =
       polaris_instance_heartbeat_req_new("Test", "c.api.cpp.test", "token", "127.0.0.1", 80);
-  polaris::InstanceHeartbeatRequestAccessor accessor(*heartbeat_req->request_);
-  ASSERT_EQ(accessor.GetServiceNamespace(), "Test");
-  ASSERT_EQ(accessor.GetServiceName(), "c.api.cpp.test");
-  ASSERT_EQ(accessor.GetServiceToken(), "token");
-  ASSERT_EQ(accessor.GetHost(), "127.0.0.1");
-  ASSERT_EQ(accessor.GetPort(), 80);
   polaris_instance_heartbeat_req_set_vpc_id(heartbeat_req, "vpc1");
   polaris_instance_heartbeat_req_set_timeout(heartbeat_req, 20);
-  ASSERT_EQ(accessor.GetVpcId(), "vpc1");
-  ASSERT_EQ(accessor.GetTimeout(), 20);
+
+  v1::Instance* instance = heartbeat_req->request_->GetImpl().ToPb();
+  ASSERT_EQ(instance->namespace_().value(), "Test");
+  ASSERT_EQ(instance->service().value(), "c.api.cpp.test");
+  ASSERT_EQ(instance->service_token().value(), "token");
+  ASSERT_EQ(instance->host().value(), "127.0.0.1");
+  ASSERT_EQ(instance->port().value(), 80);
+  ASSERT_EQ(instance->vpc_id().value(), "vpc1");
+  ASSERT_EQ(heartbeat_req->request_->GetImpl().GetTimeout(), 20);
+  delete instance;
 
   ASSERT_EQ(polaris_api_instance_heartbeat(api_, heartbeat_req), kReturnNetworkFailed);
   polaris_instance_heartbeat_req_destroy(&heartbeat_req);
