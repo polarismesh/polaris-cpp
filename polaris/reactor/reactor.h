@@ -22,11 +22,14 @@
 
 #include "reactor/notify.h"
 #include "reactor/task.h"
+#include "sync/atomic.h"
 #include "sync/mutex.h"
 
 struct epoll_event;
 
 namespace polaris {
+
+enum ReactorStatus { kReactorInit, kReactorRun, kReactorStop };
 
 class Reactor {
 public:
@@ -66,7 +69,7 @@ private:
   int epoll_fd_;
   epoll_event* epoll_events_;
   pthread_t executor_tid_;  // 记录运行Reactor循环的线程，用于检查线程不安全方法的调用
-  volatile bool stopped_;
+  sync::Atomic<ReactorStatus> status_;
   Notifier notifier_;
   std::map<int, EventBase*> fd_holder_;  // 记录fd对应的event handler
 
