@@ -48,7 +48,7 @@ LimitApi* LimitApi::Create(Context* context, std::string& err_msg) {
     POLARIS_LOG(LOG_ERROR, "%s", err_msg.c_str());
     return NULL;
   }
-  if (context->GetContextMode() != kLimitContext) {
+  if (context->GetContextMode() != kLimitContext && context->GetContextMode() != kShareContext) {
     err_msg = "create limit api failed because context isn't init with limit mode";
     POLARIS_LOG(LOG_ERROR, "%s", err_msg.c_str());
     return NULL;

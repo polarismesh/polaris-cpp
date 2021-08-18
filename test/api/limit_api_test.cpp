@@ -67,7 +67,8 @@ TEST_F(LimitApiTest, TestCreateFromContext) {
   this->DeleteConfig();
   ASSERT_TRUE(context != NULL);
   limit_api = LimitApi::Create(context);
-  ASSERT_FALSE(limit_api != NULL);
+  ASSERT_TRUE(limit_api != NULL);
+  delete limit_api;
   delete context;
 
   this->CreateConfig();
@@ -217,7 +218,8 @@ TEST_F(LimitApiTest, TestCreateFromShareContext) {
   this->DeleteConfig();
   ASSERT_TRUE(context != NULL);
   limit_api = LimitApi::Create(context);
-  ASSERT_FALSE(limit_api != NULL);
+  ASSERT_TRUE(limit_api != NULL);
+  delete limit_api;
   delete context;
 }
 
