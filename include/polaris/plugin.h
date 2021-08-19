@@ -100,6 +100,7 @@ public:
 class InstanceRegisterRequest;
 class InstanceDeregisterRequest;
 class InstanceHeartbeatRequest;
+class ProviderCallback;
 
 /// @brief 扩展点接口：对接Server/Agent的代理，封装了网络通信逻辑
 ///
@@ -155,6 +156,15 @@ public:
   /// @return ReturnCode 调用返回码
   virtual ReturnCode InstanceHeartbeat(const InstanceHeartbeatRequest& req,
                                        uint64_t timeout_ms) = 0;
+
+  /// @brief 异步发送心跳上报请求
+  ///
+  /// @param req 心跳请求，已经被校验为合法
+  /// @param timeout_ms 超时时间(毫秒)
+  /// @param callback 请求完成时结果回调，由SDK回调完成后释放
+  /// @return ReturnCode 调用返回码
+  virtual ReturnCode AsyncInstanceHeartbeat(const InstanceHeartbeatRequest& req,
+                                            uint64_t timeout_ms, ProviderCallback* callback) = 0;
 
   /// @brief 发送Client上报请求
   /// @param host client端的ip地址

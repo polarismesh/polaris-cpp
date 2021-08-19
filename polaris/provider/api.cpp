@@ -206,4 +206,29 @@ ReturnCode ProviderApi::Heartbeat(const InstanceHeartbeatRequest& req) {
   return ret_code;
 }
 
+ReturnCode ProviderApi::AsyncHeartbeat(const InstanceHeartbeatRequest& req,
+                                       ProviderCallback* callback) {
+  ApiStat* api_stat = new ApiStat(impl_->context_, kApiStatProviderAsyncHeartbeat);
+
+  ReturnCode ret_code                  = kReturnInvalidArgument;
+  InstanceHeartbeatRequest::Impl& impl = req.GetImpl();
+  if (!impl.CheckRequest(__func__)) {  // 检查请求是否合法
+    api_stat->Record(ret_code);
+    delete api_stat;
+    return ret_code;
+  }
+
+  ContextImpl* context_impl         = impl_->context_->GetContextImpl();
+  ServerConnector* server_connector = impl_->context_->GetServerConnector();
+  uint64_t timeout_ms =
+      impl.HasTimeout() ? impl.GetTimeout() : context_impl->GetApiDefaultTimeout();
+  ProviderCallbackWrapper* wrapper = new ProviderCallbackWrapper(callback, api_stat);
+  ret_code = server_connector->AsyncInstanceHeartbeat(req, timeout_ms, wrapper);
+  if (ret_code != kReturnOk) {
+    api_stat->Record(ret_code);
+    delete wrapper;
+  }
+  return ret_code;
+}
+
 }  // namespace polaris

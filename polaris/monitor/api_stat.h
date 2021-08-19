@@ -31,6 +31,7 @@ enum ApiStatKey {
   kApiStatProviderHeartbeat,
   kApiStatLimitGetQuota,
   kApiStatLimitUpdateCallResult,
+  kApiStatProviderAsyncHeartbeat,
   kApiStatKeyCount
 };
 

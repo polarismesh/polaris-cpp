@@ -55,6 +55,9 @@ public:
   MOCK_METHOD2(InstanceHeartbeat,
                ReturnCode(const InstanceHeartbeatRequest &req, uint64_t timeout_ms));
 
+  MOCK_METHOD3(AsyncInstanceHeartbeat, ReturnCode(const InstanceHeartbeatRequest &req,
+                                                  uint64_t timeout_ms, ProviderCallback *callback));
+
   MOCK_METHOD3(ReportClient,
                ReturnCode(const std::string &host, uint64_t timeout_ms, Location &location));
 
@@ -134,6 +137,21 @@ protected:
 };
 
 MockServerConnector *MockServerConnectorTest::server_connector_ = NULL;
+
+class TestProviderCallback : public ProviderCallback {
+public:
+  TestProviderCallback(ReturnCode ret_code, int line) : ret_code_(ret_code), line_(line) {}
+
+  ~TestProviderCallback() {}
+
+  virtual void Response(ReturnCode code, const std::string &) {
+    ASSERT_EQ(code, ret_code_) << "failed line: " << line_;
+  }
+
+private:
+  ReturnCode ret_code_;
+  int line_;
+};
 
 }  // namespace polaris
 

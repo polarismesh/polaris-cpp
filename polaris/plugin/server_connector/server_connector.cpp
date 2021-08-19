@@ -134,6 +134,10 @@ GrpcServerConnector::~GrpcServerConnector() {
     discover_stream_ = NULL;
     delete grpc_client_;
   }
+  for (std::map<uint64_t, AsyncRequest*>::iterator it = async_request_map_.begin();
+       it != async_request_map_.end(); ++it) {
+    delete it->second;
+  }
   context_ = NULL;
 }
 
@@ -756,6 +760,20 @@ ReturnCode GrpcServerConnector::InstanceHeartbeat(const InstanceHeartbeatRequest
   return ret_code;
 }
 
+ReturnCode GrpcServerConnector::AsyncInstanceHeartbeat(const InstanceHeartbeatRequest& req,
+                                                       uint64_t timeout_ms,
+                                                       ProviderCallback* callback) {
+  if (timeout_ms == 0) {
+    return kReturnInvalidArgument;
+  }
+  v1::Instance* instance = req.GetImpl().ToPb();
+  uint64_t request_id    = Utils::GetNextSeqId();
+  AsyncRequest* request =
+      new AsyncRequest(reactor_, this, request_id, instance, timeout_ms, callback);
+  reactor_.SubmitTask(new AsyncRequestSubmit(request));
+  return kReturnOk;
+}
+
 ReturnCode GrpcServerConnector::ReportClient(const std::string& host, uint64_t timeout_ms,
                                              Location& location) {
   if (host.empty()) {
@@ -1058,5 +1076,201 @@ BlockRequestTimeout::~BlockRequestTimeout() {
 }
 
 void BlockRequestTimeout::Run() { request_->connector_.UpdateCallResult(request_); }
+
+///////////////////////////////////////////////////////////////////////////////
+
+AsyncRequest::AsyncRequest(Reactor& reactor, GrpcServerConnector* connector, uint64_t request_id,
+                           v1::Instance* request, uint64_t timeout, ProviderCallback* callback)
+    : reactor_(reactor), connector_(connector), request_id_(request_id), request_(request),
+      begin_time_(Time::GetCurrentTimeMs()), timeout_(timeout), callback_(callback), server_(NULL),
+      client_(NULL), timing_task_(connector->GetReactor().TimingTaskEnd()) {}
+
+AsyncRequest::~AsyncRequest() {
+  connector_ = NULL;
+  if (request_ != NULL) {
+    delete request_;
+    request_ = NULL;
+  }
+  if (callback_ != NULL) {
+    delete callback_;
+    callback_ = NULL;
+  }
+  if (server_ != NULL) {
+    delete server_;
+    server_ = NULL;
+  }
+  if (client_ != NULL) {
+    delete client_;
+    client_ = NULL;
+  }
+}
+
+bool AsyncRequest::Submit() {
+  if (connector_->async_request_map_.count(request_id_)) {  // ID轮回了，说明请求太多
+    callback_->Response(kRetrunRateLimit, "too many request");
+    return false;
+  }
+
+  const PolarisCluster& cluster = connector_->context_->GetContextImpl()->GetHeartbeatService();
+  ReturnCode ret_code           = connector_->SelectInstance(cluster.service_, 0, &server_);
+  if (ret_code != kReturnOk) {
+    callback_->Response(ret_code, "select health check server failed");
+    return false;
+  }
+
+  connector_->async_request_map_[request_id_] = this;  // 记录请求
+  // 尝试建立连接
+  client_ = new grpc::GrpcClient(reactor_);
+  client_->ConnectTo(server_->GetHost(), server_->GetPort(), GetTimeLeft(),
+                     new grpc::ConnectCallbackRef<AsyncRequest>(*this));
+  return true;
+}
+
+bool AsyncRequest::CheckServiceReady() {
+  Context* context              = connector_->context_;
+  const PolarisCluster& cluster = context->GetContextImpl()->GetHeartbeatService();
+  context->GetContextImpl()->RcuEnter();
+  ServiceContext* service_context = context->GetOrCreateServiceContext(cluster.service_);
+  if (service_context == NULL) {
+    context->GetContextImpl()->RcuExit();
+    return false;
+  }
+
+  bool is_ready = false;
+  RouteInfo route_info(cluster.service_, NULL);
+  ServiceRouterChain* service_route_chain = service_context->GetServiceRouterChain();
+  RouteInfoNotify* notify = service_route_chain->PrepareRouteInfoWithNotify(route_info);
+  if (notify == NULL) {
+    is_ready = true;
+  } else {
+    is_ready = notify->IsDataReady(false);
+    delete notify;
+  }
+  service_context->DecrementRef();
+  return is_ready;
+}
+
+uint64_t AsyncRequest::GetTimeLeft() const {
+  uint64_t deadline     = begin_time_ + timeout_;
+  uint64_t current_time = Time::GetCurrentTimeMs();
+  return deadline > current_time ? deadline - current_time : 0;
+}
+
+void AsyncRequest::OnConnectSuccess() {
+  // 连接成功，发送请求
+  uint64_t time_left = GetTimeLeft();
+  if (time_left <= 0) {  // 连接成功但请求已经超时
+    callback_->Response(kReturnNetworkFailed, "connect to hearbeat service timeout");
+    this->Complete(kServerCodeRpcTimeout);
+    return;
+  }
+  client_->SendRequest(*request_, "/v1.PolarisGRPC/Heartbeat", time_left, *this);
+  POLARIS_LOG(LOG_DEBUG, "send async heartbeat request to server[%s] success",
+              client_->CurrentServer().c_str());
+  timing_task_ = reactor_.AddTimingTask(
+      new TimingFuncTask<AsyncRequest>(RequsetTimeoutCheck, this, time_left));
+}
+
+void AsyncRequest::OnConnectFailed() {
+  POLARIS_LOG(LOG_ERROR, "connect to heartbeat server[%s] failed",
+              client_->CurrentServer().c_str());
+  callback_->Response(kReturnNetworkFailed, "connect to hearbeat service failed");
+  this->Complete(kServerCodeConnectError);
+}
+
+void AsyncRequest::OnConnectTimeout() {
+  POLARIS_LOG(LOG_ERROR, "connect to heartbeat server[%s] timeout",
+              client_->CurrentServer().c_str());
+  callback_->Response(kReturnNetworkFailed, "connect to hearbeat service timeout");
+  this->Complete(kServerCodeRpcTimeout);
+}
+
+void AsyncRequest::RequsetTimeoutCheck(AsyncRequest* request) {
+  POLARIS_LOG(LOG_ERROR, "heartbeat to server[%s] timeout",
+              request->client_->CurrentServer().c_str());
+  request->callback_->Response(kReturnNetworkFailed, "connect to hearbeat service timeout");
+  request->timing_task_ = request->reactor_.TimingTaskEnd();
+  request->Complete(kServerCodeRpcTimeout);
+}
+
+void AsyncRequest::OnSuccess(::v1::Response* response) {
+  if (timing_task_ == reactor_.TimingTaskEnd()) {
+    return;  // 已经超时了
+  }
+  reactor_.CancelTimingTask(timing_task_);
+  timing_task_ = reactor_.TimingTaskEnd();
+  POLARIS_LOG(LOG_DEBUG, "send async heartbeat request to server[%s] response[%s]",
+              client_->CurrentServer().c_str(), response->ShortDebugString().c_str());
+
+  ReturnCode ret_code = ToClientReturnCode(response->code());
+  callback_->Response(ret_code, response->info().value());
+  delete response;
+  this->Complete(kServerCodeReturnOk);
+}
+
+void AsyncRequest::OnFailure(grpc::GrpcStatusCode status, const std::string& message) {
+  if (timing_task_ == reactor_.TimingTaskEnd()) {
+    return;  // 已经超时了
+  }
+  reactor_.CancelTimingTask(timing_task_);
+  timing_task_ = reactor_.TimingTaskEnd();
+
+  POLARIS_ASSERT(status != grpc::kGrpcStatusOk);  // RPC 调用错误
+  POLARIS_LOG(LOG_ERROR, "async heartbeat request[%s] to server[%s] with rpc error %s",
+              request_->ShortDebugString().c_str(), client_->CurrentServer().c_str(),
+              message.c_str());
+  ReturnCode ret_code =
+      status == grpc::kGrpcStatusDeadlineExceeded ? kReturnTimeout : kReturnNetworkFailed;
+  callback_->Response(ret_code, "async heartbeat with rpc error");
+  this->Complete(ret_code == kReturnTimeout ? kServerCodeRpcTimeout : kServerCodeRpcError);
+}
+
+void AsyncRequest::Complete(PolarisServerCode server_code) {
+  if (server_ != NULL) {  // 上报调用结果
+    InstanceGauge instance_gauge;
+    const ServiceKey& service =
+        connector_->context_->GetContextImpl()->GetHeartbeatService().service_;
+    instance_gauge.service_namespace = service.namespace_;
+    instance_gauge.service_name      = service.name_;
+    instance_gauge.instance_id       = server_->GetId();
+    instance_gauge.call_daley        = Time::GetCurrentTimeMs() - begin_time_;
+    instance_gauge.call_ret_code     = server_code;
+    if (kServerCodeConnectError <= server_code && server_code <= kServerCodeInvalidResponse) {
+      instance_gauge.call_ret_status = kCallRetError;
+    } else {
+      instance_gauge.call_ret_status = kCallRetOk;
+    }
+    ConsumerApiImpl::UpdateServiceCallResult(connector_->context_, instance_gauge);
+  }
+  // 释放自身
+  connector_->async_request_map_.erase(request_id_);
+  reactor_.SubmitTask(new DeferReleaseTask<AsyncRequest>(this));
+}
+
+AsyncRequestSubmit::~AsyncRequestSubmit() {
+  if (request_ != NULL) {
+    delete request_;
+    request_ = NULL;
+  }
+}
+
+void AsyncRequestSubmit::Run() {
+  if (request_->GetTimeLeft() <= 0) {
+    request_->GetCallback()->Response(kReturnTimeout, "select health check server timeout");
+    next_time_ = 0;
+    return;
+  }
+
+  if (!request_->CheckServiceReady()) {
+    return;  // 稍后重试
+  }
+
+  next_time_ = 0;
+  if (request_->Submit()) {
+    request_ = NULL;  // 提交成功交出请求
+  }
+}
+
+uint64_t AsyncRequestSubmit::NextRunTime() { return next_time_; }
 
 }  // namespace polaris

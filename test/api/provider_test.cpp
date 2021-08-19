@@ -453,4 +453,16 @@ TEST_F(ProviderApiMockServerConnectorTest, TestInstanceHeartbeat) {
   EXPECT_EQ(provider_api_->Heartbeat(normal_instance_id_request), kReturnOk);
 }
 
+TEST_F(ProviderApiMockServerConnectorTest, TestInstanceAsyncHeartbeatFailed) {
+  EXPECT_CALL(*server_connector_, AsyncInstanceHeartbeat(::testing::_, ::testing::_, ::testing::_))
+      .Times(1)
+      .WillRepeatedly(::testing::Return(kReturnInvalidArgument));
+
+  InstanceHeartbeatRequest normal_host_port_request("service_namespace", "service_name",
+                                                    "service_token", "instance_host", 8000);
+  TestProviderCallback *callback = new TestProviderCallback(kReturnInvalidArgument, __LINE__);
+  EXPECT_EQ(provider_api_->AsyncHeartbeat(normal_host_port_request, callback),
+            kReturnInvalidArgument);
+}
+
 }  // namespace polaris

@@ -92,8 +92,10 @@ TimingTaskIter Reactor::AddTimingTask(TimingTask* timing_task) {
 
 void Reactor::CancelTimingTask(TimingTaskIter iter) {
   POLARIS_ASSERT(executor_tid_ == 0 || executor_tid_ == pthread_self());
-  delete iter->second;
-  timing_tasks_.erase(iter);
+  if (status_ == kReactorRun) {  // 只在运行的情况下取消任务
+    delete iter->second;
+    timing_tasks_.erase(iter);
+  }
 }
 
 void Reactor::SubmitTask(Task* task) {

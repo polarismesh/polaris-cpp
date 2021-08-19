@@ -26,4 +26,23 @@ ProviderApi::Impl::~Impl() {
   context_ = NULL;
 }
 
+ProviderCallbackWrapper::ProviderCallbackWrapper(ProviderCallback* callback, ApiStat* stat)
+    : callback_(callback), stat_(stat) {}
+
+ProviderCallbackWrapper::~ProviderCallbackWrapper() {
+  if (callback_ != NULL) {
+    delete callback_;
+    callback_ = NULL;
+  }
+  if (stat_ != NULL) {
+    delete stat_;
+    stat_ = NULL;
+  }
+}
+
+void ProviderCallbackWrapper::Response(ReturnCode code, const std::string& message) {
+  callback_->Response(code, message);
+  stat_->Record(code);
+}
+
 }  // namespace polaris

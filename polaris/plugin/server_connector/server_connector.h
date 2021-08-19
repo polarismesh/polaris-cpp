@@ -98,6 +98,8 @@ enum BlockRequestType {
 };
 
 class BlockRequest;
+class AsyncRequest;
+
 /// @brief GRPC连接Server
 class GrpcServerConnector : public ServerConnector,
                             public grpc::StreamCallback<v1::DiscoverResponse> {
@@ -128,6 +130,9 @@ public:
   virtual ReturnCode DeregisterInstance(const InstanceDeregisterRequest& req, uint64_t timeout_ms);
 
   virtual ReturnCode InstanceHeartbeat(const InstanceHeartbeatRequest& req, uint64_t timeout_ms);
+
+  virtual ReturnCode AsyncInstanceHeartbeat(const InstanceHeartbeatRequest& req,
+                                            uint64_t timeout_ms, ProviderCallback* callback);
 
   virtual ReturnCode ReportClient(const std::string& host, uint64_t timeout_ms, Location& location);
 
@@ -171,6 +176,7 @@ protected:  // for test
 
 private:
   friend class DiscoverConnectionCb;
+  friend class AsyncRequest;
   Context* context_;
   std::vector<SeedServer> server_lists_;
   pthread_t task_thread_id_;
@@ -193,6 +199,8 @@ private:
   uint64_t last_cache_version_;
 
   std::map<ServiceKeyWithType, ServiceListener> listener_map_;
+
+  std::map<uint64_t, AsyncRequest*> async_request_map_;
 };
 
 class DiscoverConnectionCb : public grpc::ConnectCallback {
@@ -271,6 +279,65 @@ public:
 
 private:
   BlockRequest* request_;
+};
+
+class AsyncRequest : public grpc::RequestCallback<v1::Response> {
+public:
+  AsyncRequest(Reactor& reactor, GrpcServerConnector* connector, uint64_t request_id,
+               v1::Instance* request, uint64_t timeout, ProviderCallback* callback);
+
+  ~AsyncRequest();
+
+  bool Submit();
+
+  // 回调函数，提供给连接回调对象使用
+  void OnConnectSuccess();
+  void OnConnectFailed();
+  void OnConnectTimeout();
+
+  // grpc::RequestCallback
+  virtual void OnSuccess(::v1::Response* response);
+  virtual void OnFailure(grpc::GrpcStatusCode status, const std::string& message);
+
+  static void RequsetTimeoutCheck(AsyncRequest* request);
+
+  uint64_t GetTimeLeft() const;  // 计算剩余超时时间
+
+  bool CheckServiceReady();  // 检查相关服务是否就绪
+
+  ProviderCallback* GetCallback() const { return callback_; }
+
+private:
+  void Complete(PolarisServerCode server_code);
+
+private:
+  Reactor& reactor_;
+  GrpcServerConnector* connector_;
+  uint64_t request_id_;
+  v1::Instance* request_;
+  uint64_t begin_time_;
+  uint64_t timeout_;
+  ProviderCallback* callback_;
+  Instance* server_;  // 选择连接的服务器
+  grpc::GrpcClient* client_;
+  TimingTaskIter timing_task_;
+};
+
+// 提交异步任务到reactor
+class AsyncRequestSubmit : public TimingTask {
+public:
+  explicit AsyncRequestSubmit(AsyncRequest* request)
+      : TimingTask(10), request_(request), next_time_(10) {}
+
+  virtual ~AsyncRequestSubmit();
+
+  virtual void Run();
+
+  virtual uint64_t NextRunTime();
+
+private:
+  AsyncRequest* request_;
+  uint64_t next_time_;
 };
 
 }  // namespace polaris

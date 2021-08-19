@@ -26,6 +26,7 @@
 #include "model/return_code.h"
 #include "monitor/api_stat.h"
 #include "polaris/context.h"
+#include "utils/static_assert.h"
 #include "utils/string_utils.h"
 #include "utils/utils.h"
 
@@ -45,13 +46,18 @@ static const char* g_ApiStatKeyMap[] = {"Consumer::InitService",
                                         "Provider::Deregister",
                                         "Provider::Heartbeat",
                                         "Limit::GetQuota",
-                                        "Limit::UpdateCallResult"};
+                                        "Limit::UpdateCallResult",
+                                        "Provider::AsyncHeartbeat"};
 
-static const int kDelayBucketCount                    = 7;
-static const char* g_DelayRangeStr[kDelayBucketCount] = {
+// 静态断言两处stat key的长度相等
+STATIC_ASSERT(sizeof(g_ApiStatKeyMap) / sizeof(const char*) == kApiStatKeyCount, "");
+
+static const char* g_DelayRangeStr[] = {
     "[0ms,2ms)",     "[2ms, 10ms)",   "[10ms,50ms)", "[50ms,100ms)",
     "[100ms,150ms)", "[150ms,200ms)", "[200ms,)",
 };
+
+static const int kDelayBucketCount = sizeof(g_DelayRangeStr) / sizeof(const char*);
 
 ApiStatRegistry::ApiStatRegistry(Context* context) {
   context_ = context;
