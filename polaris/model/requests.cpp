@@ -98,6 +98,10 @@ void GetOneInstanceRequest::SetLoadBalanceType(LoadBalanceType load_balance_type
   impl->load_balance_type_ = load_balance_type;
 }
 
+void GetOneInstanceRequest::SetBackupInstanceNum(uint32_t backup_instance_num) {
+  impl->backup_instance_num_ = backup_instance_num;
+}
+
 void GetOneInstanceRequest::SetReplicateIndex(int replicate_index) {
   impl->criteria_.replicate_index_ = replicate_index;
 }
@@ -119,6 +123,10 @@ MetadataRouterParam* GetOneInstanceRequestAccessor::GetMetadataParam() const {
 
 LoadBalanceType GetOneInstanceRequestAccessor::GetLoadBalanceType() {
   return request_.impl->load_balance_type_;
+}
+
+uint32_t GetOneInstanceRequestAccessor::GetBackupInstanceNum() {
+  return request_.impl->backup_instance_num_;
 }
 
 bool GetOneInstanceRequestAccessor::HasSourceService() {

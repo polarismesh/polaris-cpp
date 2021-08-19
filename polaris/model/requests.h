@@ -29,7 +29,8 @@ const std::map<std::string, std::string>& EmptyStringMap();
 
 class GetOneInstanceRequestImpl {
 public:
-  GetOneInstanceRequestImpl() : load_balance_type_(kLoadBalanceTypeDefaultConfig) {}
+  GetOneInstanceRequestImpl()
+      : load_balance_type_(kLoadBalanceTypeDefaultConfig), backup_instance_num_(0) {}
 
   ServiceKey service_key_;
   Criteria criteria_;
@@ -37,6 +38,7 @@ public:
   optional<uint64_t> flow_id_;  ///< 流水号，用于跟踪用户的请求，可选，默认0
   optional<uint64_t> timeout_;  ///< 本次查询最大超时信息，可选，默认直接获取全局的超时配置
   LoadBalanceType load_balance_type_;
+  uint32_t backup_instance_num_;                           ///< 返回用于重试的实例数量
   ScopedPtr<std::map<std::string, std::string> > labels_;  ///< 请求标签，用于接口级别熔断
   ScopedPtr<MetadataRouterParam> metadata_param_;  ///< 请求元数据，用于元数据路由
 };

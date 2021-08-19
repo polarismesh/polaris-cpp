@@ -19,6 +19,7 @@
 
 #include "polaris/defs.h"
 #include "polaris/model.h"
+#include "polaris/plugin.h"
 #include "utils/ref_count.h"
 
 namespace polaris {
@@ -92,6 +93,11 @@ public:
   static ReturnCode GetSystemServer(Context* context, const ServiceKey& service_key,
                                     const Criteria& criteria, Instance*& instance, uint64_t timeout,
                                     const std::string& protocol = "grpc");
+
+private:
+  static void GetBackupInstances(ServiceInstances* service_instances, LoadBalancer* load_balancer,
+                                 GetOneInstanceRequestAccessor& request,
+                                 std::vector<Instance*>& backup_instances);
 
 private:
   friend class ConsumerApi;
