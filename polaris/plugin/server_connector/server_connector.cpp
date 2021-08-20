@@ -115,9 +115,9 @@ void DiscoverEventTask::Run() {
 ///////////////////////////////////////////////////////////////////////////////
 GrpcServerConnector::GrpcServerConnector()
     : discover_stream_state_(kDiscoverStreamNotInit), context_(NULL), task_thread_id_(0),
-      grpc_client_(NULL), discover_stream_(NULL), stream_response_time_(0),
-      server_switch_interval_(0), server_switch_state_(kServerSwitchInit), message_used_time_(0),
-      request_queue_size_(0), last_cache_version_(0) {}
+      discover_instance_(NULL), grpc_client_(NULL), discover_stream_(NULL),
+      stream_response_time_(0), server_switch_interval_(0), server_switch_state_(kServerSwitchInit),
+      message_used_time_(0), request_queue_size_(0), last_cache_version_(0) {}
 
 GrpcServerConnector::~GrpcServerConnector() {
   // 关闭线程
@@ -133,6 +133,10 @@ GrpcServerConnector::~GrpcServerConnector() {
   if (grpc_client_ != NULL) {
     discover_stream_ = NULL;
     delete grpc_client_;
+  }
+  if (discover_instance_ != NULL) {
+    delete discover_instance_;
+    discover_instance_ = NULL;
   }
   for (std::map<uint64_t, AsyncRequest*>::iterator it = async_request_map_.begin();
        it != async_request_map_.end(); ++it) {
@@ -580,16 +584,18 @@ void GrpcServerConnector::ServerSwitch() {
   std::string host;
   int port = 0;
   if (discover_stream_state_ >= kDiscoverStreamGetInstance) {  // 说明内部服务已经返回
-    Instance* instance                 = NULL;
+    if (discover_instance_ != NULL) {
+      delete discover_instance_;
+      discover_instance_ = NULL;
+    }
     const ServiceKey& discover_service = context_->GetContextImpl()->GetDiscoverService().service_;
     bool ignore_half_open = server_switch_state_ != kServerSwitchPeriodic;  // 周期切换才选半开节点
-    ReturnCode ret_code = SelectInstance(discover_service, 0, &instance, ignore_half_open);
+    ReturnCode ret_code =
+        SelectInstance(discover_service, 0, &discover_instance_, ignore_half_open);
     if (ret_code == kReturnOk) {
-      POLARIS_ASSERT(instance != NULL);
-      host               = instance->GetHost();
-      port               = instance->GetPort();
-      discover_instance_ = instance->GetId();
-      delete instance;
+      POLARIS_ASSERT(discover_instance_ != NULL);
+      host                   = discover_instance_->GetHost();
+      port                   = discover_instance_->GetPort();
       discover_stream_state_ = kDiscoverStreamInit;
       POLARIS_LOG(LOG_INFO, "discover stream switch to discover server[%s:%d]", host.c_str(), port);
     } else {
@@ -636,27 +642,21 @@ void GrpcServerConnector::ServerSwitch() {
 }
 
 void GrpcServerConnector::UpdateCallResult(PolarisServerCode server_code, uint64_t delay) {
-  if (discover_instance_.empty()) {
+  if (discover_instance_ == NULL) {
     return;  // 内部埋点实例 不要上报
   }
-  InstanceGauge instance_gauge;
-  const ServiceKey& service        = context_->GetContextImpl()->GetDiscoverService().service_;
-  instance_gauge.service_namespace = service.namespace_;
-  instance_gauge.service_name      = service.name_;
-  instance_gauge.instance_id       = discover_instance_;
-  instance_gauge.call_daley        = delay;
-  instance_gauge.call_ret_code     = server_code;
+  const ServiceKey& service = context_->GetContextImpl()->GetDiscoverService().service_;
+  CallRetStatus status      = kCallRetOk;
   if (kServerCodeConnectError <= server_code && server_code <= kServerCodeInvalidResponse) {
     if (server_code == kServerCodeRpcTimeout &&
         stream_response_time_ + delay > Time::GetCurrentTimeMs()) {
-      instance_gauge.call_ret_status = kCallRetOk;
+      status = kCallRetOk;
     } else {  // 消息超时且stream上超时时间内没有数据返回则上报失败
-      instance_gauge.call_ret_status = kCallRetError;
+      status = kCallRetError;
     }
-  } else {
-    instance_gauge.call_ret_status = kCallRetOk;
   }
-  ConsumerApiImpl::UpdateServiceCallResult(context_, instance_gauge);
+  ConsumerApiImpl::UpdateServerResult(context_, service, *discover_instance_, server_code, status,
+                                      delay);
 }
 
 BlockRequest* GrpcServerConnector::CreateBlockRequest(BlockRequestType request_type,
@@ -839,27 +839,19 @@ bool GrpcServerConnector::GetInstance(BlockRequest* block_request) {
 
 void GrpcServerConnector::UpdateCallResult(BlockRequest* block_request) {
   POLARIS_ASSERT(block_request->instance_ != NULL);
-  InstanceGauge instance_gauge;
-  const PolarisCluster& system_cluster = block_request->request_type_ == kBlockHeartbeat
-                                             ? context_->GetContextImpl()->GetHeartbeatService()
-                                             : context_->GetContextImpl()->GetDiscoverService();
-  instance_gauge.service_namespace     = system_cluster.service_.namespace_;
-  instance_gauge.service_name          = system_cluster.service_.name_;
-  instance_gauge.instance_id           = block_request->instance_->GetId();
+  const ServiceKey& service = block_request->request_type_ == kBlockHeartbeat
+                                  ? context_->GetContextImpl()->GetHeartbeatService().service_
+                                  : context_->GetContextImpl()->GetDiscoverService().service_;
+  CallRetStatus status      = kCallRetOk;
+  if (kServerCodeConnectError <= block_request->server_code_ &&
+      block_request->server_code_ <= kServerCodeInvalidResponse) {
+    status = kCallRetError;
+  }
+  uint64_t delay = Time::GetCurrentTimeMs() - block_request->call_begin_;
+  ConsumerApiImpl::UpdateServerResult(context_, service, *block_request->instance_,
+                                      block_request->server_code_, status, delay);
   delete block_request->instance_;
   block_request->instance_ = NULL;
-  if (instance_gauge.instance_id.empty()) {
-    return;  // 内部埋点实例 不要上报
-  }
-  instance_gauge.call_daley     = Time::GetCurrentTimeMs() - block_request->call_begin_;
-  instance_gauge.call_ret_code  = block_request->server_code_;
-  PolarisServerCode server_code = block_request->server_code_;
-  if (kServerCodeConnectError <= server_code && server_code <= kServerCodeInvalidResponse) {
-    instance_gauge.call_ret_status = kCallRetError;
-  } else {
-    instance_gauge.call_ret_status = kCallRetOk;
-  }
-  ConsumerApiImpl::UpdateServiceCallResult(context_, instance_gauge);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1240,20 +1232,15 @@ void AsyncRequest::OnFailure(grpc::GrpcStatusCode status, const std::string& mes
 
 void AsyncRequest::Complete(PolarisServerCode server_code) {
   if (server_ != NULL) {  // 上报调用结果
-    InstanceGauge instance_gauge;
     const ServiceKey& service =
         connector_->context_->GetContextImpl()->GetHeartbeatService().service_;
-    instance_gauge.service_namespace = service.namespace_;
-    instance_gauge.service_name      = service.name_;
-    instance_gauge.instance_id       = server_->GetId();
-    instance_gauge.call_daley        = Time::GetCurrentTimeMs() - begin_time_;
-    instance_gauge.call_ret_code     = server_code;
+    uint64_t delay       = Time::GetCurrentTimeMs() - begin_time_;
+    CallRetStatus status = kCallRetOk;
     if (kServerCodeConnectError <= server_code && server_code <= kServerCodeInvalidResponse) {
-      instance_gauge.call_ret_status = kCallRetError;
-    } else {
-      instance_gauge.call_ret_status = kCallRetOk;
+      status = kCallRetError;
     }
-    ConsumerApiImpl::UpdateServiceCallResult(connector_->context_, instance_gauge);
+    ConsumerApiImpl::UpdateServerResult(connector_->context_, service, *server_, server_code,
+                                        status, delay);
   }
   // 释放自身
   connector_->async_request_map_.erase(request_id_);

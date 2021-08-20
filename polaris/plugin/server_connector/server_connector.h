@@ -181,7 +181,7 @@ private:
   std::vector<SeedServer> server_lists_;
   pthread_t task_thread_id_;
   Reactor reactor_;
-  std::string discover_instance_;
+  Instance* discover_instance_;
   grpc::GrpcClient* grpc_client_;
   grpc::GrpcStream* discover_stream_;
   uint64_t stream_response_time_;

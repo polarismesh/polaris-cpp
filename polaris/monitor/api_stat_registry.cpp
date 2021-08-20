@@ -50,7 +50,8 @@ static const char* g_ApiStatKeyMap[] = {"Consumer::InitService",
                                         "Provider::AsyncHeartbeat"};
 
 // 静态断言两处stat key的长度相等
-STATIC_ASSERT(sizeof(g_ApiStatKeyMap) / sizeof(const char*) == kApiStatKeyCount, "");
+STATIC_ASSERT(sizeof(g_ApiStatKeyMap) / sizeof(const char*) == kApiStatKeyCount,
+              "api stat key define error");
 
 static const char* g_DelayRangeStr[] = {
     "[0ms,2ms)",     "[2ms, 10ms)",   "[10ms,50ms)", "[50ms,100ms)",

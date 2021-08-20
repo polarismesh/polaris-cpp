@@ -59,15 +59,15 @@ bool operator<(const LimitTargetKey& lhs, const LimitTargetKey& rhs) {
 }
 
 RateLimitConnection::RateLimitConnection(RateLimitConnector& connector,
-                                         const uint64_t& request_timeout, Instance& instance,
+                                         const uint64_t& request_timeout, Instance* instance,
                                          const ServiceKey& cluster, const std::string& id)
     : connector_(connector), reactor_(connector.GetReactor()), request_timeout_(request_timeout) {
-  instance_id_   = instance.GetId();
+  instance_      = instance;
   cluster_       = cluster;
   connection_id_ = id;
   client_        = new grpc::GrpcClient(reactor_);
   // 发起异步请求
-  client_->ConnectTo(instance.GetHost(), instance.GetPort(), 1000,
+  client_->ConnectTo(instance_->GetHost(), instance_->GetPort(), 1000,
                      new grpc::ConnectCallbackRef<RateLimitConnection>(*this));
   stream_             = NULL;
   last_used_time_     = Time::GetCurrentTimeMs();
@@ -81,6 +81,10 @@ RateLimitConnection::RateLimitConnection(RateLimitConnector& connector,
 
 RateLimitConnection::~RateLimitConnection() {
   stream_ = NULL;
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
   if (client_ != NULL) {
     delete client_;
     client_ = NULL;
@@ -184,7 +188,7 @@ void RateLimitConnection::OnSuccess(metric::v2::TimeAdjustResponse* response) {
   }
   POLARIS_LOG(LOG_TRACE, "sync time diff:%" PRId64 "", time_diff_);
   delete response;
-  connector_.UpdateCallResult(cluster_, instance_id_, delay, kServerCodeReturnOk);
+  connector_.UpdateCallResult(cluster_, instance_, delay, kServerCodeReturnOk);
   // 设置下一次同步任务
   sync_time_task_ = reactor_.AddTimingTask(new TimeSyncTask(this, kTimeSyncTaskTiming, 60 * 1000));
 }
@@ -339,7 +343,7 @@ void RateLimitConnection::OnInitResponse(const metric::v2::RateLimitInitResponse
       limit_target_map_.erase(target_key);
       window->OnInitResponse(response, time_diff_);
 
-      connector_.UpdateCallResult(cluster_, instance_id_, delay, kServerCodeReturnOk);
+      connector_.UpdateCallResult(cluster_, instance_, delay, kServerCodeReturnOk);
       reactor_.AddTimingTask(new WindowSyncTask(
           window, &connector_,
           window->GetRateLimitRule()->GetRateLimitReport().IntervalWithJitter()));
@@ -377,7 +381,7 @@ void RateLimitConnection::OnReportResponse(const metric::v2::RateLimitReportResp
       }
       reactor_.CancelTimingTask(task_it->second.task_iter_);  // 取消超时检查
       task_it->second.task_iter_ = reactor_.TimingTaskEnd();
-      connector_.UpdateCallResult(cluster_, instance_id_, delay, kServerCodeReturnOk);
+      connector_.UpdateCallResult(cluster_, instance_, delay, kServerCodeReturnOk);
       uint64_t report_time = window->OnReportResponse(response, time_diff_);
       report_time          = report_time > delay ? report_time - delay : 0;
       reactor_.AddTimingTask(new WindowSyncTask(window, &connector_, report_time));
@@ -405,7 +409,7 @@ void RateLimitConnection::OnResponseTimeout(RateLimitWindow* window, WindowSyncT
     init_task_map_[window] = reactor_.TimingTaskEnd();
   }
   reactor_.SubmitTask(new WindowSyncTask(window, &connector_));
-  connector_.UpdateCallResult(cluster_, instance_id_, request_timeout_, kServerCodeRpcTimeout);
+  connector_.UpdateCallResult(cluster_, instance_, request_timeout_, kServerCodeRpcTimeout);
   // 连接上的请求全部超时，切换连接
   if (last_response_time_ + request_timeout_ < Time::GetCurrentTimeMs()) {
     this->CloseForError();
@@ -418,7 +422,7 @@ void RateLimitConnection::CloseForError() {
   }
   is_closing_    = true;
   uint64_t delay = Time::GetCurrentTimeMs() - last_response_time_;
-  connector_.UpdateCallResult(cluster_, instance_id_, delay, kServerCodeServerError);
+  connector_.UpdateCallResult(cluster_, instance_, delay, kServerCodeServerError);
   TimingTaskIter timeout_end = reactor_.TimingTaskEnd();
   std::map<RateLimitWindow*, TimingTaskIter>::iterator task_it;
   if (stream_ == NULL) {  // 连接失败的情况
@@ -561,25 +565,18 @@ ReturnCode RateLimitConnector::SelectConnection(const ServiceKey& metric_cluster
   std::map<std::string, RateLimitConnection*>::iterator it = connection_mgr_.find(id);
   if (it != connection_mgr_.end()) {  // 连接已存在，直接返回
     connection = it->second;
+    delete instance;
   } else {
-    connection = new RateLimitConnection(*this, message_timeout_, *instance, cluster, id);
+    connection = new RateLimitConnection(*this, message_timeout_, instance, cluster, id);
     connection_mgr_[connection->GetId()] = connection;
   }
-  delete instance;
   return kReturnOk;
 }
 
-void RateLimitConnector::UpdateCallResult(const ServiceKey& service_key,
-                                          const std::string& instance_id, uint64_t delay,
-                                          PolarisServerCode server_code) {
-  InstanceGauge instance_gauge;
-  instance_gauge.service_namespace = service_key.namespace_;
-  instance_gauge.service_name      = service_key.name_;
-  instance_gauge.instance_id       = instance_id;
-  instance_gauge.call_daley        = delay;
-  instance_gauge.call_ret_code     = server_code;
-  instance_gauge.call_ret_status   = kCallRetOk;  // 该服务不需要熔断
-  ConsumerApiImpl::UpdateServiceCallResult(context_, instance_gauge);
+void RateLimitConnector::UpdateCallResult(const ServiceKey& cluster, Instance* instance,
+                                          uint64_t delay, PolarisServerCode server_code) {
+  CallRetStatus status = kCallRetOk;  // 该服务不需要熔断
+  ConsumerApiImpl::UpdateServerResult(context_, cluster, *instance, server_code, status, delay);
 }
 
 }  // namespace polaris
