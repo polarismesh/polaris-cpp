@@ -102,7 +102,7 @@ void Reactor::SubmitTask(Task* task) {
 }
 
 void Reactor::Stop() {
-  status_.Cas(kReactorRun, kReactorStop);
+  status_ = kReactorStop;
   notifier_.Notify();
 }
 
@@ -175,7 +175,11 @@ void Reactor::RunEpollTask(uint64_t timeout) {
 }
 
 void Reactor::Run(bool once) {
-  status_.Cas(kReactorInit, kReactorRun);
+  if (once) {  // 测试代码会重复调用本函数，直接进入Run状态
+    status_ = kReactorRun;
+  } else if (!status_.Cas(kReactorInit, kReactorRun)) {
+    return;
+  }
   executor_tid_ = pthread_self();
 
   // 屏蔽线程的pipe broken singal
