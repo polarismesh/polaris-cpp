@@ -31,15 +31,18 @@ HttpHealthChecker::HttpHealthChecker() { timeout_ms_ = 0; }
 HttpHealthChecker::~HttpHealthChecker() {}
 
 ReturnCode HttpHealthChecker::Init(Config* config, Context* /*context*/) {
-  request_path_ = config->GetStringOrDefault(HealthCheckerConfig::kHttpRequestPathKey,
-                                             HealthCheckerConfig::kHttpRequestPathDefault);
+  static const char kHttpRequestPathKey[]     = "path";
+  static const char kHttpRequestPathDefault[] = "";
+
+  request_path_ = config->GetStringOrDefault(kHttpRequestPathKey, kHttpRequestPathDefault);
   if (request_path_.empty() || request_path_[0] != '/') {
-    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s invalid", kPluginHttpHealthChecker,
-                HealthCheckerConfig::kHttpRequestPathKey);
+    POLARIS_LOG(LOG_ERROR, "outlier detector[%s] config %s invalid", kPluginHttpHealthChecker,
+                kHttpRequestPathKey);
     return kReturnInvalidConfig;
   }
-  timeout_ms_ = config->GetIntOrDefault(HealthCheckerConfig::kTimeoutKey,
-                                        HealthCheckerConfig::kTimeoutDefault);
+  timeout_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kTimeoutKey,
+                                       HealthCheckerConfig::kTimeoutDefault);
+
   return kReturnOk;
 }
 

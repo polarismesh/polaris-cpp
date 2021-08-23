@@ -39,19 +39,6 @@ static const char kChainPluginListDefault[] = "tcp";
 static const char kCheckerIntervalKey[]        = "interval";
 static const uint64_t kDetectorIntervalDefault = 10 * 1000;  // 探活默认时间间隔10s
 
-static const char kHttpRequestPathKey[]     = "path";
-static const char kHttpRequestPathDefault[] = "";
-
-static const char kTcpSendPackageKey[]        = "send";
-static const char kTcpSendPackageDefault[]    = "";
-static const char kTcpReceivePackageKey[]     = "receive";
-static const char kTcpReceivePackageDefault[] = "";
-
-static const char kUdpSendPackageKey[]        = "send";
-static const char kUdpSendPackageDefault[]    = "";
-static const char kUdpReceivePackageKey[]     = "receive";
-static const char kUdpReceivePackageDefault[] = "";
-
 static const char kTimeoutKey[]       = "timeout";  // 超时时间毫秒
 static const uint64_t kTimeoutDefault = 500;        // 默认500ms
 }  // namespace HealthCheckerConfig
