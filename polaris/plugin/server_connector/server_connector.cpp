@@ -989,6 +989,7 @@ void BlockRequest::OnSuccess(::v1::Response* response) {
                 response->ShortDebugString().c_str());
     delete response;
   }
+  connector_.UpdateCallResult(this);
 }
 
 void BlockRequest::OnFailure(grpc::GrpcStatusCode status, const std::string& message) {
@@ -1005,6 +1006,7 @@ void BlockRequest::OnFailure(grpc::GrpcStatusCode status, const std::string& mes
     server_code_ = kServerCodeRpcError;
   }
   promise_->SetError(ret_code);
+  connector_.UpdateCallResult(this);
 }
 
 bool BlockRequest::PrepareClient() {
@@ -1017,12 +1019,16 @@ bool BlockRequest::PrepareClient() {
   grpc_client_ = new grpc::GrpcClient(connector_.GetReactor());
   if (!grpc_client_->ConnectTo(instance_->GetHost(), instance_->GetPort()) ||
       !grpc_client_->WaitConnected(request_timeout_)) {
+    POLARIS_LOG(LOG_ERROR, "%s connect to server[%s:%d] timeout", RequestTypeToStr(),
+                instance_->GetHost().c_str(), instance_->GetPort());
     server_code_ = kServerCodeConnectError;
     connector_.UpdateCallResult(this);
     return false;
   }
   uint64_t use_time = Time::GetCurrentTimeMs() - begin_time;
   if (use_time >= request_timeout_) {
+    POLARIS_LOG(LOG_ERROR, "%s connect to server[%s:%d] timeout", RequestTypeToStr(),
+                instance_->GetHost().c_str(), instance_->GetPort());
     server_code_ = kServerCodeConnectError;
     connector_.UpdateCallResult(this);
     return false;
@@ -1075,7 +1081,14 @@ BlockRequestTimeout::~BlockRequestTimeout() {
   request_ = NULL;
 }
 
-void BlockRequestTimeout::Run() { request_->connector_.UpdateCallResult(request_); }
+void BlockRequestTimeout::Run() {
+  if (request_->instance_ != NULL) {
+    POLARIS_LOG(LOG_ERROR, "%s request[%s] to server[%s:%d] timeout", request_->RequestTypeToStr(),
+                request_->message_->ShortDebugString().c_str(),
+                request_->instance_->GetHost().c_str(), request_->instance_->GetPort());
+    request_->connector_.UpdateCallResult(request_);
+  }
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 

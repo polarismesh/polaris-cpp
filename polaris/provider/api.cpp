@@ -23,7 +23,6 @@
 #include "context_internal.h"
 #include "logger.h"
 #include "monitor/api_stat.h"
-#include "polaris/accessors.h"
 #include "polaris/config.h"
 #include "polaris/context.h"
 #include "polaris/defs.h"
@@ -124,22 +123,6 @@ ReturnCode ProviderApi::Register(const InstanceRegisterRequest& req, std::string
   }
   api_stat.Record(ret_code);
   return ret_code;
-}
-
-template <class T>
-inline bool CheckInstanceOrId(T& request, const char* action) {
-  if (request.HasInstanceId()) {
-    if (request.GetInstanceId().empty()) {
-      POLARIS_LOG(LOG_ERROR, "%s instance with empty instance id", action);
-      return false;
-    }
-    if (request.GetServiceToken().empty()) {
-      POLARIS_LOG(LOG_ERROR, "%s instance with empty service token", action);
-      return false;
-    }
-    return true;
-  }
-  return CheckInstance(request, action);
 }
 
 ReturnCode ProviderApi::Deregister(const InstanceDeregisterRequest& req) {
