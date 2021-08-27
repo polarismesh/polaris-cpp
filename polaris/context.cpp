@@ -605,7 +605,8 @@ ReturnCode ContextImpl::InitGlobalConfig(Config* config, Context* context) {
   }
 
   // Init stat reporter
-  plugin_config.Reset(config->GetSubConfig("statReporter"));
+  delete plugin_config.Release();
+  plugin_config.Set(config->GetSubConfig("statReporter"));
   plugin                  = NULL;
   std::string plugin_name = plugin_config->GetStringOrDefault("name", kPluginDefaultStatReporter);
   PluginManager::Instance().GetPlugin(plugin_name, kPluginStatReporter, plugin);
@@ -622,7 +623,8 @@ ReturnCode ContextImpl::InitGlobalConfig(Config* config, Context* context) {
   }
 
   // Init alert reporter
-  plugin_config.Reset(config->GetSubConfig("alertReporter"));
+  delete plugin_config.Release();
+  plugin_config.Set(config->GetSubConfig("alertReporter"));
   plugin      = NULL;
   plugin_name = plugin_config->GetStringOrDefault("name", kPluginDefaultAlertReporter);
   PluginManager::Instance().GetPlugin(plugin_name, kPluginAlertReporter, plugin);
@@ -639,7 +641,8 @@ ReturnCode ContextImpl::InitGlobalConfig(Config* config, Context* context) {
   }
 
   // Init server metric
-  plugin_config.Reset(config->GetSubConfig("serverMetric"));
+  delete plugin_config.Release();
+  plugin_config.Set(config->GetSubConfig("serverMetric"));
   plugin      = NULL;
   plugin_name = plugin_config->GetStringOrDefault("name", "");
   if (!plugin_name.empty()) {
