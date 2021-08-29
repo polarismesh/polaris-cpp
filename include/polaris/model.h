@@ -51,9 +51,9 @@ public:
 
   std::string& GetId();  ///< 服务实例ID
 
-  std::string& GetHost();  ///< 服务的节点IP或者域名
+  std::string& GetHost() const;  ///< 服务的节点IP或者域名
 
-  int GetPort();  ///< 节点端口号
+  int GetPort() const;  ///< 节点端口号
 
   uint64_t GetLocalId();  /// 本地生成的唯一ID
 

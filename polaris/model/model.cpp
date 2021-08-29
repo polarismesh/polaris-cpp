@@ -100,9 +100,9 @@ Instance::~Instance() {
   if (impl != NULL) delete impl;
 }
 
-std::string& Instance::GetHost() { return impl->host_; }
+std::string& Instance::GetHost() const { return impl->host_; }
 
-int Instance::GetPort() { return impl->port_; }
+int Instance::GetPort() const { return impl->port_; }
 
 std::string& Instance::GetVpcId() { return impl->vpc_id_; }
 
