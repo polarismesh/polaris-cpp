@@ -57,7 +57,7 @@ void CircuitBreakerExecutor::TimingCircuitBreak(CircuitBreakerExecutor* executor
   all_service_contexts.clear();
   // 设置定时任务
   executor->reactor_.AddTimingTask(
-      new TimingFuncTask<CircuitBreakerExecutor>(TimingCircuitBreak, executor, 500));
+      new TimingFuncTask<CircuitBreakerExecutor>(TimingCircuitBreak, executor, 1000));
 }
 
 }  // namespace polaris

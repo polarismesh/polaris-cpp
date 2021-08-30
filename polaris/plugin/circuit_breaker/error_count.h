@@ -25,9 +25,6 @@
 
 namespace polaris {
 
-class Config;
-class Context;
-
 struct ErrorCountStatus {
   CircuitBreakerStatus status;
   int error_count;

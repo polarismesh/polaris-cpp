@@ -35,7 +35,7 @@ static const char kChainEnableKey[]   = "enable";
 static const bool kChainEnableDefault = true;
 
 static const char kChainCheckPeriodKey[]       = "checkPeriod";
-static const uint64_t kChainCheckPeriodDefault = 500;
+static const uint64_t kChainCheckPeriodDefault = 1000;
 
 // 用于传入是否开启探测插件
 static const char kDetectorDisableKey[]   = "detectorDisable";

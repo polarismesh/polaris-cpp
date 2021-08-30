@@ -300,6 +300,8 @@ private:
 
   // 半开优先分配数据
   sync::Mutex half_open_lock_;
+  sync::Atomic<uint64_t> last_half_open_time_;
+  sync::Atomic<int> try_half_open_count_;
   bool have_half_open_data_;
   std::map<std::string, int> half_open_data_;  // 存储半开分配数据
 

@@ -175,7 +175,7 @@ ReturnCode ErrorRateCircuitBreaker::TimingCircuitBreak(
           error_rate_status.ClearBuckets(metric_num_buckets_);
         }
       } else if (err_req > request_count_after_half_open_ - success_count_after_half_open_ ||
-                 error_rate_status.last_update_time + 20 * sleep_window_ <= current_time) {
+                 error_rate_status.last_access_time + 100 * sleep_window_ <= current_time) {
         // 达到重新熔断条件
         if (instances_status->TranslateStatus(it->first, kCircuitBreakerHalfOpen,
                                               kCircuitBreakerOpen)) {
