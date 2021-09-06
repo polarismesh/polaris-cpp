@@ -366,6 +366,7 @@ bool GrpcServerConnector::SendDiscoverRequest(ServiceListener& service_listener)
               DataTypeToStr(service_listener.service_.data_type_), service_key.namespace_.c_str(),
               service_key.name_.c_str());
   // 设置超时检查任务
+  POLARIS_ASSERT(service_listener.timeout_task_iter_ == reactor_.TimingTaskEnd());
   service_listener.timeout_task_iter_ = reactor_.AddTimingTask(new TimingFuncTask<ServiceListener>(
       DiscoverTimoutCheck, &service_listener, message_timeout_.GetTimeout()));
   return true;
@@ -519,6 +520,10 @@ ReturnCode GrpcServerConnector::ProcessDiscoverResponse(::v1::DiscoverResponse& 
   // 设置下一次的检查任务
   listener.discover_task_iter_ = reactor_.AddTimingTask(
       new TimingFuncTask<ServiceListener>(TimingDiscover, &listener, listener.sync_interval_));
+  if (pending_for_connected_.count(&listener) > 0) {
+    // 清理由于切换失败保留在pending列表里的任务需要
+    pending_for_connected_.erase(&listener);
+  }
   return kReturnOk;
 }
 
@@ -580,6 +585,16 @@ void GrpcServerConnector::ServerSwitch() {
     reactor_.CancelTimingTask(server_switch_task_iter_);
   }
 
+  // 有超时检查的服务，说明本次未完成服务发现，加入pending列表，从而可在切换成功后立马发送
+  for (std::map<ServiceKeyWithType, ServiceListener>::iterator it = listener_map_.begin();
+       it != listener_map_.end(); ++it) {
+    if (it->second.timeout_task_iter_ != reactor_.TimingTaskEnd()) {
+      reactor_.CancelTimingTask(it->second.timeout_task_iter_);
+      pending_for_connected_.insert(&it->second);
+      it->second.timeout_task_iter_ = reactor_.TimingTaskEnd();
+    }
+  }
+
   // 选择一个服务器
   std::string host;
   int port = 0;
@@ -616,16 +631,6 @@ void GrpcServerConnector::ServerSwitch() {
       discover_stream_state_ = kDiscoverStreamInit;
     }
     POLARIS_LOG(LOG_INFO, "discover stream switch to inner server[%s:%d]", host.c_str(), port);
-  }
-
-  // 有超时检查的服务，说明本次未完成服务发现，加入pending列表，从而可在切换成功后立马发送
-  for (std::map<ServiceKeyWithType, ServiceListener>::iterator it = listener_map_.begin();
-       it != listener_map_.end(); ++it) {
-    if (it->second.timeout_task_iter_ != reactor_.TimingTaskEnd()) {
-      reactor_.CancelTimingTask(it->second.timeout_task_iter_);
-      pending_for_connected_.insert(&it->second);
-      it->second.timeout_task_iter_ = reactor_.TimingTaskEnd();
-    }
   }
 
   // 设置定时任务进行超时检查
