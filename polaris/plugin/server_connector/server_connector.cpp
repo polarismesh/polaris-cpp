@@ -550,7 +550,7 @@ void GrpcServerConnector::TimingServerSwitch(GrpcServerConnector* server_connect
     server_connector->UpdateCallResult(kServerCodeReturnOk, 0);
   } else if (server_connector->server_switch_state_ == kServerSwitchDefault) {
     server_connector->server_switch_state_ = kServerSwitchPeriodic;
-    POLARIS_LOG(LOG_INFO, "switch from default server[%s] to seed service",
+    POLARIS_LOG(LOG_INFO, "switch from seed server[%s] to seed service",
                 server_connector->grpc_client_->CurrentServer().c_str());
     server_connector->UpdateCallResult(kServerCodeReturnOk, 0);
   } else if (server_connector->server_switch_state_ == kServerSwitchBegin) {
@@ -614,23 +614,21 @@ void GrpcServerConnector::ServerSwitch() {
       discover_stream_state_ = kDiscoverStreamInit;
       POLARIS_LOG(LOG_INFO, "discover stream switch to discover server[%s:%d]", host.c_str(), port);
     } else {
-      POLARIS_LOG(LOG_ERROR, "discover polaris service[%s/%s] return error[%s]",
+      POLARIS_LOG(LOG_WARN, "discover polaris service[%s/%s] return [%s], switch to seed server",
                   discover_service.namespace_.c_str(), discover_service.name_.c_str(),
                   ReturnCodeToMsg(ret_code).c_str());
-      server_switch_state_     = kServerSwitchNormal;  // 设置成正常状态，稍后重试
-      server_switch_task_iter_ = reactor_.AddTimingTask(new TimingFuncTask<GrpcServerConnector>(
-          GrpcServerConnector::TimingServerSwitch, this, message_timeout_.GetTimeout()));
-      return;
     }
-  } else {
-    SeedServer& server = server_lists_[rand() % server_lists_.size()];
-    host               = server.ip_;
-    port               = server.port_;
+  }
+  if (host.empty()) {
+    discover_stream_state_ = kDiscoverStreamNotInit;
+    SeedServer& server     = server_lists_[rand() % server_lists_.size()];
+    host                   = server.ip_;
+    port                   = server.port_;
     // 如果没有配置discover服务名，那么则此时已经初始化完成
     if (context_->GetContextImpl()->GetDiscoverService().service_.name_.empty()) {
       discover_stream_state_ = kDiscoverStreamInit;
     }
-    POLARIS_LOG(LOG_INFO, "discover stream switch to inner server[%s:%d]", host.c_str(), port);
+    POLARIS_LOG(LOG_INFO, "discover stream switch to seed server[%s:%d]", host.c_str(), port);
   }
 
   // 设置定时任务进行超时检查
