@@ -59,6 +59,10 @@ public:
                ReturnCode(const ServiceKey &service_key,
                           const CircuitBreakUnhealthySetsData &cb_unhealthy_set_data));
 
+  MOCK_METHOD3(GetCircuitBreakerInstances,
+               ReturnCode(const ServiceKey &service_key, ServiceData *&service_data,
+                          std::vector<Instance *> &open_instances));
+
   MOCK_METHOD2(UpdateDynamicWeight, ReturnCode(const ServiceKey &service_key,
                                                const DynamicWeightData &dynamic_weight_data));
 

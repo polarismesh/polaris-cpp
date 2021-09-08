@@ -138,38 +138,32 @@ ReturnCode HealthCheckerChainImpl::DetectInstance(CircuitBreakerChain& circuit_b
   }
 
   ServiceData* service_data = NULL;
-  local_registry_->GetServiceDataWithRef(service_key_, kServiceDataInstances, service_data);
-  if (service_data == NULL) {
+  std::vector<Instance*> health_check_instances;
+  if (local_registry_->GetCircuitBreakerInstances(service_key_, service_data,
+                                                  health_check_instances) != kReturnOk) {
     return kReturnOk;
   }
-  Service* service = service_data->GetService();
+
   ServiceInstances service_instances(service_data);
   std::map<std::string, Instance*>& instance_map = service_instances.GetInstances();
-  std::set<std::string> target_health_check_instances;
 
   if (when_ == HealthCheckerConfig::kChainWhenAlways) {
+    health_check_instances.clear();
     // 健康检查设置为always, 则探测所有非隔离实例
     for (std::map<std::string, Instance*>::iterator instance_iter = instance_map.begin();
          instance_iter != instance_map.end(); ++instance_iter) {
       if (!instance_iter->second->isIsolate()) {
-        target_health_check_instances.insert(instance_iter->first);
+        health_check_instances.push_back(instance_iter->second);
       }
     }
-  } else if (when_ == HealthCheckerConfig::kChainWhenOnRecover) {
-    // 健康检查设置为on_recover, 则探测半开实例
-    target_health_check_instances = service->GetCircuitBreakerOpenInstances();
+  } else if (when_ != HealthCheckerConfig::kChainWhenOnRecover) {
+    // 健康检查设置不为on_recover, 则探测半开实例
+    health_check_instances.clear();
   }
-  for (std::set<std::string>::iterator it = target_health_check_instances.begin();
-       it != target_health_check_instances.end(); ++it) {
-    const std::string& instance_id                  = *it;
-    std::map<std::string, Instance*>::iterator iter = instance_map.find(instance_id);
-    if (iter == instance_map.end()) {
-      POLARIS_LOG(LOG_INFO, "The health checker of service[%s/%s] getting instance[%s] failed",
-                  service_key_.namespace_.c_str(), service_key_.name_.c_str(), instance_id.c_str());
-      continue;
-    }
+
+  for (std::size_t i = 0; i < health_check_instances.size(); ++i) {
     bool is_detect_success = false;
-    Instance* instance     = iter->second;
+    Instance* instance     = health_check_instances[i];
     for (std::size_t i = 0; i < health_checker_list_.size(); ++i) {
       HealthChecker*& detector = health_checker_list_[i];
       DetectResult detector_result;
@@ -195,7 +189,7 @@ ReturnCode HealthCheckerChainImpl::DetectInstance(CircuitBreakerChain& circuit_b
     // 探活插件成功，则将熔断实例置为半开状态，其他实例状态不变
     // 探活插件失败，则将健康实例置为熔断状态，其他实例状态不变
     if (is_detect_success) {
-      circuit_breaker_chain.TranslateStatus(instance_id, kCircuitBreakerOpen,
+      circuit_breaker_chain.TranslateStatus(instance->GetId(), kCircuitBreakerOpen,
                                             kCircuitBreakerHalfOpen);
       POLARIS_LOG(LOG_INFO,
                   "service[%s/%s] getting instance[%s-%s:%d] detectoring success, change to "
@@ -203,7 +197,8 @@ ReturnCode HealthCheckerChainImpl::DetectInstance(CircuitBreakerChain& circuit_b
                   service_key_.namespace_.c_str(), service_key_.name_.c_str(),
                   instance->GetId().c_str(), instance->GetHost().c_str(), instance->GetPort());
     } else {
-      circuit_breaker_chain.TranslateStatus(instance_id, kCircuitBreakerClose, kCircuitBreakerOpen);
+      circuit_breaker_chain.TranslateStatus(instance->GetId(), kCircuitBreakerClose,
+                                            kCircuitBreakerOpen);
       POLARIS_LOG(LOG_INFO,
                   "service[%s/%s] getting instance[%s-%s:%d] detectoring failed, change to "
                   "open status",

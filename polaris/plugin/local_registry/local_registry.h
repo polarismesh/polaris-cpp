@@ -95,6 +95,10 @@ public:
   virtual ReturnCode UpdateSetCircuitBreakerData(
       const ServiceKey& service_key, const CircuitBreakUnhealthySetsData& unhealthy_sets);
 
+  virtual ReturnCode GetCircuitBreakerInstances(const ServiceKey& service_key,
+                                                ServiceData*& service_data,
+                                                std::vector<Instance*>& open_instances);
+
   virtual ReturnCode UpdateDynamicWeight(const ServiceKey& service_key,
                                          const DynamicWeightData& dynamic_weight_data);
 

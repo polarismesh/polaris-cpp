@@ -175,6 +175,7 @@ void InMemoryRegistry::CheckExpireServiceData(uint64_t min_access_time,
     pthread_rwlock_unlock(&notify_rwlock_);
     if (service_data_type == kServiceDataInstances) {  // 清除实例数据时对应的服务级别插件也删除
       context_impl->DeleteServiceContext(expired_services[i]);
+      DeleteServiceInLock(expired_services[i]);
     }
   }
 }
@@ -308,6 +309,7 @@ ReturnCode InMemoryRegistry::UpdateServiceData(const ServiceKey& service_key,
   }
   if (service_data == NULL) {  // Server Connector反注册Handler触发更新为NULL
     if (data_type == kServiceDataInstances) {  // 删除服务实例数据时，同时删除服务
+      context_impl->DeleteServiceContext(service_key);
       DeleteServiceInLock(service_key);
     }
     context_impl->GetServiceRecord()->ServiceDataDelete(service_key,
@@ -387,6 +389,39 @@ ReturnCode InMemoryRegistry::UpdateSetCircuitBreakerData(
   service = service_it->second;
   pthread_rwlock_unlock(&rwlock_);
   return service->WriteCircuitBreakerUnhealthySets(unhealthy_sets);
+}
+
+ReturnCode InMemoryRegistry::GetCircuitBreakerInstances(const ServiceKey& service_key,
+                                                        ServiceData*& service_data,
+                                                        std::vector<Instance*>& open_instances) {
+  service_data = service_instances_data_.Get(service_key, false);
+  if (service_data == NULL) {
+    return kReturnServiceNotFound;
+  }
+  if (service_data->GetDataStatus() < kDataIsSyncing) {
+    service_data->DecrementRef();
+    return kReturnServiceNotFound;
+  }
+  Service* service = service_data->GetService();
+  ServiceInstances service_instances(service_data);
+  std::map<std::string, Instance*>& instance_map      = service_instances.GetInstances();
+  std::set<std::string> circuit_breaker_open_instance = service->GetCircuitBreakerOpenInstances();
+  for (std::set<std::string>::iterator it = circuit_breaker_open_instance.begin();
+       it != circuit_breaker_open_instance.end(); ++it) {
+    const std::string& instance_id                  = *it;
+    std::map<std::string, Instance*>::iterator iter = instance_map.find(instance_id);
+    if (iter == instance_map.end()) {
+      POLARIS_LOG(LOG_INFO, "The outlier detector of service[%s/%s] getting instance[%s] failed",
+                  service_key.namespace_.c_str(), service_key.name_.c_str(), instance_id.c_str());
+      continue;
+    }
+    open_instances.push_back(iter->second);
+  }
+  if (open_instances.empty()) {
+    return kReturnInstanceNotFound;
+  }
+  service_data->IncrementRef();
+  return kReturnOk;
 }
 
 }  // namespace polaris

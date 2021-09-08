@@ -78,7 +78,7 @@ public:
   ~RcuMap();
 
   /// @brief 根据Key获取指向Value的指针，key不存在返回NULL
-  Value* Get(const Key& key);
+  Value* Get(const Key& key, bool update_access_time = true);
 
   /// @brief 更新Key对应的Value
   /// 如果key对应的value已存在，则将旧的value加入待释放列表，内部线程会延迟一定时间释放
@@ -166,20 +166,24 @@ RcuMap<Key, Value>::~RcuMap() {
 }
 
 template <typename Key, typename Value>
-Value* RcuMap<Key, Value>::Get(const Key& key) {
+Value* RcuMap<Key, Value>::Get(const Key& key, bool update_access_time) {
   // 查询read map，获取结果
   Value* read_result             = NULL;
   InnerMap* current_read         = read_map_;
   typename InnerMap::iterator it = current_read->find(key);
   if (it != current_read->end()) {  // MapValue包含的value指针在整个过程中是可能改变的
-    it->second->used_time_ = Time::GetCurrentTimeMs();
-    read_result            = it->second->value_;
+    if (update_access_time) {
+      it->second->used_time_ = Time::GetCurrentTimeMs();
+    }
+    read_result = it->second->value_;
   } else {
     // 从read map未读到数据，则加锁进行后续操作
     sync::MutexGuard mutex_guard(dirty_lock_);
     if ((it = dirty_map_->find(key)) != dirty_map_->end()) {
-      it->second->used_time_ = Time::GetCurrentTimeMs();
-      read_result            = it->second->value_;
+      if (update_access_time) {
+        it->second->used_time_ = Time::GetCurrentTimeMs();
+      }
+      read_result = it->second->value_;
       if (read_map_ == current_read) {
         miss_time_++;  // 记录read map读失败，dirty map读成功次数
       }
