@@ -28,8 +28,7 @@ namespace polaris {
 
 class QuotaManagerTest : public ::testing::Test {
   virtual void SetUp() {
-    context_ = TestContext::CreateContext(kLimitContext);
-    TestUtils::SetUpFakeTime();
+    context_ = TestContext::CreateContext();
     ASSERT_TRUE(context_ != NULL);
     service_key_.namespace_ = "test_namespace";
     service_key_.name_      = "test_name";
@@ -45,7 +44,6 @@ class QuotaManagerTest : public ::testing::Test {
       delete quota_manager_;
       quota_manager_ = NULL;
     }
-    TestUtils::TearDownFakeTime();
   }
 
 protected:
@@ -143,9 +141,6 @@ TEST_F(QuotaManagerTest, GetQuotaWithRule) {
 }
 
 TEST_F(QuotaManagerTest, PrepareQuotaInfo) {
-  delete context_;
-  context_ = TestContext::CreateContext();
-  ASSERT_TRUE(context_ != NULL);
   CreateQuotaManager(true);
 
   MockLocalRegistry *mock_local_registry = TestContext::SetupMockLocalRegistry(context_);

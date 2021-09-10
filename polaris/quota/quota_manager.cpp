@@ -78,7 +78,7 @@ ReturnCode QuotaManager::Init(Context* context, Config* config) {
 
   context_                 = context;
   ContextMode context_mode = context->GetContextMode();
-  if (context_mode != kLimitContext && context_mode != kShareContext) {
+  if (context_mode == kPrivateContext) {  // provider或consumer私有时不创建quota manger线程
     return kReturnOk;
   }
   bool is_enable = config->GetBoolOrDefault(kRateLimitEnableKey, kRateLimitEnableDefault);

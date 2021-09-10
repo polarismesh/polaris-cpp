@@ -372,6 +372,7 @@ TEST_F(InMemoryLocalRegistryTest, TestServiceExpire) {
   TestUtils::FakeNowIncrement(1);
   local_registry_->RemoveExpireServiceData(Time::GetCurrentTimeMs());
   ASSERT_TRUE(mock_server_connector_->saved_handler_ == NULL);
+  TestUtils::TearDownFakeTime();
 }
 
 TEST_F(InMemoryLocalRegistryTest, TestOldServiceDataGc) {
@@ -422,6 +423,7 @@ TEST_F(InMemoryLocalRegistryTest, TestOldServiceDataGc) {
   // 旧服务虽然被缓存删除并被释放，但更新前在使用，所以还需要再次释放
   ASSERT_EQ(init_service_data->DecrementAndGetRef(), 1);
   delete mock_server_connector_->saved_handler_;
+  TestUtils::TearDownFakeTime();
 }
 
 }  // namespace polaris

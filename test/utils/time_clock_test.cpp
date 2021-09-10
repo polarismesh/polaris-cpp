@@ -71,4 +71,12 @@ TEST_F(TimeClockTest, MultiThreadTest) {
   thread_list.clear();
 }
 
+TEST_F(TimeClockTest, CustomClockFunc) {
+  TestUtils::SetUpFakeTime();  // 设置自定义时间函数
+  Time::TrySetUpClock();
+  ASSERT_EQ(g_custom_clock_update_tid, 0);  // 自定义时间函数时不会启动内部时间线程
+  Time::TryShutdomClock();
+  TestUtils::TearDownFakeTime();
+}
+
 }  // namespace polaris
