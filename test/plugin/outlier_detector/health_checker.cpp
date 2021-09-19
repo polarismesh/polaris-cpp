@@ -15,7 +15,7 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "plugin/outlier_detector/outlier_detector.h"
+#include "plugin/health_checker/health_checker.h"
 
 #include <gtest/gtest.h>
 #include <pthread.h>
@@ -63,7 +63,7 @@ public:
 };
 
 // 依赖上述测试用例启动的tcp、udp server
-class OutlierDetectorChainTest : public ::testing::Test {
+class HealthCheckerChainTest : public ::testing::Test {
 protected:
   virtual void SetUp() {
     std::string err_msg, content = "enable:\n  true";
@@ -73,9 +73,9 @@ protected:
     service_key_.name_      = "test_service_name";
     local_registry_         = new MockLocalRegistry();
     circuit_breaker_chain_  = new FakeCircuitBreakerChain();
-    outlier_detector_chain_ = new OutlierDetectorChainImpl(
+    health_checker_chain_ = new HealthCheckerChainImpl(
         service_key_, local_registry_, static_cast<CircuitBreakerChain *>(circuit_breaker_chain_));
-    ReturnCode ret = outlier_detector_chain_->Init(default_config_, NULL);
+    ReturnCode ret = health_checker_chain_->Init(default_config_, NULL);
     ASSERT_EQ(ret, kReturnOk);
   }
 
@@ -92,9 +92,9 @@ protected:
       delete circuit_breaker_chain_;
       circuit_breaker_chain_ = NULL;
     }
-    if (outlier_detector_chain_ != NULL) {
-      delete outlier_detector_chain_;
-      outlier_detector_chain_ = NULL;
+    if (health_checker_chain_ != NULL) {
+      delete health_checker_chain_;
+      health_checker_chain_ = NULL;
     }
   }
 
@@ -103,11 +103,11 @@ protected:
   ServiceKey service_key_;
   LocalRegistry *local_registry_;
   FakeCircuitBreakerChain *circuit_breaker_chain_;
-  OutlierDetectorChain *outlier_detector_chain_;
+  HealthCheckerChain *health_checker_chain_;
 };
 
-TEST_F(OutlierDetectorChainTest, ChainDetectInstance) {
-  // ASSERT_EQ(outlier_detector_chain_->GetOutlierDetectors().size(), 1);  //
+TEST_F(HealthCheckerChainTest, ChainDetectInstance) {
+  // ASSERT_EQ(health_checker_chain_->GetHealthCheckers().size(), 1);  //
   // 只有tcp探测
 
   // v1::Response response;
@@ -147,7 +147,7 @@ TEST_F(OutlierDetectorChainTest, ChainDetectInstance) {
   // breaker_data.open_instances.insert("instance_8018");
   // service->SetCircuitBreakerData(breaker_data);
   // sleep(11); // 间隔是10s,这里sleep 11s
-  // ReturnCode retcode = outlier_detector_chain_->DetectInstance();
+  // ReturnCode retcode = health_checker_chain_->DetectInstance();
   // ASSERT_EQ(retcode, kReturnOk);
 
   // ASSERT_EQ(status_map["instance_8010"], kCircuitBreakerHalfOpen);

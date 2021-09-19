@@ -27,11 +27,11 @@ class Config;
 class Context;
 class Instance;
 
-class TcpOutlierDetector : public OutlierDetector {
+class TcpHealthChecker : public HealthChecker {
 public:
-  TcpOutlierDetector();
+  TcpHealthChecker();
 
-  virtual ~TcpOutlierDetector();
+  virtual ~TcpHealthChecker();
 
   virtual ReturnCode Init(Config* config, Context* context);
 

@@ -17,7 +17,7 @@
 #include "cache/cache_manager.h"
 #include "engine/circuit_breaker_executor.h"
 #include "engine/main_executor.h"
-#include "engine/outlier_detection_executor.h"
+#include "engine/health_check_executor.h"
 #include "monitor/monitor_reporter.h"
 #include "polaris/defs.h"
 
@@ -47,7 +47,7 @@ private:
   CacheManager cache_manager_;
   MonitorReporter monitor_reporter_;
   CircuitBreakerExecutor circuit_breaker_executor_;
-  OutlierDetectionExecutor outlier_detector_executor_;
+  HealthCheckExecutor health_check_executor_;
 };
 
 }  // namespace polaris

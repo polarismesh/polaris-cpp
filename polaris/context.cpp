@@ -35,7 +35,7 @@
 #include "monitor/api_stat_registry.h"
 #include "monitor/service_record.h"
 #include "plugin/circuit_breaker/circuit_breaker.h"
-#include "plugin/outlier_detector/outlier_detector.h"
+#include "plugin/health_checker/health_checker.h"
 #include "plugin/plugin_manager.h"
 #include "polaris/config.h"
 #include "polaris/context.h"
@@ -94,8 +94,8 @@ CircuitBreakerChain* ServiceContext::GetCircuitBreakerChain() {
   return impl_->circuit_breaker_chain_;
 }
 
-OutlierDetectorChain* ServiceContext::GetOutlierDetectorChain() {
-  return impl_->outlier_detector_chain_;
+HealthCheckerChain* ServiceContext::GetHealthCheckerChain() {
+  return impl_->health_checker_chain_;
 }
 
 ServiceContextImpl* ServiceContext::GetServiceContextImpl() { return impl_; }
@@ -109,7 +109,7 @@ ServiceContextImpl::ServiceContextImpl() {
   }
   weight_adjuster_        = NULL;
   circuit_breaker_chain_  = NULL;
-  outlier_detector_chain_ = NULL;
+  health_checker_chain_ = NULL;
   UpdateLastUseTime();
 }
 
@@ -132,9 +132,9 @@ ServiceContextImpl::~ServiceContextImpl() {
     delete circuit_breaker_chain_;
     circuit_breaker_chain_ = NULL;
   }
-  if (outlier_detector_chain_ != NULL) {
-    delete outlier_detector_chain_;
-    outlier_detector_chain_ = NULL;
+  if (health_checker_chain_ != NULL) {
+    delete health_checker_chain_;
+    health_checker_chain_ = NULL;
   }
 }
 
@@ -175,10 +175,10 @@ ReturnCode ServiceContextImpl::Init(const ServiceKey& service_key, Config* confi
   }
 
   // 初始化探活插件
-  plugin_config           = config->GetSubConfig("outlierDetection");
-  outlier_detector_chain_ = new OutlierDetectorChainImpl(service_key, context->GetLocalRegistry(),
+  plugin_config           = config->GetSubConfig("healthCheck");
+  health_checker_chain_ = new HealthCheckerChainImpl(service_key, context->GetLocalRegistry(),
                                                          circuit_breaker_chain_);
-  ret                     = outlier_detector_chain_->Init(plugin_config, context);
+  ret                     = health_checker_chain_->Init(plugin_config, context);
   delete plugin_config;
   if (ret != kReturnOk) {
     return ret;
@@ -188,7 +188,7 @@ ReturnCode ServiceContextImpl::Init(const ServiceKey& service_key, Config* confi
   plugin_config          = config->GetSubConfig("circuitBreaker");
   circuit_breaker_chain_ = new CircuitBreakerChainImpl(
       service_key, context->GetLocalRegistry(),
-      outlier_detector_chain_->GetOutlierDetectors().empty());  // 探测插件为空，则表示开启自动半开
+      health_checker_chain_->GetHealthCheckers().empty());  // 探测插件为空，则表示开启自动半开
   ret = circuit_breaker_chain_->Init(plugin_config, context);
   delete plugin_config;
   if (ret != kReturnOk) {

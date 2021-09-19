@@ -30,9 +30,9 @@
 #include "plugin/load_balancer/simple_hash.h"
 #include "plugin/load_balancer/weighted_random.h"
 #include "plugin/local_registry/local_registry.h"
-#include "plugin/outlier_detector/http_detector.h"
-#include "plugin/outlier_detector/tcp_detector.h"
-#include "plugin/outlier_detector/udp_detector.h"
+#include "plugin/health_checker/http_detector.h"
+#include "plugin/health_checker/tcp_detector.h"
+#include "plugin/health_checker/udp_detector.h"
 #include "plugin/server_connector/server_connector.h"
 #include "plugin/service_router/canary_router.h"
 #include "plugin/service_router/metadata_router.h"
@@ -61,8 +61,8 @@ const char* PluginTypeToString(PluginType plugin_type) {
       return "ServiceRouter";
     case kPluginLoadBalancer:
       return "LoadBalancer";
-    case kPluginOutlierDetector:
-      return "OutlierDetector";
+    case kPluginHealthChecker:
+      return "HealthChecker";
     case kPluginCircuitBreaker:
       return "CircuitBreaker";
     case kPluginWeightAdjuster:
@@ -103,9 +103,9 @@ Plugin* MetadataServiceRouterFactory() { return new MetadataServiceRouter(); }
 Plugin* ErrorCountCircuitBreakerFactory() { return new ErrorCountCircuitBreaker(); }
 Plugin* ErrorRateCircuitBreakerFactory() { return new ErrorRateCircuitBreaker(); }
 
-Plugin* HttpOutlierDetectorFactory() { return new HttpOutlierDetector(); }
-Plugin* TcpOutlierDetectorFactory() { return new TcpOutlierDetector(); }
-Plugin* UdpOutlierDetectorFactory() { return new UdpOutlierDetector(); }
+Plugin* HttpHealthCheckerFactory() { return new HttpHealthChecker(); }
+Plugin* TcpHealthCheckerFactory() { return new TcpHealthChecker(); }
+Plugin* UdpHealthCheckerFactory() { return new UdpHealthChecker(); }
 
 PluginManager::PluginManager() {
   RegisterPlugin(kPluginDefaultServerConnector, kPluginServerConnector, GrpcServerConnectorFactory);
@@ -135,9 +135,9 @@ PluginManager::PluginManager() {
   RegisterPlugin(kPluginErrorRateCircuitBreaker, kPluginCircuitBreaker,
                  ErrorRateCircuitBreakerFactory);
 
-  RegisterPlugin(kPluginHttpOutlierDetector, kPluginOutlierDetector, HttpOutlierDetectorFactory);
-  RegisterPlugin(kPluginTcpOutlierDetector, kPluginOutlierDetector, TcpOutlierDetectorFactory);
-  RegisterPlugin(kPluginUdpOutlierDetector, kPluginOutlierDetector, UdpOutlierDetectorFactory);
+  RegisterPlugin(kPluginHttpHealthChecker, kPluginHealthChecker, HttpHealthCheckerFactory);
+  RegisterPlugin(kPluginTcpHealthChecker, kPluginHealthChecker, TcpHealthCheckerFactory);
+  RegisterPlugin(kPluginUdpHealthChecker, kPluginHealthChecker, UdpHealthCheckerFactory);
 }
 
 PluginManager::~PluginManager() {}

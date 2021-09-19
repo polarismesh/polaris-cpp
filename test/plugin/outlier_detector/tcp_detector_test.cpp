@@ -15,7 +15,7 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "plugin/outlier_detector/tcp_detector.h"
+#include "plugin/health_checker/tcp_detector.h"
 
 #include <gtest/gtest.h>
 #include <pthread.h>
@@ -29,7 +29,7 @@
 
 namespace polaris {
 
-class TcpOutlierDetectorTest : public ::testing::Test {
+class TcpHealthCheckerTest : public ::testing::Test {
 protected:
   static void SetUpTestCase() {
     tcp_server_list_.push_back(
@@ -65,7 +65,7 @@ protected:
 
   virtual void SetUp() {
     default_config_ = NULL;
-    tcp_detector_   = new TcpOutlierDetector();
+    tcp_detector_   = new TcpHealthChecker();
   }
 
   virtual void TearDown() {
@@ -85,18 +85,18 @@ protected:
          ++it) {
       Instance instance("instance_id", "0.0.0.0", it->first, 0);
       ASSERT_EQ(tcp_detector_->DetectInstance(instance, detect_result), it->second);
-      ASSERT_EQ(detect_result.detect_type, kPluginTcpOutlierDetector);
+      ASSERT_EQ(detect_result.detect_type, kPluginTcpHealthChecker);
     }
   }
 
 protected:
-  TcpOutlierDetector *tcp_detector_;
+  TcpHealthChecker *tcp_detector_;
   Config *default_config_;
 };
 
-std::vector<NetServerParam> TcpOutlierDetectorTest::tcp_server_list_;
+std::vector<NetServerParam> TcpHealthCheckerTest::tcp_server_list_;
 
-TEST_F(TcpOutlierDetectorTest, DetectInstanceCheckConfig) {
+TEST_F(TcpHealthCheckerTest, DetectInstanceCheckConfig) {
   default_config_ = Config::CreateEmptyConfig();
   ASSERT_EQ(tcp_detector_->Init(default_config_, NULL), kReturnInvalidConfig);
 
@@ -127,7 +127,7 @@ TEST_F(TcpOutlierDetectorTest, DetectInstanceCheckConfig) {
   ASSERT_EQ(tcp_detector_->Init(default_config_, NULL), kReturnOk);
 }
 
-TEST_F(TcpOutlierDetectorTest, DetectInstanceWithConfig) {
+TEST_F(TcpHealthCheckerTest, DetectInstanceWithConfig) {
   std::string err_msg, content =
                            "send:\n  0x12345678\n"
                            "receive:\n  0x4f4b\n"  // 0x4f4b为OK的二进制表示
@@ -143,7 +143,7 @@ TEST_F(TcpOutlierDetectorTest, DetectInstanceWithConfig) {
   DetectingLocalPortCaseMap(port_testing_case_map);
 }
 
-TEST_F(TcpOutlierDetectorTest, DetectInstanceWithTimeout) {
+TEST_F(TcpHealthCheckerTest, DetectInstanceWithTimeout) {
   std::string err_msg, content =
                            "send:\n  0x12345678\n"
                            "receive:\n  0x4f4b\n"  // 0x4f4b为OK的二进制表示
@@ -159,7 +159,7 @@ TEST_F(TcpOutlierDetectorTest, DetectInstanceWithTimeout) {
   DetectingLocalPortCaseMap(port_testing_case_map);
 }
 
-TEST_F(TcpOutlierDetectorTest, DetectInstanceWithoutResponse) {
+TEST_F(TcpHealthCheckerTest, DetectInstanceWithoutResponse) {
   std::string err_msg, content =
                            "send:\n  0x12345678\n"
                            "receive:\n  ''\n"  // 0x4f4b为OK的二进制表示

@@ -11,7 +11,7 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "engine/outlier_detection_executor.h"
+#include "engine/health_check_executor.h"
 
 #include <iosfwd>
 #include <vector>
@@ -23,25 +23,25 @@
 
 namespace polaris {
 
-OutlierDetectionExecutor::OutlierDetectionExecutor(Context* context) : Executor(context) {}
+HealthCheckExecutor::HealthCheckExecutor(Context* context) : Executor(context) {}
 
-void OutlierDetectionExecutor::SetupWork() {
-  reactor_.SubmitTask(new FuncTask<OutlierDetectionExecutor>(TimingDetect, this));
+void HealthCheckExecutor::SetupWork() {
+  reactor_.SubmitTask(new FuncTask<HealthCheckExecutor>(TimingDetect, this));
 }
 
-void OutlierDetectionExecutor::TimingDetect(OutlierDetectionExecutor* executor) {
+void HealthCheckExecutor::TimingDetect(HealthCheckExecutor* executor) {
   std::vector<ServiceContext*> all_service_contexts;
   executor->context_->GetContextImpl()->GetAllServiceContext(all_service_contexts);
   for (std::size_t i = 0; i < all_service_contexts.size(); ++i) {
-    OutlierDetectorChain* outlier_detector_chain =
-        all_service_contexts[i]->GetOutlierDetectorChain();
-    outlier_detector_chain->DetectInstance();
+    HealthCheckerChain* health_checker_chain =
+        all_service_contexts[i]->GetHealthCheckerChain();
+    health_checker_chain->DetectInstance();
     all_service_contexts[i]->DecrementRef();
   }
   all_service_contexts.clear();
   // 设置定时任务
   executor->reactor_.AddTimingTask(
-      new TimingFuncTask<OutlierDetectionExecutor>(TimingDetect, executor, 1000));
+      new TimingFuncTask<HealthCheckExecutor>(TimingDetect, executor, 1000));
 }
 
 }  // namespace polaris

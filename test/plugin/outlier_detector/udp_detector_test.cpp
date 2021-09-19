@@ -15,7 +15,7 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "plugin/outlier_detector/udp_detector.h"
+#include "plugin/health_checker/udp_detector.h"
 
 #include <gtest/gtest.h>
 #include <pthread.h>
@@ -29,7 +29,7 @@
 
 namespace polaris {
 
-class UdpOutlierDetectorTest : public ::testing::Test {
+class UdpHealthCheckerTest : public ::testing::Test {
 protected:
   static void SetUpTestCase() {
     upd_server_list_.push_back(
@@ -70,7 +70,7 @@ protected:
 
   virtual void SetUp() {
     default_config_ = NULL;
-    udp_detector_   = new UdpOutlierDetector();
+    udp_detector_   = new UdpHealthChecker();
   }
 
   virtual void TearDown() {
@@ -90,18 +90,18 @@ protected:
          ++it) {
       Instance instance("instance_id", "0.0.0.0", it->first, 0);
       ASSERT_EQ(udp_detector_->DetectInstance(instance, detect_result), it->second);
-      ASSERT_EQ(detect_result.detect_type, kPluginUdpOutlierDetector);
+      ASSERT_EQ(detect_result.detect_type, kPluginUdpHealthChecker);
     }
   }
 
 protected:
-  UdpOutlierDetector *udp_detector_;
+  UdpHealthChecker *udp_detector_;
   Config *default_config_;
 };
 
-std::vector<NetServerParam> UdpOutlierDetectorTest::upd_server_list_;
+std::vector<NetServerParam> UdpHealthCheckerTest::upd_server_list_;
 
-TEST_F(UdpOutlierDetectorTest, DetectInstanceResponseCode) {
+TEST_F(UdpHealthCheckerTest, DetectInstanceResponseCode) {
   default_config_ = Config::CreateEmptyConfig();
   ASSERT_EQ(udp_detector_->Init(default_config_, NULL), kReturnInvalidConfig);
 
@@ -124,7 +124,7 @@ TEST_F(UdpOutlierDetectorTest, DetectInstanceResponseCode) {
   DetectingLocalPortCaseMap(port_testing_case_map);
 }
 
-TEST_F(UdpOutlierDetectorTest, DetectInstanceWithConfig) {
+TEST_F(UdpHealthCheckerTest, DetectInstanceWithConfig) {
   std::string err_msg, content =
                            "send:\n  0x12345678\n"
                            "receive:\n  0x4f4b\n"  // 0x4f4b为OK的二进制表示
@@ -140,7 +140,7 @@ TEST_F(UdpOutlierDetectorTest, DetectInstanceWithConfig) {
   DetectingLocalPortCaseMap(port_testing_case_map);
 }
 
-TEST_F(UdpOutlierDetectorTest, DetectInstanceWithTimeout) {
+TEST_F(UdpHealthCheckerTest, DetectInstanceWithTimeout) {
   std::string err_msg, content =
                            "send:\n  0x12345678\n"
                            "receive:\n  0x4f4b\n"  // 0x4f4b为OK的二进制表示
@@ -156,7 +156,7 @@ TEST_F(UdpOutlierDetectorTest, DetectInstanceWithTimeout) {
   DetectingLocalPortCaseMap(port_testing_case_map);
 }
 
-TEST_F(UdpOutlierDetectorTest, DetectInstanceWithoutResponse) {
+TEST_F(UdpHealthCheckerTest, DetectInstanceWithoutResponse) {
   std::string err_msg, content =
                            "send:\n  0x12345678\n"
                            "receive:\n  ''\n"  // 0x4f4b为OK的二进制表示

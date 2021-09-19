@@ -15,7 +15,7 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "plugin/outlier_detector/http_detector.h"
+#include "plugin/health_checker/http_detector.h"
 
 #include <gtest/gtest.h>
 #include <pthread.h>
@@ -29,7 +29,7 @@
 
 namespace polaris {
 
-class HttpOutlierDetectorTest : public ::testing::Test {
+class HttpHealthCheckerTest : public ::testing::Test {
 protected:
   static void SetUpTestCase() {
     http_server_list_.push_back(
@@ -79,7 +79,7 @@ protected:
 
   virtual void SetUp() {
     default_config_ = NULL;
-    http_detector_  = new HttpOutlierDetector();
+    http_detector_  = new HttpHealthChecker();
   }
 
   virtual void TearDown() {
@@ -100,18 +100,18 @@ protected:
       Instance instance("instance_id", "0.0.0.0", it->first, 0);
       ASSERT_EQ(http_detector_->DetectInstance(instance, detect_result), it->second)
           << "port:" << it->first;
-      ASSERT_EQ(detect_result.detect_type, kPluginHttpOutlierDetector);
+      ASSERT_EQ(detect_result.detect_type, kPluginHttpHealthChecker);
     }
   }
 
 protected:
-  HttpOutlierDetector *http_detector_;
+  HttpHealthChecker *http_detector_;
   Config *default_config_;
 };
 
-std::vector<NetServerParam> HttpOutlierDetectorTest::http_server_list_;
+std::vector<NetServerParam> HttpHealthCheckerTest::http_server_list_;
 
-TEST_F(HttpOutlierDetectorTest, DetectInstanceResponseCode) {
+TEST_F(HttpHealthCheckerTest, DetectInstanceResponseCode) {
   default_config_ = Config::CreateEmptyConfig();
   ASSERT_EQ(http_detector_->Init(default_config_, NULL), kReturnInvalidConfig);
 
@@ -143,7 +143,7 @@ TEST_F(HttpOutlierDetectorTest, DetectInstanceResponseCode) {
   DetectingLocalPortCaseMap(port_testing_case_map);
 }
 
-TEST_F(HttpOutlierDetectorTest, DetectInstanceWithConfig) {
+TEST_F(HttpHealthCheckerTest, DetectInstanceWithConfig) {
   std::string err_msg, content = "path:\n  /\ntimeout:\n  1000";
   default_config_ = Config::CreateFromString(content, err_msg);
   POLARIS_ASSERT(default_config_ != NULL && err_msg.empty());
@@ -158,7 +158,7 @@ TEST_F(HttpOutlierDetectorTest, DetectInstanceWithConfig) {
   DetectingLocalPortCaseMap(port_testing_case_map);
 }
 
-TEST_F(HttpOutlierDetectorTest, DetectInstanceTimeout) {
+TEST_F(HttpHealthCheckerTest, DetectInstanceTimeout) {
   std::string err_msg, content = "path:\n  /\ntimeout:\n  3";
   default_config_ = Config::CreateFromString(content, err_msg);
   POLARIS_ASSERT(default_config_ != NULL && err_msg.empty());

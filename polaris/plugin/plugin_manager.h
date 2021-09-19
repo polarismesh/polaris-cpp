@@ -50,9 +50,9 @@ const char kPluginNearbyServiceRouterAlias[] = "nearbyRouter";
 const char kPluginErrorCountCircuitBreaker[] = "errorCount";
 const char kPluginErrorRateCircuitBreaker[]  = "errorRate";
 
-const char kPluginHttpOutlierDetector[] = "http";
-const char kPluginTcpOutlierDetector[]  = "tcp";
-const char kPluginUdpOutlierDetector[]  = "udp";
+const char kPluginHttpHealthChecker[] = "http";
+const char kPluginTcpHealthChecker[]  = "tcp";
+const char kPluginUdpHealthChecker[]  = "udp";
 const char* PluginTypeToString(PluginType plugin_type);
 
 /// @brief 管理插件，全局只初始化一个对象

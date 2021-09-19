@@ -137,15 +137,15 @@ public:
   virtual void PrepareServicePbConfTrigger() = 0;
 };
 
-class OutlierDetectorChain {
+class HealthCheckerChain {
 public:
-  virtual ~OutlierDetectorChain() {}
+  virtual ~HealthCheckerChain() {}
 
   virtual ReturnCode Init(Config* config, Context* context) = 0;
 
   virtual ReturnCode DetectInstance() = 0;
 
-  virtual std::vector<OutlierDetector*> GetOutlierDetectors() = 0;
+  virtual std::vector<HealthChecker*> GetHealthCheckers() = 0;
 };
 
 class ServiceContextImpl;
@@ -161,7 +161,7 @@ public:
 
   CircuitBreakerChain* GetCircuitBreakerChain();
 
-  OutlierDetectorChain* GetOutlierDetectorChain();
+  HealthCheckerChain* GetHealthCheckerChain();
 
   ServiceRouterChain* GetServiceRouterChain();
 

@@ -11,8 +11,8 @@
 //  language governing permissions and limitations under the License.
 //
 
-#ifndef POLARIS_CPP_POLARIS_PLUGIN_OUTLIER_DETECTOR_HTTP_DETECTOR_H_
-#define POLARIS_CPP_POLARIS_PLUGIN_OUTLIER_DETECTOR_HTTP_DETECTOR_H_
+#ifndef POLARIS_CPP_POLARIS_PLUGIN_OUTLIER_DETECTOR_UDP_DETECTOR_H_
+#define POLARIS_CPP_POLARIS_PLUGIN_OUTLIER_DETECTOR_UDP_DETECTOR_H_
 
 #include <stdint.h>
 
@@ -27,21 +27,22 @@ class Config;
 class Context;
 class Instance;
 
-class HttpOutlierDetector : public OutlierDetector {
+class UdpHealthChecker : public HealthChecker {
 public:
-  HttpOutlierDetector();
+  UdpHealthChecker();
 
-  virtual ~HttpOutlierDetector();
+  virtual ~UdpHealthChecker();
 
   virtual ReturnCode Init(Config* config, Context* context);
 
   virtual ReturnCode DetectInstance(Instance& instance, DetectResult& detect_result);
 
 private:
-  std::string request_path_;
+  std::string send_package_;
+  std::string receive_package_;
   uint64_t timeout_ms_;
 };
 
 }  // namespace polaris
 
-#endif  //  POLARIS_CPP_POLARIS_PLUGIN_OUTLIER_DETECTOR_HTTP_DETECTOR_H_
+#endif  //  POLARIS_CPP_POLARIS_PLUGIN_OUTLIER_DETECTOR_UDP_DETECTOR_H_
