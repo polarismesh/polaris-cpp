@@ -343,6 +343,13 @@ bool GrpcServerConnector::SendDiscoverRequest(ServiceListener& service_listener)
       return false;
     }
   }
+  // 已经发送过请求正等待超时
+  if (service_listener.timeout_task_iter_ != reactor_.TimingTaskEnd()) {
+    POLARIS_LOG(LOG_WARN, "already discover %s for service[%s/%s]",
+                DataTypeToStr(service_listener.service_.data_type_), service_key.namespace_.c_str(),
+                service_key.name_.c_str());
+    return true;
+  }
   // 组装请求
   ::v1::DiscoverRequest request;
   if (!service_key.namespace_.empty()) {
@@ -366,7 +373,6 @@ bool GrpcServerConnector::SendDiscoverRequest(ServiceListener& service_listener)
               DataTypeToStr(service_listener.service_.data_type_), service_key.namespace_.c_str(),
               service_key.name_.c_str());
   // 设置超时检查任务
-  POLARIS_ASSERT(service_listener.timeout_task_iter_ == reactor_.TimingTaskEnd());
   service_listener.timeout_task_iter_ = reactor_.AddTimingTask(new TimingFuncTask<ServiceListener>(
       DiscoverTimoutCheck, &service_listener, message_timeout_.GetTimeout()));
   return true;
@@ -518,11 +524,14 @@ ReturnCode GrpcServerConnector::ProcessDiscoverResponse(::v1::DiscoverResponse& 
                 response.info().value().c_str());
   }
   // 设置下一次的检查任务
-  listener.discover_task_iter_ = reactor_.AddTimingTask(
-      new TimingFuncTask<ServiceListener>(TimingDiscover, &listener, listener.sync_interval_));
-  if (pending_for_connected_.count(&listener) > 0) {
-    // 清理由于切换失败保留在pending列表里的任务需要
-    pending_for_connected_.erase(&listener);
+  // 这里检查，避免发现任务取消又注册后，之前的同步任务遗留的应答导致重复设置定时任务
+  if (listener.discover_task_iter_ == reactor_.TimingTaskEnd()) {
+    listener.discover_task_iter_ = reactor_.AddTimingTask(
+        new TimingFuncTask<ServiceListener>(TimingDiscover, &listener, listener.sync_interval_));
+    if (pending_for_connected_.count(&listener) > 0) {
+      // 清理由于切换失败保留在pending列表里的任务需要
+      pending_for_connected_.erase(&listener);
+    }
   }
   return kReturnOk;
 }
