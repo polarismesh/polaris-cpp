@@ -402,12 +402,20 @@ ReturnCode InMemoryRegistry::GetCircuitBreakerInstances(const ServiceKey& servic
     service_data->DecrementRef();
     return kReturnServiceNotFound;
   }
-  Service* service = service_data->GetService();
+  // 由于此处获取service data没有更新访问时间，服务可能淘汰，不能直接使用其关联的服务数据
+  pthread_rwlock_rdlock(&rwlock_);
+  std::map<ServiceKey, Service*>::iterator service_it = service_cache_.find(service_key);
+  if (service_it == service_cache_.end()) {
+    pthread_rwlock_unlock(&rwlock_);
+    return kReturnServiceNotFound;
+  }
+  std::set<std::string> open_instance = service_it->second->GetCircuitBreakerOpenInstances();
+  pthread_rwlock_unlock(&rwlock_);
+
   ServiceInstances service_instances(service_data);
-  std::map<std::string, Instance*>& instance_map      = service_instances.GetInstances();
-  std::set<std::string> circuit_breaker_open_instance = service->GetCircuitBreakerOpenInstances();
-  for (std::set<std::string>::iterator it = circuit_breaker_open_instance.begin();
-       it != circuit_breaker_open_instance.end(); ++it) {
+  std::map<std::string, Instance*>& instance_map = service_instances.GetInstances();
+  for (std::set<std::string>::iterator it = open_instance.begin(); it != open_instance.end();
+       ++it) {
     const std::string& instance_id                  = *it;
     std::map<std::string, Instance*>::iterator iter = instance_map.find(instance_id);
     if (iter == instance_map.end()) {
