@@ -149,10 +149,12 @@ ReturnCode HealthCheckerChainImpl::DetectInstance() {
   std::set<std::string> target_health_check_instances;
 
   if (when_ == HealthCheckerConfig::kChainWhenAlways) {
-    // 健康检查设置为always, 则探测所有实例
+    // 健康检查设置为always, 则探测所有非隔离实例
     for (std::map<std::string, Instance*>::iterator instance_iter = instance_map.begin();
         instance_iter != instance_map.end(); ++instance_iter) {
-      target_health_check_instances.insert(instance_iter->first);
+      if (!instance_iter->second->isIsolate()) {
+        target_health_check_instances.insert(instance_iter->first);
+      }
     }
   } else if (when_ == HealthCheckerConfig::kChainWhenOnRecover) {
     // 健康检查设置为on_recover, 则探测半开实例
@@ -167,7 +169,7 @@ ReturnCode HealthCheckerChainImpl::DetectInstance() {
                   service_key_.namespace_.c_str(), service_key_.name_.c_str(), instance_id.c_str());
       continue;
     }
-    bool half_open_flag = false;
+    bool is_detect_success = false;
     Instance* instance  = iter->second;
     for (std::size_t i = 0; i < health_checker_list_.size(); ++i) {
       HealthChecker*& detector = health_checker_list_[i];
@@ -179,7 +181,7 @@ ReturnCode HealthCheckerChainImpl::DetectInstance() {
                     detector_result.detect_type.c_str(), service_key_.namespace_.c_str(),
                     service_key_.name_.c_str(), instance->GetId().c_str(),
                     instance->GetHost().c_str(), instance->GetPort(), detector_result.elapse);
-        half_open_flag = true;
+        is_detect_success = true;
         break;
       } else {
         POLARIS_LOG(LOG_INFO,
@@ -191,13 +193,22 @@ ReturnCode HealthCheckerChainImpl::DetectInstance() {
                     detector_result.elapse);
       }
     }
-    // 探活插件成功，则将该实例置为半开状态
-    if (half_open_flag) {
+    // 探活插件成功，则将熔断实例置为半开状态，其他实例状态不变
+    // 探活插件失败，则将健康实例置为熔断状态，其他实例状态不变
+    if (is_detect_success) {
       circuit_breaker_chain_->TranslateStatus(instance_id, kCircuitBreakerOpen,
                                               kCircuitBreakerHalfOpen);
       POLARIS_LOG(LOG_INFO,
                   "service[%s/%s] getting instance[%s-%s:%d] detectoring success, change to "
                   "half-open status",
+                  service_key_.namespace_.c_str(), service_key_.name_.c_str(),
+                  instance->GetId().c_str(), instance->GetHost().c_str(), instance->GetPort());
+    } else {
+      circuit_breaker_chain_->TranslateStatus(instance_id, kCircuitBreakerClose,
+                                              kCircuitBreakerOpen);
+      POLARIS_LOG(LOG_INFO,
+                  "service[%s/%s] getting instance[%s-%s:%d] detectoring failed, change to "
+                  "open status",
                   service_key_.namespace_.c_str(), service_key_.name_.c_str(),
                   instance->GetId().c_str(), instance->GetHost().c_str(), instance->GetPort());
     }
