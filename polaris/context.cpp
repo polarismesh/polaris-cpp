@@ -797,6 +797,7 @@ void ContextImpl::ClearCache() {
     }
     pthread_rwlock_unlock(&cache_rwlock_);
   }
+  service_context_map_->CheckGc(min_access_time);
 }
 
 }  // namespace polaris
