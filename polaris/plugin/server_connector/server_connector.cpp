@@ -556,7 +556,7 @@ ReturnCode GrpcServerConnector::SelectInstance(const ServiceKey& service_key, ui
   // 支持standalone模式，如果service_name为空，则直接返回埋点服务实例
   if (service_key.name_.empty()) {
     SeedServer& server = server_lists_[rand() % server_lists_.size()];
-    *instance = new Instance("", server.ip_, server.port_, 100);
+    *instance          = new Instance("", server.ip_, server.port_, 100);
     return kReturnOk;
   }
   Criteria criteria;
