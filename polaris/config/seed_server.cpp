@@ -31,9 +31,9 @@ static const uint32_t kDefaultSeedServer[] = {16777343};
 static const int kDefaultSeedServerSize    = sizeof(kDefaultSeedServer) / sizeof(uint32_t);
 
 // 内置Polaris Server服务
-static const char kDiscoverServiceDefault[]          = "polaris.discover";
-static const char kHealthCheckServiceDefault[]       = "polaris.healthcheck";
-static const char kMonitorServiceDefault[]           = "polaris.monitor";
+static const char kDiscoverServiceDefault[]          = "";
+static const char kHealthCheckServiceDefault[]       = "";
+static const char kMonitorServiceDefault[]           = "";
 static const char kMetricServiceDefault[]            = "";
 static const uint64_t kPolarisRefreshIntervalDefault = 10 * 60 * 1000;
 
