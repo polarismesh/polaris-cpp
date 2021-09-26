@@ -126,6 +126,7 @@ ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
 }
 
 ReturnCode HealthCheckerChainImpl::DetectInstance() {
+  POLARIS_LOG(LOG_INFO, "here detectInstance, namespace: %s, name: %s, when: %s", service_key_.namespace_.c_str(), service_key_.name_.c_str(), when_.c_str());
   uint64_t now_time_ms = Time::GetCurrentTimeMs();
   if (now_time_ms - last_detect_time_ms_ <= health_check_ttl_ms_) {
     return kReturnOk;
@@ -185,7 +186,7 @@ ReturnCode HealthCheckerChainImpl::DetectInstance() {
         break;
       } else {
         POLARIS_LOG(LOG_INFO,
-                    "The detector[%s] of service[%s/%s] getting instance[%s-%s:%d] success[%d],"
+                    "The detector[%s] of service[%s/%s] getting instance[%s-%s:%d] failed[%d],"
                     " elapsing %" PRIu64 " ms",
                     detector_result.detect_type.c_str(), service_key_.namespace_.c_str(),
                     service_key_.name_.c_str(), instance->GetId().c_str(),

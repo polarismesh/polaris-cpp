@@ -247,7 +247,8 @@ Context* Context::Create(Config* config, ContextMode mode) {
     return NULL;
   }
   // Polaris discover先请求一下
-  if (context_impl->InitSystemService(context_impl->GetDiscoverService()) != kReturnOk) {
+  const PolarisCluster& discover_cluster = context_impl->GetDiscoverService();
+  if (!discover_cluster.service_.name_.empty() && context_impl->InitSystemService(discover_cluster) != kReturnOk) {
     delete context;
     return NULL;
   }
