@@ -28,15 +28,15 @@ class LocalRegistry;
 class HealthChecker;
 
 namespace HealthCheckerConfig {
-static const char kChainWhenKey[]   = "when";
-static const char kChainWhenNever[] = "never";
-static const char kChainWhenAlways[] = "always";
+static const char kChainWhenKey[]       = "when";
+static const char kChainWhenNever[]     = "never";
+static const char kChainWhenAlways[]    = "always";
 static const char kChainWhenOnRecover[] = "on_recover";
 
 static const char kChainPluginListKey[]     = "chain";
 static const char kChainPluginListDefault[] = "tcp";
 
-static const char kCheckerIntervalKey[]       = "interval";
+static const char kCheckerIntervalKey[]        = "interval";
 static const uint64_t kDetectorIntervalDefault = 10 * 1000;  // 探活默认时间间隔10s
 
 static const char kHttpRequestPathKey[]     = "path";
@@ -59,7 +59,7 @@ static const uint64_t kTimeoutDefault = 500;        // 默认500ms
 class HealthCheckerChainImpl : public HealthCheckerChain {
 public:
   HealthCheckerChainImpl(const ServiceKey& service_key, LocalRegistry* local_registry,
-                           CircuitBreakerChain* circuit_breaker_chain);
+                         CircuitBreakerChain* circuit_breaker_chain);
 
   virtual ~HealthCheckerChainImpl();
 
@@ -71,7 +71,7 @@ public:
 
 private:
   ServiceKey service_key_;
-  uint64_t health_check_ttl_ms_;      // 服务探测周期ms
+  uint64_t health_check_ttl_ms_;  // 服务探测周期ms
   uint64_t last_detect_time_ms_;  //  上一次探测时间
   std::string when_;
   LocalRegistry* local_registry_;

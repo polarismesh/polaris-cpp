@@ -40,9 +40,8 @@ ReturnCode TcpHealthChecker::Init(Config* config, Context* /*context*/) {
                 kPluginTcpHealthChecker, HealthCheckerConfig::kTcpSendPackageKey);
     return kReturnInvalidConfig;
   }
-  std::string receive_package =
-      config->GetStringOrDefault(HealthCheckerConfig::kTcpReceivePackageKey,
-                                 HealthCheckerConfig::kTcpReceivePackageDefault);
+  std::string receive_package = config->GetStringOrDefault(
+      HealthCheckerConfig::kTcpReceivePackageKey, HealthCheckerConfig::kTcpReceivePackageDefault);
   if (!receive_package.empty()) {  // 需要匹配应答
     if (!Utils::HexStringToBytes(receive_package, &receive_package_)) {
       POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",

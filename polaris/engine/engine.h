@@ -16,8 +16,8 @@
 
 #include "cache/cache_manager.h"
 #include "engine/circuit_breaker_executor.h"
-#include "engine/main_executor.h"
 #include "engine/health_check_executor.h"
+#include "engine/main_executor.h"
 #include "monitor/monitor_reporter.h"
 #include "polaris/defs.h"
 

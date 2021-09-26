@@ -42,9 +42,8 @@ ReturnCode UdpHealthChecker::Init(Config* config, Context* /*context*/) {
     POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
                 kPluginUdpHealthChecker, HealthCheckerConfig::kUdpSendPackageKey);
   }
-  std::string receive_package =
-      config->GetStringOrDefault(HealthCheckerConfig::kUdpReceivePackageKey,
-                                 HealthCheckerConfig::kUdpReceivePackageDefault);
+  std::string receive_package = config->GetStringOrDefault(
+      HealthCheckerConfig::kUdpReceivePackageKey, HealthCheckerConfig::kUdpReceivePackageDefault);
   if (!receive_package.empty()) {
     if (!Utils::HexStringToBytes(receive_package, &receive_package_)) {
       POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",

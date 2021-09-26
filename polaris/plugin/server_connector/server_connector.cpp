@@ -555,7 +555,8 @@ ReturnCode GrpcServerConnector::SelectInstance(const ServiceKey& service_key, ui
                                                Instance** instance, bool ignore_half_open) {
   Criteria criteria;
   criteria.ignore_half_open_ = ignore_half_open;
-  ReturnCode retCode = ConsumerApiImpl::GetSystemServer(context_, service_key, criteria, *instance, timeout);
+  ReturnCode retCode =
+      ConsumerApiImpl::GetSystemServer(context_, service_key, criteria, *instance, timeout);
   if (retCode == kReturnSystemServiceNotConfigured) {
     SeedServer& server = server_lists_[rand() % server_lists_.size()];
     *instance          = new Instance("", server.ip_, server.port_, 100);

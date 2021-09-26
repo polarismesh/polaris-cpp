@@ -94,9 +94,7 @@ CircuitBreakerChain* ServiceContext::GetCircuitBreakerChain() {
   return impl_->circuit_breaker_chain_;
 }
 
-HealthCheckerChain* ServiceContext::GetHealthCheckerChain() {
-  return impl_->health_checker_chain_;
-}
+HealthCheckerChain* ServiceContext::GetHealthCheckerChain() { return impl_->health_checker_chain_; }
 
 ServiceContextImpl* ServiceContext::GetServiceContextImpl() { return impl_; }
 
@@ -107,9 +105,9 @@ ServiceContextImpl::ServiceContextImpl() {
   for (int i = 0; i < kLoadBalanceTypeDefaultConfig; ++i) {
     lb_table_[i] = NULL;
   }
-  weight_adjuster_        = NULL;
-  circuit_breaker_chain_  = NULL;
-  health_checker_chain_ = NULL;
+  weight_adjuster_       = NULL;
+  circuit_breaker_chain_ = NULL;
+  health_checker_chain_  = NULL;
   UpdateLastUseTime();
 }
 
@@ -175,10 +173,10 @@ ReturnCode ServiceContextImpl::Init(const ServiceKey& service_key, Config* confi
   }
 
   // 初始化探活插件
-  plugin_config           = config->GetSubConfig("healthCheck");
-  health_checker_chain_ = new HealthCheckerChainImpl(service_key, context->GetLocalRegistry(),
-                                                         circuit_breaker_chain_);
-  ret                     = health_checker_chain_->Init(plugin_config, context);
+  plugin_config = config->GetSubConfig("healthCheck");
+  health_checker_chain_ =
+      new HealthCheckerChainImpl(service_key, context->GetLocalRegistry(), circuit_breaker_chain_);
+  ret = health_checker_chain_->Init(plugin_config, context);
   delete plugin_config;
   if (ret != kReturnOk) {
     return ret;
@@ -248,7 +246,8 @@ Context* Context::Create(Config* config, ContextMode mode) {
   }
   // Polaris discover先请求一下
   const PolarisCluster& discover_cluster = context_impl->GetDiscoverService();
-  if (!discover_cluster.service_.name_.empty() && context_impl->InitSystemService(discover_cluster) != kReturnOk) {
+  if (!discover_cluster.service_.name_.empty() &&
+      context_impl->InitSystemService(discover_cluster) != kReturnOk) {
     delete context;
     return NULL;
   }

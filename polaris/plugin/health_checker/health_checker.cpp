@@ -31,13 +31,13 @@
 namespace polaris {
 
 HealthCheckerChainImpl::HealthCheckerChainImpl(const ServiceKey& service_key,
-                                                   LocalRegistry* local_registry,
-                                                   CircuitBreakerChain* circuit_breaker_chain) {
+                                               LocalRegistry* local_registry,
+                                               CircuitBreakerChain* circuit_breaker_chain) {
   service_key_           = service_key;
   local_registry_        = local_registry;
   circuit_breaker_chain_ = circuit_breaker_chain;
-  when_                = "never";
-  health_check_ttl_ms_       = 0;
+  when_                  = "never";
+  health_check_ttl_ms_   = 0;
   last_detect_time_ms_   = Time::GetCurrentTimeMs();
 }
 
@@ -60,7 +60,7 @@ ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
               service_key_.namespace_.c_str(), service_key_.name_.c_str());
 
   health_check_ttl_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kCheckerIntervalKey,
-                                            HealthCheckerConfig::kDetectorIntervalDefault);
+                                                HealthCheckerConfig::kDetectorIntervalDefault);
 
   std::vector<std::string> plugin_name_list = config->GetListOrDefault(
       HealthCheckerConfig::kChainPluginListKey, HealthCheckerConfig::kChainPluginListDefault);
@@ -98,9 +98,9 @@ ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
                     service_key_.name_.c_str());
         health_checker_list_.push_back(health_checker);
       } else {
-        POLARIS_LOG(
-            LOG_ERROR, "Init health checker plugin[%s] for service[%s/%s] failed, skip it",
-            plugin_name.c_str(), service_key_.namespace_.c_str(), service_key_.name_.c_str());
+        POLARIS_LOG(LOG_ERROR, "Init health checker plugin[%s] for service[%s/%s] failed, skip it",
+                    plugin_name.c_str(), service_key_.namespace_.c_str(),
+                    service_key_.name_.c_str());
         delete health_checker;
         health_checker = NULL;
       }
@@ -126,7 +126,8 @@ ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
 }
 
 ReturnCode HealthCheckerChainImpl::DetectInstance() {
-  POLARIS_LOG(LOG_INFO, "here detectInstance, namespace: %s, name: %s, when: %s", service_key_.namespace_.c_str(), service_key_.name_.c_str(), when_.c_str());
+  POLARIS_LOG(LOG_INFO, "here detectInstance, namespace: %s, name: %s, when: %s",
+              service_key_.namespace_.c_str(), service_key_.name_.c_str(), when_.c_str());
   uint64_t now_time_ms = Time::GetCurrentTimeMs();
   if (now_time_ms - last_detect_time_ms_ <= health_check_ttl_ms_) {
     return kReturnOk;
@@ -146,13 +147,13 @@ ReturnCode HealthCheckerChainImpl::DetectInstance() {
   }
   Service* service = service_data->GetService();
   ServiceInstances service_instances(service_data);
-  std::map<std::string, Instance*>& instance_map      = service_instances.GetInstances();
+  std::map<std::string, Instance*>& instance_map = service_instances.GetInstances();
   std::set<std::string> target_health_check_instances;
 
   if (when_ == HealthCheckerConfig::kChainWhenAlways) {
     // 健康检查设置为always, 则探测所有非隔离实例
     for (std::map<std::string, Instance*>::iterator instance_iter = instance_map.begin();
-        instance_iter != instance_map.end(); ++instance_iter) {
+         instance_iter != instance_map.end(); ++instance_iter) {
       if (!instance_iter->second->isIsolate()) {
         target_health_check_instances.insert(instance_iter->first);
       }
@@ -171,7 +172,7 @@ ReturnCode HealthCheckerChainImpl::DetectInstance() {
       continue;
     }
     bool is_detect_success = false;
-    Instance* instance  = iter->second;
+    Instance* instance     = iter->second;
     for (std::size_t i = 0; i < health_checker_list_.size(); ++i) {
       HealthChecker*& detector = health_checker_list_[i];
       DetectResult detector_result;

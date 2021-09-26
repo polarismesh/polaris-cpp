@@ -33,8 +33,7 @@ void HealthCheckExecutor::TimingDetect(HealthCheckExecutor* executor) {
   std::vector<ServiceContext*> all_service_contexts;
   executor->context_->GetContextImpl()->GetAllServiceContext(all_service_contexts);
   for (std::size_t i = 0; i < all_service_contexts.size(); ++i) {
-    HealthCheckerChain* health_checker_chain =
-        all_service_contexts[i]->GetHealthCheckerChain();
+    HealthCheckerChain* health_checker_chain = all_service_contexts[i]->GetHealthCheckerChain();
     health_checker_chain->DetectInstance();
     all_service_contexts[i]->DecrementRef();
   }
