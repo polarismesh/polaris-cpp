@@ -740,6 +740,9 @@ ReturnCode ConsumerApiImpl::UpdateServiceCallResult(Context* context, const Inst
 ReturnCode ConsumerApiImpl::GetSystemServer(Context* context, const ServiceKey& service_key,
                                             const Criteria& criteria, Instance*& instance,
                                             uint64_t timeout, const std::string& protocol) {
+  if (service_key.name_.empty() || service_key.namespace_.empty()) {
+    return kReturnSystemServiceNotConfigured;
+  }
   ContextImpl* context_impl = context->GetContextImpl();
   context_impl->RcuEnter();
   ServiceContext* service_context = context->GetOrCreateServiceContext(service_key);

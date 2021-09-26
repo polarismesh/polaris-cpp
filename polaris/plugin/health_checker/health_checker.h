@@ -25,16 +25,18 @@ namespace polaris {
 
 class Config;
 class LocalRegistry;
-class OutlierDetector;
+class HealthChecker;
 
-namespace OutlierDetectorConfig {
-static const char kChainEnableKey[]   = "enable";
-static const bool kChainEnableDefault = false;
+namespace HealthCheckerConfig {
+static const char kChainWhenKey[]       = "when";
+static const char kChainWhenNever[]     = "never";
+static const char kChainWhenAlways[]    = "always";
+static const char kChainWhenOnRecover[] = "on_recover";
 
 static const char kChainPluginListKey[]     = "chain";
 static const char kChainPluginListDefault[] = "tcp";
 
-static const char kDetectorIntervalKey[]       = "checkPeriod";
+static const char kCheckerIntervalKey[]        = "interval";
 static const uint64_t kDetectorIntervalDefault = 10 * 1000;  // 探活默认时间间隔10s
 
 static const char kHttpRequestPathKey[]     = "path";
@@ -52,29 +54,29 @@ static const char kUdpReceivePackageDefault[] = "";
 
 static const char kTimeoutKey[]       = "timeout";  // 超时时间毫秒
 static const uint64_t kTimeoutDefault = 500;        // 默认500ms
-}  // namespace OutlierDetectorConfig
+}  // namespace HealthCheckerConfig
 
-class OutlierDetectorChainImpl : public OutlierDetectorChain {
+class HealthCheckerChainImpl : public HealthCheckerChain {
 public:
-  OutlierDetectorChainImpl(const ServiceKey& service_key, LocalRegistry* local_registry,
-                           CircuitBreakerChain* circuit_breaker_chain);
+  HealthCheckerChainImpl(const ServiceKey& service_key, LocalRegistry* local_registry,
+                         CircuitBreakerChain* circuit_breaker_chain);
 
-  virtual ~OutlierDetectorChainImpl();
+  virtual ~HealthCheckerChainImpl();
 
   virtual ReturnCode Init(Config* config, Context* context);
 
   virtual ReturnCode DetectInstance();
 
-  virtual std::vector<OutlierDetector*> GetOutlierDetectors();
+  virtual std::vector<HealthChecker*> GetHealthCheckers();
 
 private:
   ServiceKey service_key_;
-  uint64_t detector_ttl_ms_;      // 服务探测周期ms
+  uint64_t health_check_ttl_ms_;  // 服务探测周期ms
   uint64_t last_detect_time_ms_;  //  上一次探测时间
-  bool enable_;
+  std::string when_;
   LocalRegistry* local_registry_;
   CircuitBreakerChain* circuit_breaker_chain_;  // 用于通知熔断插件链将实例从熔断状态转换为半开状态
-  std::vector<OutlierDetector*> outlier_detector_list_;
+  std::vector<HealthChecker*> health_checker_list_;
 };
 
 }  // namespace polaris

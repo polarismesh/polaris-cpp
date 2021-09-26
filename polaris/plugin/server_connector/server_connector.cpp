@@ -553,15 +553,16 @@ void GrpcServerConnector::TimingServerSwitch(GrpcServerConnector* server_connect
 
 ReturnCode GrpcServerConnector::SelectInstance(const ServiceKey& service_key, uint32_t timeout,
                                                Instance** instance, bool ignore_half_open) {
-  // 支持standalone模式，如果service_name为空，则直接返回埋点服务实例
-  if (service_key.name_.empty()) {
+  Criteria criteria;
+  criteria.ignore_half_open_ = ignore_half_open;
+  ReturnCode retCode =
+      ConsumerApiImpl::GetSystemServer(context_, service_key, criteria, *instance, timeout);
+  if (retCode == kReturnSystemServiceNotConfigured) {
     SeedServer& server = server_lists_[rand() % server_lists_.size()];
     *instance          = new Instance("", server.ip_, server.port_, 100);
     return kReturnOk;
   }
-  Criteria criteria;
-  criteria.ignore_half_open_ = ignore_half_open;
-  return ConsumerApiImpl::GetSystemServer(context_, service_key, criteria, *instance, timeout);
+  return retCode;
 }
 
 void GrpcServerConnector::ServerSwitch() {
@@ -599,6 +600,10 @@ void GrpcServerConnector::ServerSwitch() {
     SeedServer& server = server_lists_[rand() % server_lists_.size()];
     host               = server.ip_;
     port               = server.port_;
+    // 如果没有配置discover服务名，那么则此时已经初始化完成
+    if (context_->GetContextImpl()->GetDiscoverService().service_.name_.empty()) {
+      discover_stream_state_ = kDiscoverStreamInit;
+    }
     POLARIS_LOG(LOG_INFO, "discover stream switch to inner server[%s:%d]", host.c_str(), port);
   }
 

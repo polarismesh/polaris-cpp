@@ -29,7 +29,7 @@ TEST(SeedServerConfigTest, TestGetDefaultServers) {
   std::vector<SeedServer> seed_servers;
   std::size_t count = SeedServerConfig::GetDefaultSeedServer(seed_servers);
   ASSERT_EQ(count, seed_servers.size());
-  ASSERT_EQ(count, 10);
+  ASSERT_EQ(count, 1);
   for (std::size_t i = 0; i < count; ++i) {
     ASSERT_EQ(seed_servers[i].port_, 8081);
     ASSERT_TRUE(seed_servers[i].ip_[0] == '1');

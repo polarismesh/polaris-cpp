@@ -39,7 +39,7 @@ enum PluginType {
   kPluginLocalRegistry,    ///< 本地缓存扩展点
   kPluginServiceRouter,    ///< 服务路由扩展点
   kPluginLoadBalancer,     ///< 负载均衡扩展点
-  kPluginOutlierDetector,  ///< 健康探测扩展点
+  kPluginHealthChecker,  ///< 健康探测扩展点
   kPluginCircuitBreaker,   ///< 节点熔断扩展点
   kPluginWeightAdjuster,   ///< 动态权重调整扩展点
   kPluginStatReporter,     ///< 统计上报扩展点
@@ -411,10 +411,10 @@ struct DetectResult {
 };
 
 /// @brief 扩展点接口：主动健康探测策略
-class OutlierDetector : public Plugin {
+class HealthChecker : public Plugin {
 public:
   /// @brief 析构函数
-  virtual ~OutlierDetector() {}
+  virtual ~HealthChecker() {}
 
   /// @brief 通过配置进行初始化
   virtual ReturnCode Init(Config* config, Context* context) = 0;

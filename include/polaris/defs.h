@@ -49,6 +49,7 @@ enum ReturnCode {
   kReturnNotInit             = 1288,  ///< 资源未初始化
   kReturnResourceNotFound    = 1289,  // 资源未找到
   kReturnServerUnknownError  = 1299,  ///< 服务端返回客户端未知的错误
+  kReturnSystemServiceNotConfigured = 1300,  ///< 没有配置系统服务名字
 };
 
 /// @brief 返回码转换为字符串消息

@@ -24,7 +24,7 @@ class Context;
 Engine::Engine(Context* context)
     : context_(context), main_executor_(context), cache_manager_(context),
       monitor_reporter_(context_), circuit_breaker_executor_(context),
-      outlier_detector_executor_(context) {}
+      health_check_executor_(context) {}
 
 Engine::~Engine() {
   StopAndWait();
@@ -38,7 +38,7 @@ ReturnCode Engine::Start() {
       (ret_code = cache_manager_.Start()) != kReturnOk ||
       (ret_code = monitor_reporter_.Start()) != kReturnOk ||
       (ret_code = circuit_breaker_executor_.Start()) != kReturnOk ||
-      (ret_code = outlier_detector_executor_.Start()) != kReturnOk) {
+      (ret_code = health_check_executor_.Start()) != kReturnOk) {
     return ret_code;
   }
   return kReturnOk;
@@ -49,7 +49,7 @@ ReturnCode Engine::StopAndWait() {
   cache_manager_.StopAndWait();
   monitor_reporter_.StopAndWait();
   circuit_breaker_executor_.StopAndWait();
-  outlier_detector_executor_.StopAndWait();
+  health_check_executor_.StopAndWait();
   return kReturnOk;
 }
 

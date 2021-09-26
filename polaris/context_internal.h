@@ -34,7 +34,7 @@
 #include "monitor/service_record.h"
 #include "plugin/circuit_breaker/circuit_breaker.h"
 #include "plugin/circuit_breaker/set_circuit_breaker.h"
-#include "plugin/outlier_detector/outlier_detector.h"
+#include "plugin/health_checker/health_checker.h"
 #include "plugin/service_router/service_router.h"
 #include "polaris/context.h"
 #include "polaris/defs.h"
@@ -63,7 +63,7 @@ private:
   LoadBalancer* lb_table_[kLoadBalanceTypeDefaultConfig];
   WeightAdjuster* weight_adjuster_;
   CircuitBreakerChain* circuit_breaker_chain_;
-  OutlierDetectorChain* outlier_detector_chain_;
+  HealthCheckerChain* health_checker_chain_;
   uint64_t last_use_time_;
 };
 

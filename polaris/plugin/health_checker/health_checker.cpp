@@ -11,7 +11,7 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "plugin/outlier_detector/outlier_detector.h"
+#include "plugin/health_checker/health_checker.h"
 
 #include <inttypes.h>
 #include <stddef.h>
@@ -30,60 +30,60 @@
 
 namespace polaris {
 
-OutlierDetectorChainImpl::OutlierDetectorChainImpl(const ServiceKey& service_key,
-                                                   LocalRegistry* local_registry,
-                                                   CircuitBreakerChain* circuit_breaker_chain) {
+HealthCheckerChainImpl::HealthCheckerChainImpl(const ServiceKey& service_key,
+                                               LocalRegistry* local_registry,
+                                               CircuitBreakerChain* circuit_breaker_chain) {
   service_key_           = service_key;
   local_registry_        = local_registry;
   circuit_breaker_chain_ = circuit_breaker_chain;
-  enable_                = false;
-  detector_ttl_ms_       = 0;
+  when_                  = "never";
+  health_check_ttl_ms_   = 0;
   last_detect_time_ms_   = Time::GetCurrentTimeMs();
 }
 
-OutlierDetectorChainImpl::~OutlierDetectorChainImpl() {
-  for (std::size_t i = 0; i < outlier_detector_list_.size(); ++i) {
-    delete outlier_detector_list_[i];
+HealthCheckerChainImpl::~HealthCheckerChainImpl() {
+  for (std::size_t i = 0; i < health_checker_list_.size(); ++i) {
+    delete health_checker_list_[i];
   }
-  outlier_detector_list_.clear();
+  health_checker_list_.clear();
   local_registry_        = NULL;
   circuit_breaker_chain_ = NULL;
 }
 
-ReturnCode OutlierDetectorChainImpl::Init(Config* config, Context* context) {
-  enable_ = config->GetBoolOrDefault(OutlierDetectorConfig::kChainEnableKey,
-                                     OutlierDetectorConfig::kChainEnableDefault);
-  if (enable_ == false) {
+ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
+  when_ = config->GetStringOrDefault(HealthCheckerConfig::kChainWhenKey,
+                                     HealthCheckerConfig::kChainWhenNever);
+  if (when_ == HealthCheckerConfig::kChainWhenNever) {
     return kReturnOk;
   }
-  POLARIS_LOG(LOG_INFO, "outlier detector for service[%s/%s] is enable",
+  POLARIS_LOG(LOG_INFO, "health checker for service[%s/%s] is enable",
               service_key_.namespace_.c_str(), service_key_.name_.c_str());
 
-  detector_ttl_ms_ = config->GetMsOrDefault(OutlierDetectorConfig::kDetectorIntervalKey,
-                                            OutlierDetectorConfig::kDetectorIntervalDefault);
+  health_check_ttl_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kCheckerIntervalKey,
+                                                HealthCheckerConfig::kDetectorIntervalDefault);
 
   std::vector<std::string> plugin_name_list = config->GetListOrDefault(
-      OutlierDetectorConfig::kChainPluginListKey, OutlierDetectorConfig::kChainPluginListDefault);
+      HealthCheckerConfig::kChainPluginListKey, HealthCheckerConfig::kChainPluginListDefault);
   if (plugin_name_list.empty()) {
     POLARIS_LOG(LOG_WARN,
-                "outlier detector config[enable] for service[%s/%s] is true, "
+                "health checker config[enable] for service[%s/%s] is true, "
                 "but config [chain] not found",
                 service_key_.name_.c_str(), service_key_.namespace_.c_str());
-    enable_ = false;
+    when_ = HealthCheckerConfig::kChainWhenNever;
     return kReturnOk;
   }
 
   Config* chain_config  = config->GetSubConfig("plugin");
   Config* plugin_config = NULL;
   Plugin* plugin        = NULL;
-  OutlierDetector* outlier_detector;
+  HealthChecker* health_checker;
   ReturnCode ret;
   for (size_t i = 0; i < plugin_name_list.size(); i++) {
     std::string& plugin_name = plugin_name_list[i];
-    ret = PluginManager::Instance().GetPlugin(plugin_name, kPluginOutlierDetector, plugin);
+    ret = PluginManager::Instance().GetPlugin(plugin_name, kPluginHealthChecker, plugin);
     if (ret == kReturnOk) {
-      outlier_detector = dynamic_cast<OutlierDetector*>(plugin);
-      if (outlier_detector == NULL) {
+      health_checker = dynamic_cast<HealthChecker*>(plugin);
+      if (health_checker == NULL) {
         continue;
       }
       plugin_config = chain_config->GetSubConfig(plugin_name);
@@ -91,18 +91,18 @@ ReturnCode OutlierDetectorChainImpl::Init(Config* config, Context* context) {
         continue;
       }
 
-      ret = outlier_detector->Init(plugin_config, context);
+      ret = health_checker->Init(plugin_config, context);
       if (ret == kReturnOk) {
-        POLARIS_LOG(LOG_INFO, "Init outlier detector plugin[%s] for service[%s/%s] success",
+        POLARIS_LOG(LOG_INFO, "Init health checker plugin[%s] for service[%s/%s] success",
                     plugin_name.c_str(), service_key_.namespace_.c_str(),
                     service_key_.name_.c_str());
-        outlier_detector_list_.push_back(outlier_detector);
+        health_checker_list_.push_back(health_checker);
       } else {
-        POLARIS_LOG(
-            LOG_ERROR, "Init outlier detector plugin[%s] for service[%s/%s] failed, skip it",
-            plugin_name.c_str(), service_key_.namespace_.c_str(), service_key_.name_.c_str());
-        delete outlier_detector;
-        outlier_detector = NULL;
+        POLARIS_LOG(LOG_ERROR, "Init health checker plugin[%s] for service[%s/%s] failed, skip it",
+                    plugin_name.c_str(), service_key_.namespace_.c_str(),
+                    service_key_.name_.c_str());
+        delete health_checker;
+        health_checker = NULL;
       }
       delete plugin_config;
       plugin_config = NULL;
@@ -115,25 +115,27 @@ ReturnCode OutlierDetectorChainImpl::Init(Config* config, Context* context) {
   delete chain_config;
   chain_config = NULL;
 
-  if (outlier_detector_list_.empty()) {
+  if (health_checker_list_.empty()) {
     POLARIS_LOG(LOG_ERROR,
-                "The outlier detector of service[%s/%s] lost because outlier detector chain"
+                "The health checker of service[%s/%s] lost because health checker chain"
                 " init failed",
                 service_key_.namespace_.c_str(), service_key_.name_.c_str());
-    enable_ = false;
+    when_ = HealthCheckerConfig::kChainWhenNever;
   }
   return kReturnOk;
 }
 
-ReturnCode OutlierDetectorChainImpl::DetectInstance() {
+ReturnCode HealthCheckerChainImpl::DetectInstance() {
+  POLARIS_LOG(LOG_INFO, "here detectInstance, namespace: %s, name: %s, when: %s",
+              service_key_.namespace_.c_str(), service_key_.name_.c_str(), when_.c_str());
   uint64_t now_time_ms = Time::GetCurrentTimeMs();
-  if (now_time_ms - last_detect_time_ms_ <= detector_ttl_ms_) {
+  if (now_time_ms - last_detect_time_ms_ <= health_check_ttl_ms_) {
     return kReturnOk;
   }
   last_detect_time_ms_ = now_time_ms;
 
   if (local_registry_ == NULL) {
-    POLARIS_LOG(LOG_ERROR, "The outlier detector local_registry_ of service[%s/%s] is null",
+    POLARIS_LOG(LOG_ERROR, "The health checker local_registry_ of service[%s/%s] is null",
                 service_key_.namespace_.c_str(), service_key_.name_.c_str());
     return kReturnOk;
   }
@@ -145,21 +147,34 @@ ReturnCode OutlierDetectorChainImpl::DetectInstance() {
   }
   Service* service = service_data->GetService();
   ServiceInstances service_instances(service_data);
-  std::map<std::string, Instance*>& instance_map      = service_instances.GetInstances();
-  std::set<std::string> circuit_breaker_open_instance = service->GetCircuitBreakerOpenInstances();
-  for (std::set<std::string>::iterator it = circuit_breaker_open_instance.begin();
-       it != circuit_breaker_open_instance.end(); ++it) {
+  std::map<std::string, Instance*>& instance_map = service_instances.GetInstances();
+  std::set<std::string> target_health_check_instances;
+
+  if (when_ == HealthCheckerConfig::kChainWhenAlways) {
+    // 健康检查设置为always, 则探测所有非隔离实例
+    for (std::map<std::string, Instance*>::iterator instance_iter = instance_map.begin();
+         instance_iter != instance_map.end(); ++instance_iter) {
+      if (!instance_iter->second->isIsolate()) {
+        target_health_check_instances.insert(instance_iter->first);
+      }
+    }
+  } else if (when_ == HealthCheckerConfig::kChainWhenOnRecover) {
+    // 健康检查设置为on_recover, 则探测半开实例
+    target_health_check_instances = service->GetCircuitBreakerOpenInstances();
+  }
+  for (std::set<std::string>::iterator it = target_health_check_instances.begin();
+       it != target_health_check_instances.end(); ++it) {
     const std::string& instance_id                  = *it;
     std::map<std::string, Instance*>::iterator iter = instance_map.find(instance_id);
     if (iter == instance_map.end()) {
-      POLARIS_LOG(LOG_INFO, "The outlier detector of service[%s/%s] getting instance[%s] failed",
+      POLARIS_LOG(LOG_INFO, "The health checker of service[%s/%s] getting instance[%s] failed",
                   service_key_.namespace_.c_str(), service_key_.name_.c_str(), instance_id.c_str());
       continue;
     }
-    bool half_open_flag = false;
-    Instance* instance  = iter->second;
-    for (std::size_t i = 0; i < outlier_detector_list_.size(); ++i) {
-      OutlierDetector*& detector = outlier_detector_list_[i];
+    bool is_detect_success = false;
+    Instance* instance     = iter->second;
+    for (std::size_t i = 0; i < health_checker_list_.size(); ++i) {
+      HealthChecker*& detector = health_checker_list_[i];
       DetectResult detector_result;
       if (kReturnOk == detector->DetectInstance(*instance, detector_result)) {
         POLARIS_LOG(LOG_INFO,
@@ -168,11 +183,11 @@ ReturnCode OutlierDetectorChainImpl::DetectInstance() {
                     detector_result.detect_type.c_str(), service_key_.namespace_.c_str(),
                     service_key_.name_.c_str(), instance->GetId().c_str(),
                     instance->GetHost().c_str(), instance->GetPort(), detector_result.elapse);
-        half_open_flag = true;
+        is_detect_success = true;
         break;
       } else {
         POLARIS_LOG(LOG_INFO,
-                    "The detector[%s] of service[%s/%s] getting instance[%s-%s:%d] success[%d],"
+                    "The detector[%s] of service[%s/%s] getting instance[%s-%s:%d] failed[%d],"
                     " elapsing %" PRIu64 " ms",
                     detector_result.detect_type.c_str(), service_key_.namespace_.c_str(),
                     service_key_.name_.c_str(), instance->GetId().c_str(),
@@ -180,8 +195,9 @@ ReturnCode OutlierDetectorChainImpl::DetectInstance() {
                     detector_result.elapse);
       }
     }
-    // 探活插件成功，则将该实例置为半开状态
-    if (half_open_flag) {
+    // 探活插件成功，则将熔断实例置为半开状态，其他实例状态不变
+    // 探活插件失败，则将健康实例置为熔断状态，其他实例状态不变
+    if (is_detect_success) {
       circuit_breaker_chain_->TranslateStatus(instance_id, kCircuitBreakerOpen,
                                               kCircuitBreakerHalfOpen);
       POLARIS_LOG(LOG_INFO,
@@ -189,13 +205,21 @@ ReturnCode OutlierDetectorChainImpl::DetectInstance() {
                   "half-open status",
                   service_key_.namespace_.c_str(), service_key_.name_.c_str(),
                   instance->GetId().c_str(), instance->GetHost().c_str(), instance->GetPort());
+    } else {
+      circuit_breaker_chain_->TranslateStatus(instance_id, kCircuitBreakerClose,
+                                              kCircuitBreakerOpen);
+      POLARIS_LOG(LOG_INFO,
+                  "service[%s/%s] getting instance[%s-%s:%d] detectoring failed, change to "
+                  "open status",
+                  service_key_.namespace_.c_str(), service_key_.name_.c_str(),
+                  instance->GetId().c_str(), instance->GetHost().c_str(), instance->GetPort());
     }
   }
   return kReturnOk;
 }
 
-std::vector<OutlierDetector*> OutlierDetectorChainImpl::GetOutlierDetectors() {
-  return outlier_detector_list_;
+std::vector<HealthChecker*> HealthCheckerChainImpl::GetHealthCheckers() {
+  return health_checker_list_;
 }
 
 }  // namespace polaris

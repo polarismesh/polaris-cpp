@@ -11,8 +11,8 @@
 //  language governing permissions and limitations under the License.
 //
 
-#ifndef POLARIS_CPP_POLARIS_ENGINE_OUTLIER_DETECTION_EXECUTOR_H_
-#define POLARIS_CPP_POLARIS_ENGINE_OUTLIER_DETECTION_EXECUTOR_H_
+#ifndef POLARIS_CPP_POLARIS_ENGINE_HEALTH_CHECK_EXECUTOR_H_
+#define POLARIS_CPP_POLARIS_ENGINE_HEALTH_CHECK_EXECUTOR_H_
 
 #include "engine/executor.h"
 
@@ -24,20 +24,20 @@ class Context;
 ///
 /// 执行如下任务：
 ///   - 执行熔断任务
-class OutlierDetectionExecutor : public Executor {
+class HealthCheckExecutor : public Executor {
 public:
-  explicit OutlierDetectionExecutor(Context* context);
+  explicit HealthCheckExecutor(Context* context);
 
-  virtual ~OutlierDetectionExecutor() {}
+  virtual ~HealthCheckExecutor() {}
 
   // 获取线程名字
   virtual const char* GetName() { return "outlier_detect"; }
 
   virtual void SetupWork();
 
-  static void TimingDetect(OutlierDetectionExecutor* executor);
+  static void TimingDetect(HealthCheckExecutor* executor);
 };
 
 }  // namespace polaris
 
-#endif  //  POLARIS_CPP_POLARIS_ENGINE_OUTLIER_DETECTION_EXECUTOR_H_
+#endif  //  POLARIS_CPP_POLARIS_ENGINE_HEALTH_CHECK_EXECUTOR_H_
