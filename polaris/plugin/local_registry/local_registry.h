@@ -109,7 +109,9 @@ private:
   ServiceDataNotify* GetOrCreateDataNotify(const ServiceKey& service_key, ServiceDataType data_type,
                                            bool& new_create);
 
-  Service* GetOrCreateServiceInLock(const ServiceKey& service_key);
+  Service* CreateServiceInLock(const ServiceKey& service_key);
+
+  Service* GetServiceInLock(const ServiceKey& service_key);
 
   void DeleteServiceInLock(const ServiceKey& service_key);
 

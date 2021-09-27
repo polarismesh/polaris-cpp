@@ -68,6 +68,7 @@ protected:
     ASSERT_TRUE(consumer_ != NULL);
 
     SetUpServiceData();
+    TryDoRoute();
   }
 
   virtual void TearDown() {
@@ -358,6 +359,17 @@ protected:
         << total << " " << percent << " " << err_rate << " " << count;
   }
 
+  void TryDoRoute() {
+    polaris::GetOneInstanceRequest req(service_key_);
+    polaris::ServiceInfo service_info;
+    service_info.service_key_.name_      = "test2";
+    service_info.service_key_.namespace_ = "Test";
+    service_info.metadata_["f"]          = "fv1";
+    req.SetSourceService(service_info);
+    polaris::Instance instance;
+    ASSERT_EQ(consumer_->GetOneInstance(req, instance), kReturnOk);
+  }
+
 protected:
   polaris::ServiceKey service_key_;
   polaris::ConsumerApi* consumer_;
@@ -390,19 +402,6 @@ protected:
   v1::Instance instance3_;
   std::string ins3_id_;
 };
-
-TEST_F(SetCircuitBreakerTest, TestRoute) {
-  ReturnCode ret;
-  polaris::GetOneInstanceRequest req(service_key_);
-  polaris::ServiceInfo service_info;
-  service_info.service_key_.name_      = "test2";
-  service_info.service_key_.namespace_ = "Test";
-  service_info.metadata_["f"]          = "fv1";
-  req.SetSourceService(service_info);
-  polaris::Instance instance;
-  ret = consumer_->GetOneInstance(req, instance);
-  ASSERT_EQ(ret, kReturnOk);
-}
 
 TEST_F(SetCircuitBreakerTest, ErrRateOpen) {
   polaris::ServiceCallResult err_result;

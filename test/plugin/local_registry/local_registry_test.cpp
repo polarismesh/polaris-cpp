@@ -203,7 +203,7 @@ TEST_F(InMemoryLocalRegistryTest, TestUpdateServiceData) {
   std::set<ServiceKey> service_key_set;
   ret = local_registry_->GetAllServiceKey(service_key_set);
   ASSERT_EQ(ret, kReturnOk);
-  ASSERT_EQ(service_key_set.size(), 1);
+  ASSERT_EQ(service_key_set.size(), 0);
 
   delete mock_server_connector_->saved_handler_;
   mock_server_connector_->saved_handler_ = NULL;

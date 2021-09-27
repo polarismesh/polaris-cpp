@@ -97,6 +97,10 @@ TEST_F(RingHashCstLbTest, TestSelectWithInstancesUpdate) {
   LocalRegistry *local_registry = context_->GetLocalRegistry();
   local_registry->GetServiceDataWithRef(service_key_, kServiceDataInstances, service_data);
   ASSERT_TRUE(service_data == NULL);
+  ServiceDataNotify *notify = NULL;
+  local_registry->LoadServiceDataWithNotify(service_key_, kServiceDataInstances, service_data,
+                                            notify);
+  ASSERT_TRUE(notify != NULL);
   v1::DiscoverResponse response;
   CreateInstancesResponse(response);
 
