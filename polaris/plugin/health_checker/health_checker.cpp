@@ -108,7 +108,7 @@ ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
       plugin_config = NULL;
     } else {
       POLARIS_LOG(LOG_ERROR,
-                  "Outlier detector plugin with name[%s] not found, skip it for service[%s/%s]",
+                  "health checker plugin with name[%s] not found, skip it for service[%s/%s]",
                   plugin_name.c_str(), service_key_.namespace_.c_str(), service_key_.name_.c_str());
     }
   }
