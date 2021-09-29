@@ -71,7 +71,7 @@ TEST_F(LoggerTest, TestFileShift) {
   logger->SetLogLevel(kTraceLogLevel);
 
   const char *text = "test logger file shift";
-  logger->Log(LOG_INFO, text);
+  logger->Log(LOG_INFO, "%s\n", text);
   ASSERT_TRUE(FileUtils::FileExists(log_path_ + "/" + log_file_name_));
   ASSERT_TRUE(logger->log_file_ != NULL);
   ASSERT_TRUE(logger->cur_file_size_ > 0);
@@ -79,7 +79,7 @@ TEST_F(LoggerTest, TestFileShift) {
   int text_log_size = logger->cur_file_size_;
   int log_count     = max_file_size_ / text_log_size + 1;
   for (int i = 0; i < log_count; ++i) {
-    logger->Log(LOG_INFO, text);
+    logger->Log(LOG_INFO, "%s\n", text);
   }
   ASSERT_TRUE(logger->log_file_ != NULL);
   ASSERT_TRUE(logger->cur_file_size_ <= max_file_size_ + text_log_size);
@@ -87,7 +87,7 @@ TEST_F(LoggerTest, TestFileShift) {
 
   log_count = log_count * (max_file_no_ + 1);  // 足够序号重复滚动
   for (int i = 0; i < log_count; ++i) {
-    logger->Log(LOG_INFO, text);
+    logger->Log(LOG_INFO, "%s\n", text);
   }
   ASSERT_TRUE(logger->log_file_ != NULL);
   ASSERT_TRUE(logger->cur_file_size_ <= max_file_size_ + text_log_size);
