@@ -31,7 +31,7 @@ public:
   virtual ~HealthCheckExecutor() {}
 
   // 获取线程名字
-  virtual const char* GetName() { return "outlier_detect"; }
+  virtual const char* GetName() { return "health_check"; }
 
   virtual void SetupWork();
 
