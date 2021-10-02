@@ -20,7 +20,7 @@
 #include <map>
 #include <string>
 
-#include "grpc/grpc_client.h"
+#include "grpc/client.h"
 #include "grpc/status.h"
 #include "model/return_code.h"
 #include "polaris/defs.h"

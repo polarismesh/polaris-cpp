@@ -11,16 +11,15 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "grpc_client.h"
+#include "grpc/client.h"
 
-#include <google/protobuf/message.h>
 #include <inttypes.h>
 #include <stddef.h>
 
+#include <google/protobuf/message.h>
+
 #include "grpc/header.h"
 #include "grpc/status.h"
-#include "grpc_codec.h"
-#include "http2_client.h"
 #include "logger.h"
 #include "reactor/reactor.h"
 #include "reactor/task.h"

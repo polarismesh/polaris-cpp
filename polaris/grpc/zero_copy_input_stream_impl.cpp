@@ -13,8 +13,6 @@
 
 #include "zero_copy_input_stream_impl.h"
 
-#include "buffer.h"
-
 namespace polaris {
 namespace grpc {
 

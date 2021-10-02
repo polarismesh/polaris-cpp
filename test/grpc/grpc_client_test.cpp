@@ -15,7 +15,7 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "grpc/grpc_client.h"
+#include "grpc/client.h"
 
 #include <gtest/gtest.h>
 

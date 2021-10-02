@@ -24,7 +24,7 @@
 #include <v1/request.pb.h>
 #include <v2/ratelimit_v2.pb.h>
 
-#include "grpc/grpc_client.h"
+#include "grpc/client.h"
 #include "polaris/model.h"
 #include "quota/model/rate_limit_rule.h"
 #include "reactor/task.h"

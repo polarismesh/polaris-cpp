@@ -13,7 +13,6 @@
 
 #include "header.h"
 
-#include <stdint.h>
 #include <string.h>
 
 #include "utils/string_utils.h"

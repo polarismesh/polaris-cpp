@@ -14,9 +14,10 @@
 #ifndef POLARIS_CPP_POLARIS_GRPC_HEADER_H_
 #define POLARIS_CPP_POLARIS_GRPC_HEADER_H_
 
-#include <nghttp2/nghttp2.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include <nghttp2/nghttp2.h>
 
 #include <list>
 #include <string>

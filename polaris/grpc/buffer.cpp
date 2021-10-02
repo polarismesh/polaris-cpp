@@ -11,13 +11,14 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "buffer.h"
+#include "grpc/buffer.h"
 
-#include <stdint.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 
 #include <algorithm>
+
+#include "logger.h"
 
 namespace polaris {
 namespace grpc {
@@ -29,6 +30,11 @@ void Slice::Drain(uint64_t size) {
     data_       = 0;
     reservable_ = 0;
   }
+}
+
+uint64_t Slice::ReservableSize() const {
+  POLARIS_ASSERT(capacity_ >= reservable_);
+  return capacity_ - reservable_;
 }
 
 RawSlice Slice::Reserve(uint64_t size) {

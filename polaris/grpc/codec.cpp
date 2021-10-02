@@ -11,18 +11,17 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "grpc_codec.h"
+#include "grpc/codec.h"
+
+#include <netinet/in.h>
+#include <string.h>
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
-#include <google/protobuf/message.h>
-#include <netinet/in.h>
-#include <stdint.h>
-#include <string.h>
 
-#include "buffer.h"
+#include "grpc/buffer.h"
+#include "grpc/zero_copy_input_stream_impl.h"
 #include "logger.h"
-#include "zero_copy_input_stream_impl.h"
 
 namespace polaris {
 namespace grpc {

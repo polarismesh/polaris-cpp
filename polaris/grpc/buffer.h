@@ -19,7 +19,6 @@
 
 #include <deque>
 
-#include "logger.h"
 #include "polaris/noncopyable.h"
 
 namespace polaris {
@@ -67,10 +66,7 @@ public:
   void Drain(uint64_t size);
 
   // 返回保留区域长度
-  uint64_t ReservableSize() const {
-    POLARIS_ASSERT(capacity_ >= reservable_);
-    return capacity_ - reservable_;
-  }
+  uint64_t ReservableSize() const;
 
   // 从保留区域取指定长度的内存块，对内存块写入数据后需要调用Commit方法提交
   // 如果保留区长度小于size，则返回的size为保留区长度
