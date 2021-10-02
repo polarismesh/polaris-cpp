@@ -248,7 +248,8 @@ uint64_t RateLimitWindow::OnReportResponse(const metric::v2::RateLimitReportResp
     delete usage_info_;
     usage_info_ = NULL;
   }
-  return next_report_time != 0 ? next_report_time : (30 + rand() % 20);
+  uint32_t report_interval = rule_->GetRateLimitReport().IntervalWithJitter();
+  return next_report_time < report_interval ? next_report_time : report_interval;
 }
 
 bool RateLimitWindow::IsExpired() {

@@ -340,7 +340,9 @@ void RateLimitConnection::OnInitResponse(const metric::v2::RateLimitInitResponse
       window->OnInitResponse(response, time_diff_);
 
       connector_.UpdateCallResult(cluster_, instance_id_, delay, kServerCodeReturnOk);
-      reactor_.AddTimingTask(new WindowSyncTask(window, &connector_, 30 + rand() % 20));
+      reactor_.AddTimingTask(new WindowSyncTask(
+          window, &connector_,
+          window->GetRateLimitRule()->GetRateLimitReport().IntervalWithJitter()));
       return;
     }
     limit_target_map_.erase(target_key);  // 窗口已经不再init流程中，删除对应的数据
