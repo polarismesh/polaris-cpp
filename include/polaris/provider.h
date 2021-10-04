@@ -196,6 +196,18 @@ private:
   Impl* impl_;
 };
 
+/// @brief Provider异步接口回调函数
+class ProviderCallback {
+public:
+  virtual ~ProviderCallback() {}
+
+  /// @brief 应答回调
+  ///
+  /// @param code     返回码
+  /// @param message  返回消息
+  virtual void Response(ReturnCode code, const std::string& message) = 0;
+};
+
 // forward declaration
 class Context;
 class Config;
@@ -238,6 +250,14 @@ public:
   ///         kReturnServiceNotFound 如果刚刚注册即发起心跳上报可能返回服务不存在，重试即可
   ///         其他返回码表示心跳上报失败，可重试
   ReturnCode Heartbeat(const InstanceHeartbeatRequest& req);
+
+  /// @brief 异步服务实例心跳上报
+  ///
+  /// @param req 服务实例心跳上报请求
+  /// @param callback 请求回调
+  /// @return ReturnCode 调用返回码
+  ///         kReturnOk 表示心跳上报成功
+  ReturnCode AsyncHeartbeat(const InstanceHeartbeatRequest& req, ProviderCallback* callback);
 
   /// @brief 通过Context创建Provider API对象
   ///

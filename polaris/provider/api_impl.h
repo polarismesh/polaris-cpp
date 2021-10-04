@@ -32,6 +32,20 @@ private:
   Context* context_;
 };
 
+class ApiStat;
+class ProviderCallbackWrapper : public ProviderCallback {
+public:
+  ProviderCallbackWrapper(ProviderCallback* callback, ApiStat* stat);
+
+  virtual ~ProviderCallbackWrapper();
+
+  virtual void Response(ReturnCode code, const std::string& message);
+
+private:
+  ProviderCallback* callback_;
+  ApiStat* stat_;
+};
+
 }  // namespace polaris
 
 #endif  //  POLARIS_CPP_POLARIS_PROVIDER_API_IMPL_H_

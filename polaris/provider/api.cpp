@@ -23,7 +23,6 @@
 #include "context_internal.h"
 #include "logger.h"
 #include "monitor/api_stat.h"
-#include "polaris/accessors.h"
 #include "polaris/config.h"
 #include "polaris/context.h"
 #include "polaris/defs.h"
@@ -126,22 +125,6 @@ ReturnCode ProviderApi::Register(const InstanceRegisterRequest& req, std::string
   return ret_code;
 }
 
-template <class T>
-inline bool CheckInstanceOrId(T& request, const char* action) {
-  if (request.HasInstanceId()) {
-    if (request.GetInstanceId().empty()) {
-      POLARIS_LOG(LOG_ERROR, "%s instance with empty instance id", action);
-      return false;
-    }
-    if (request.GetServiceToken().empty()) {
-      POLARIS_LOG(LOG_ERROR, "%s instance with empty service token", action);
-      return false;
-    }
-    return true;
-  }
-  return CheckInstance(request, action);
-}
-
 ReturnCode ProviderApi::Deregister(const InstanceDeregisterRequest& req) {
   ApiStat api_stat(impl_->context_, kApiStatProviderDeregisger);
   ReturnCode ret_code = kReturnInvalidArgument;
@@ -203,6 +186,31 @@ ReturnCode ProviderApi::Heartbeat(const InstanceHeartbeatRequest& req) {
     timeout_ms -= backoff;
   }
   api_stat.Record(ret_code);
+  return ret_code;
+}
+
+ReturnCode ProviderApi::AsyncHeartbeat(const InstanceHeartbeatRequest& req,
+                                       ProviderCallback* callback) {
+  ApiStat* api_stat = new ApiStat(impl_->context_, kApiStatProviderAsyncHeartbeat);
+
+  ReturnCode ret_code                  = kReturnInvalidArgument;
+  InstanceHeartbeatRequest::Impl& impl = req.GetImpl();
+  if (!impl.CheckRequest(__func__)) {  // 检查请求是否合法
+    api_stat->Record(ret_code);
+    delete api_stat;
+    return ret_code;
+  }
+
+  ContextImpl* context_impl         = impl_->context_->GetContextImpl();
+  ServerConnector* server_connector = impl_->context_->GetServerConnector();
+  uint64_t timeout_ms =
+      impl.HasTimeout() ? impl.GetTimeout() : context_impl->GetApiDefaultTimeout();
+  ProviderCallbackWrapper* wrapper = new ProviderCallbackWrapper(callback, api_stat);
+  ret_code = server_connector->AsyncInstanceHeartbeat(req, timeout_ms, wrapper);
+  if (ret_code != kReturnOk) {
+    api_stat->Record(ret_code);
+    delete wrapper;
+  }
   return ret_code;
 }
 

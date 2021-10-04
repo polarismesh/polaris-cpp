@@ -226,9 +226,6 @@ TEST_F(GrpcServerConnectorTest, DeregisterInstance) {
 
 // 服务心跳上报
 TEST_F(GrpcServerConnectorTest, InstanceHeartbeat) {
-  InstanceHeartbeatRequest request(service_namespace_, service_name_, service_token_, "host", 9092);
-  // 请求未设置超时和FlowId
-
   std::string instance_id = "instance_id";
   InstanceHeartbeatRequest heartbeat_instance(service_token_, instance_id);
   ReturnCode ret = server_connector->InstanceHeartbeat(heartbeat_instance, 10);
@@ -248,6 +245,50 @@ TEST_F(GrpcServerConnectorTest, InstanceHeartbeat) {
     ret = server_connector->InstanceHeartbeat(heartbeat_host_port, 1000);
     ASSERT_EQ(ret, kReturnOk);
   }
+}
+
+TEST_F(GrpcServerConnectorTest, InstanceAsyncHeartbeat) {
+  std::string instance_id = "instance_id";
+  InstanceHeartbeatRequest heartbeat_instance(service_token_, instance_id);
+  // 实际不会执行，检测任务释放没有问题
+  ReturnCode ret = server_connector->AsyncInstanceHeartbeat(
+      heartbeat_instance, 1000, new TestProviderCallback(kReturnOk, __LINE__));
+  ASSERT_EQ(ret, kReturnOk);
+  Reactor reactor;
+
+  // 测试连接处理超时
+  v1::Instance *instance         = new v1::Instance();
+  TestProviderCallback *callback = new TestProviderCallback(kReturnNetworkFailed, __LINE__);
+  AsyncRequest *request =
+      new AsyncRequest(reactor, server_connector, Utils::GetNextSeqId(), instance, 100, callback);
+  ASSERT_TRUE(request->Submit());  // 发起连接
+  request->OnConnectTimeout();
+
+  // 测试连接建立失败
+  instance = new v1::Instance();
+  callback = new TestProviderCallback(kReturnNetworkFailed, __LINE__);
+  request =
+      new AsyncRequest(reactor, server_connector, Utils::GetNextSeqId(), instance, 100, callback);
+  ASSERT_TRUE(request->Submit());  // 发起连接
+  request->OnConnectFailed();
+
+  // 测试连接建立成功，但RPC失败
+  instance = new v1::Instance();
+  callback = new TestProviderCallback(kReturnNetworkFailed, __LINE__);
+  request =
+      new AsyncRequest(reactor, server_connector, Utils::GetNextSeqId(), instance, 100, callback);
+  ASSERT_TRUE(request->Submit());  // 发起连接
+  request->OnConnectSuccess();
+  request->OnFailure(grpc::kGrpcStatusInternal, "grpc rpc failed");
+
+  // 测试连接建立成功，但RPC成功
+  instance = new v1::Instance();
+  callback = new TestProviderCallback(kReturnOk, __LINE__);
+  request =
+      new AsyncRequest(reactor, server_connector, Utils::GetNextSeqId(), instance, 100, callback);
+  ASSERT_TRUE(request->Submit());  // 发起连接
+  request->OnConnectSuccess();
+  request->OnSuccess(CreateResponse(v1::ExecuteSuccess));
 }
 
 TEST_F(GrpcServerConnectorTest, ReportClient) {
