@@ -36,13 +36,13 @@ Reactor::Reactor() {
   epoll_fd_     = epoll_create(kEpollEventSize);
   epoll_events_ = new epoll_event[kEpollEventSize];
   POLARIS_ASSERT(epoll_fd_ >= 0 && "reactor create epoll failed!");
-  stopped_      = true;
+  status_       = kReactorInit;
   executor_tid_ = 0;
   AddEventHandler(&notifier_);
 }
 
 Reactor::~Reactor() {
-  POLARIS_ASSERT(stopped_ == true);
+  POLARIS_ASSERT(status_ != kReactorRun);
   RemoveEventHandler(notifier_.GetFd());
 
   // 这里必须先删除timeout，因为有些定时任务会用于检查请求超时
@@ -102,7 +102,7 @@ void Reactor::SubmitTask(Task* task) {
 }
 
 void Reactor::Stop() {
-  stopped_ = true;
+  status_ = kReactorStop;
   notifier_.Notify();
 }
 
@@ -175,7 +175,11 @@ void Reactor::RunEpollTask(uint64_t timeout) {
 }
 
 void Reactor::Run(bool once) {
-  stopped_      = false;
+  if (once) {  // 测试代码会重复调用本函数，直接进入Run状态
+    status_ = kReactorRun;
+  } else if (!status_.Cas(kReactorInit, kReactorRun)) {
+    return;
+  }
   executor_tid_ = pthread_self();
 
   // 屏蔽线程的pipe broken singal
@@ -185,7 +189,7 @@ void Reactor::Run(bool once) {
   int rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
   POLARIS_ASSERT(rc == 0)
 
-  while (!stopped_) {
+  while (status_ == kReactorRun) {
     RunPendingTask();
 
     RunEpollTask(CalculateEpollWaitTime());

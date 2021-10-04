@@ -28,6 +28,7 @@
 #include "cache/persist_task.h"
 #include "logger.h"
 #include "model/constants.h"
+#include "model/model_impl.h"
 #include "polaris/config.h"
 #include "reactor/reactor.h"
 #include "utils/file_utils.h"
@@ -147,7 +148,8 @@ ServiceData* CachePersist::LoadServiceData(const ServiceKey& service_key,
   }
   std::string data((std::istreambuf_iterator<char>(input_file)), std::istreambuf_iterator<char>());
   input_file.close();
-  uint64_t available_time = Time::GetCurrentTimeMs();
+  uint64_t current_time   = Time::GetCurrentTimeMs();
+  uint64_t available_time = current_time;
   // 如果磁盘缓存已经不在可用时间范围内，则需等待一段时间后从服务器同步失败则升级立即使用
   if (sync_time + persist_config_.GetAvailableTime() < available_time) {
     available_time += persist_config_.GetUpgradeWaitTime();
@@ -166,6 +168,9 @@ ServiceData* CachePersist::LoadServiceData(const ServiceKey& service_key,
     service_data->DecrementRef();
     return NULL;
   }
+  POLARIS_LOG(LOG_INFO, "load %s from disk for service[%s/%s] succ, available after %" PRIu64 "s",
+              DataTypeToStr(data_type), service_key.namespace_.c_str(), service_key.name_.c_str(),
+              available_time - current_time);
   return service_data;
 }
 

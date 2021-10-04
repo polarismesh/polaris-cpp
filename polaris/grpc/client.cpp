@@ -130,6 +130,7 @@ void GrpcStream::OnData(Buffer& data, bool end_stream) {
   }
   if (end_stream) {
     callback_.OnRemoteClose(kGrpcStatusOk, "end stream with data frame");
+    remote_end_ = true;
   }
 }
 
@@ -140,13 +141,17 @@ void GrpcStream::OnTrailers(HeaderMap* trailers) {
   }
   std::string grpc_message = trailers->GetGrpcMessage();
   delete trailers;
+  if (!remote_end_) {
+    callback_.OnRemoteClose(grpc_status, grpc_message);
+  }
   remote_end_ = true;
-  callback_.OnRemoteClose(grpc_status, grpc_message);
 }
 
 void GrpcStream::OnReset(GrpcStatusCode status, const std::string& message) {
+  if (!remote_end_) {
+    callback_.OnRemoteClose(status, message);
+  }
   remote_end_ = true;
-  callback_.OnRemoteClose(status, message);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
