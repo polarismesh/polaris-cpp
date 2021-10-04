@@ -270,7 +270,7 @@ public:
     for (std::size_t i = 0; i < values.size(); ++i) {
       RouterSubsetCache* value = dynamic_cast<RouterSubsetCache*>(values[i]);
       POLARIS_ASSERT(value != NULL);
-      int count = value->current_data_->count_.Exchange(0);
+      int count = value->current_data_->GetInstancesSetImpl()->count_.Exchange(0);
       if (count != 0) {
         if (data == NULL) {
           data = new RouterStatData();

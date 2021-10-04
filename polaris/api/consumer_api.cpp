@@ -286,6 +286,9 @@ ReturnCode ConsumerApiImpl::GetOneInstance(ServiceContext* service_context, Rout
   // 负载均衡
   LoadBalancer* load_balancer = service_context->GetLoadBalancer(request.GetLoadBalanceType());
   Instance* select_instance   = NULL;
+  if (load_balancer == NULL) {
+    return kReturnPluginError;
+  }
   ret = load_balancer->ChooseInstance(service_instances, request.GetCriteria(), select_instance);
   if (POLARIS_UNLIKELY(ret != kReturnOk)) {
     POLARIS_LOG(LOG_ERROR, "get one instance for service[%s/%s] with load balancer retrun error:%s",

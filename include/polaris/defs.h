@@ -44,11 +44,11 @@ enum ReturnCode {
   kReturnServiceNotFound   = 1015,  ///< 服务不存在
   kReturnExistedResource = 1200,  ///< 资源已存在，用于服务实例重复注册的返回码
   kReturnUnauthorized    = 1201,  ///< 请求未授权，token错误
-  kReturnHealthyCheckDisable = 1202,  ///< 服务端或实例健康检查未开启
-  kRetrunRateLimit           = 1203,  ///< 请求被限频
-  kReturnNotInit             = 1288,  ///< 资源未初始化
-  kReturnResourceNotFound    = 1289,  // 资源未找到
-  kReturnServerUnknownError  = 1299,  ///< 服务端返回客户端未知的错误
+  kReturnHealthyCheckDisable        = 1202,  ///< 服务端或实例健康检查未开启
+  kRetrunRateLimit                  = 1203,  ///< 请求被限频
+  kReturnNotInit                    = 1288,  ///< 资源未初始化
+  kReturnResourceNotFound           = 1289,  // 资源未找到
+  kReturnServerUnknownError         = 1299,  ///< 服务端返回客户端未知的错误
   kReturnSystemServiceNotConfigured = 1300,  ///< 没有配置系统服务名字
 };
 
@@ -77,17 +77,22 @@ struct ServiceInfo {
 
 /// @brief 负载均衡类型
 ///
-/// @note 添加负载均衡插件时必须在 kLoadBalanceTypeDefaultConfig 前对应添加一个类型
-///       并定义该插件的 GetLoadBalanceType 方法返回该枚举值
-enum LoadBalanceType {
-  kLoadBalanceTypeWeightedRandom,  // 权重随机
-  kLoadBalanceTypeRingHash,        // 一致性hash负载均衡
-  kLoadBalanceTypeMaglevHash,      // 一致性Hash: maglev 算法
-  kLoadBalanceTypeL5CstHash,       // 兼容L5的一致性Hash
-  kLoadBalanceTypeSimpleHash,      // hash_key%总实例数 选择服务实例
-  kLoadBalanceTypeCMurmurHash,     // 兼容brpc c_murmur的一致性哈希
-  kLoadBalanceTypeDefaultConfig,   // 使用全局配置的负载均衡算法，必须放在最后
-};
+/// @note 添加负载均衡插件时必须添加一个类型,并定义该插件的 GetLoadBalanceType 方法返回该值
+typedef std::string LoadBalanceType;
+// 权重随机
+const static LoadBalanceType kLoadBalanceTypeWeightedRandom = "weightedRandom";
+// 一致性hash负载均衡
+const static LoadBalanceType kLoadBalanceTypeRingHash = "ringHash";
+// 一致性Hash: maglev 算法
+const static LoadBalanceType kLoadBalanceTypeMaglevHash = "maglev";
+// 兼容L5的一致性Hash
+const static LoadBalanceType kLoadBalanceTypeL5CstHash = "l5cst";
+// hash_key%总实例数 选择服务实例
+const static LoadBalanceType kLoadBalanceTypeSimpleHash = "simpleHash";
+// 兼容brpc c_murmur的一致性哈希
+const static LoadBalanceType kLoadBalanceTypeCMurmurHash = "cMurmurHash";
+// 使用全局配置的负载均衡算法
+const static LoadBalanceType kLoadBalanceTypeDefaultConfig = "default";
 
 /// @brief 元数据路由匹配失败时降级策略
 enum MetadataFailoverType {

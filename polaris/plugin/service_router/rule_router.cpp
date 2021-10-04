@@ -472,7 +472,7 @@ InstancesSet* RuleServiceRouter::SelectSet(std::map<uint32_t, InstancesSet*>& cl
   }
   uint32_t random_weight                         = rand_r(&thread_local_seed) % sum_weight;
   std::map<uint32_t, InstancesSet*>::iterator it = cluster.upper_bound(random_weight);
-  it->second->count_++;
+  it->second->GetInstancesSetImpl()->count_++;
   return it->second;
 }
 
@@ -493,7 +493,7 @@ RouterStatData* RuleServiceRouter::CollectStat() {
     bool have_data = false;
     for (std::map<uint32_t, InstancesSet*>::iterator it = value->data_.begin();
          it != value->data_.end(); ++it) {
-      if ((count = it->second->count_.Exchange(0)) > 0) {
+      if ((count = it->second->GetInstancesSetImpl()->count_.Exchange(0)) > 0) {
         if (data == NULL) {
           data = new RouterStatData();
         }
