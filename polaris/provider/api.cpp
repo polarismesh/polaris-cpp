@@ -11,7 +11,7 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "api/provider_api.h"
+#include "provider/api_impl.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -29,11 +29,12 @@
 #include "polaris/defs.h"
 #include "polaris/plugin.h"
 #include "polaris/provider.h"
+#include "provider/request.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
 
-ProviderApi::ProviderApi(ProviderApiImpl* impl) { impl_ = impl; }
+ProviderApi::ProviderApi(ProviderApi::Impl* impl) { impl_ = impl; }
 
 ProviderApi::~ProviderApi() {
   if (impl_ != NULL) {
@@ -52,7 +53,7 @@ ProviderApi* ProviderApi::Create(Context* context) {
     POLARIS_LOG(LOG_ERROR, "create provider api failed because context is init with error mode");
     return NULL;
   }
-  ProviderApiImpl* api_impl = new ProviderApiImpl(context);
+  ProviderApi::Impl* api_impl = new ProviderApi::Impl(context);
   return new ProviderApi(api_impl);
 }
 
@@ -93,56 +94,21 @@ ProviderApi* ProviderApi::CreateWithDefaultFile() {
   return CreateWithConfig(Config::CreateWithDefaultFile(err_msg), err_msg);
 }
 
-ProviderApiImpl::ProviderApiImpl(Context* context) { context_ = context; }
-
-ProviderApiImpl::~ProviderApiImpl() {
-  if (context_ != NULL && context_->GetContextMode() == kPrivateContext) {
-    delete context_;
-  }
-  context_ = NULL;
-}
-
-template <class T>
-inline bool CheckInstance(T& request, const char* action) {
-  if (request.GetServiceNamespace().empty()) {
-    POLARIS_LOG(LOG_ERROR, "%s instance with empty service namespace", action);
-    return false;
-  }
-  if (request.GetServiceName().empty()) {
-    POLARIS_LOG(LOG_ERROR, "%s instance with empty service name", action);
-    return false;
-  }
-  if (request.GetServiceToken().empty()) {
-    POLARIS_LOG(LOG_ERROR, "%s instance with empty service token", action);
-    return false;
-  }
-  if (request.GetHost().empty()) {
-    POLARIS_LOG(LOG_ERROR, "%s instance with empty instance host", action);
-    return false;
-  }
-  if (request.GetPort() <= 0 || request.GetPort() > 65535) {
-    POLARIS_LOG(LOG_ERROR, "%s instance with error port, port must in [1, 65535]", action);
-    return false;
-  }
-  return true;
-}
-
 ReturnCode ProviderApi::Register(const InstanceRegisterRequest& req, std::string& instance_id) {
   ApiStat api_stat(impl_->context_, kApiStatProvderRegsiter);
   ReturnCode ret_code = kReturnInvalidArgument;
   // 检查请求是否合法
-  InstanceRegisterRequestAccessor request(req);
-  if (!CheckInstance(request, __func__)) {
+  if (!req.GetImpl().CheckRequest(__func__)) {
     api_stat.Record(ret_code);
     return ret_code;
   }
-  ContextImpl* context_impl = impl_->context_->GetContextImpl();
+  ContextImpl* context_impl         = impl_->context_->GetContextImpl();
+  ServerConnector* server_connector = impl_->context_->GetServerConnector();
 
   // 同步发送网络请求
-  ServerConnector* server_connector = impl_->context_->GetServerConnector();
-  uint64_t timeout_ms =
-      request.HasTimeout() ? request.GetTimeout() : context_impl->GetApiDefaultTimeout();
-  int retry_times = context_impl->GetApiMaxRetryTimes();
+  uint64_t timeout_ms = req.GetImpl().HasTimeout() ? req.GetImpl().GetTimeout()
+                                                   : context_impl->GetApiDefaultTimeout();
+  int retry_times     = context_impl->GetApiMaxRetryTimes();
   while (retry_times-- > 0 && timeout_ms > 0) {
     uint64_t begin_time = Time::GetCurrentTimeMs();
     ret_code            = server_connector->RegisterInstance(req, timeout_ms, instance_id);
@@ -179,18 +145,18 @@ inline bool CheckInstanceOrId(T& request, const char* action) {
 ReturnCode ProviderApi::Deregister(const InstanceDeregisterRequest& req) {
   ApiStat api_stat(impl_->context_, kApiStatProviderDeregisger);
   ReturnCode ret_code = kReturnInvalidArgument;
-  InstanceDeregisterRequestAccessor request(req);
-  if (!CheckInstanceOrId(request, __func__)) {  // 检查请求是否合法
+  if (!req.GetImpl().CheckRequest(__func__)) {  // 检查请求是否合法
     api_stat.Record(ret_code);
     return ret_code;
   }
 
-  ContextImpl* context_impl = impl_->context_->GetContextImpl();
-  // 同步发送网络请求
+  ContextImpl* context_impl         = impl_->context_->GetContextImpl();
   ServerConnector* server_connector = impl_->context_->GetServerConnector();
-  uint64_t timeout_ms =
-      request.HasTimeout() ? request.GetTimeout() : context_impl->GetApiDefaultTimeout();
-  int retry_times = context_impl->GetApiMaxRetryTimes();
+  // 同步发送网络请求
+
+  uint64_t timeout_ms = req.GetImpl().HasTimeout() ? req.GetImpl().GetTimeout()
+                                                   : context_impl->GetApiDefaultTimeout();
+  int retry_times     = context_impl->GetApiMaxRetryTimes();
   while (retry_times-- > 0 && timeout_ms > 0) {
     uint64_t begin_time = Time::GetCurrentTimeMs();
     ret_code            = server_connector->DeregisterInstance(req, timeout_ms);
@@ -212,17 +178,17 @@ ReturnCode ProviderApi::Heartbeat(const InstanceHeartbeatRequest& req) {
   ApiStat api_stat(impl_->context_, kApiStatProviderHeartbeat);
 
   ReturnCode ret_code = kReturnInvalidArgument;
-  InstanceHeartbeatRequestAccessor request(req);
-  if (!CheckInstanceOrId(request, __func__)) {  // 检查请求是否合法
+  if (!req.GetImpl().CheckRequest(__func__)) {  // 检查请求是否合法
     api_stat.Record(ret_code);
     return ret_code;
   }
 
   ContextImpl* context_impl         = impl_->context_->GetContextImpl();
   ServerConnector* server_connector = impl_->context_->GetServerConnector();
-  uint64_t timeout_ms =
-      request.HasTimeout() ? request.GetTimeout() : context_impl->GetApiDefaultTimeout();
-  int retry_times = context_impl->GetApiMaxRetryTimes();
+
+  uint64_t timeout_ms = req.GetImpl().HasTimeout() ? req.GetImpl().GetTimeout()
+                                                   : context_impl->GetApiDefaultTimeout();
+  int retry_times     = context_impl->GetApiMaxRetryTimes();
   while (retry_times-- > 0 && timeout_ms > 0) {
     uint64_t begin_time = Time::GetCurrentTimeMs();
     ret_code            = server_connector->InstanceHeartbeat(req, timeout_ms);

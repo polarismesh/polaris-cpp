@@ -39,7 +39,7 @@ enum PluginType {
   kPluginLocalRegistry,    ///< 本地缓存扩展点
   kPluginServiceRouter,    ///< 服务路由扩展点
   kPluginLoadBalancer,     ///< 负载均衡扩展点
-  kPluginHealthChecker,  ///< 健康探测扩展点
+  kPluginHealthChecker,    ///< 健康探测扩展点
   kPluginCircuitBreaker,   ///< 节点熔断扩展点
   kPluginWeightAdjuster,   ///< 动态权重调整扩展点
   kPluginStatReporter,     ///< 统计上报扩展点
@@ -96,6 +96,10 @@ public:
   /// @brief 同步成功事件回调
   virtual void OnEventSync(const ServiceKey& service_key, ServiceDataType data_type) = 0;
 };
+
+class InstanceRegisterRequest;
+class InstanceDeregisterRequest;
+class InstanceHeartbeatRequest;
 
 /// @brief 扩展点接口：对接Server/Agent的代理，封装了网络通信逻辑
 ///

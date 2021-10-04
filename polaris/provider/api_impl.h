@@ -11,19 +11,21 @@
 //  language governing permissions and limitations under the License.
 //
 
-#ifndef POLARIS_CPP_POLARIS_API_PROVIDER_API_H_
-#define POLARIS_CPP_POLARIS_API_PROVIDER_API_H_
+#ifndef POLARIS_CPP_POLARIS_PROVIDER_API_IMPL_H_
+#define POLARIS_CPP_POLARIS_PROVIDER_API_IMPL_H_
+
+#include "polaris/provider.h"
 
 namespace polaris {
 
 class Context;
 
 /// @brief POLARIS服务端API的主接口实现
-class ProviderApiImpl {
+class ProviderApi::Impl {
 public:
-  explicit ProviderApiImpl(Context* context);
+  explicit Impl(Context* context);
 
-  ~ProviderApiImpl();
+  ~Impl();
 
 private:
   friend class ProviderApi;
@@ -32,4 +34,4 @@ private:
 
 }  // namespace polaris
 
-#endif  //  POLARIS_CPP_POLARIS_API_PROVIDER_API_H_
+#endif  //  POLARIS_CPP_POLARIS_PROVIDER_API_IMPL_H_

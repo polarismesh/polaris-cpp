@@ -16,8 +16,6 @@
 #include <inttypes.h>
 #include <stddef.h>
 
-#include <google/protobuf/message.h>
-
 #include "grpc/header.h"
 #include "grpc/status.h"
 #include "logger.h"

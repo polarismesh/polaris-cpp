@@ -11,36 +11,19 @@
 //  language governing permissions and limitations under the License.
 //
 
-#ifndef POLARIS_CPP_POLARIS_UTILS_OPTIONAL_H_
-#define POLARIS_CPP_POLARIS_UTILS_OPTIONAL_H_
+#include "provider/api_impl.h"
+
+#include "context_internal.h"
 
 namespace polaris {
 
-/// @brief 可选字段类型
-template <class T>
-class optional {
-public:
-  optional() : has_value_(false) {}
+ProviderApi::Impl::Impl(Context* context) { context_ = context; }
 
-  bool HasValue() const { return has_value_; }
-
-  const T& Value() const { return value_; }
-
-  T& Value() { return value_; }
-
-  T& operator=(T const& value) {
-    has_value_ = true;
-    value_     = value;
-    return value_;
+ProviderApi::Impl::~Impl() {
+  if (context_ != NULL && context_->GetContextMode() == kPrivateContext) {
+    delete context_;
   }
-
-  void SetHasValue() { has_value_ = true; }
-
-private:
-  bool has_value_;
-  T value_;
-};
+  context_ = NULL;
+}
 
 }  // namespace polaris
-
-#endif  //  POLARIS_CPP_POLARIS_UTILS_OPTIONAL_H_

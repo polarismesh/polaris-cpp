@@ -115,6 +115,7 @@ cc_library(
         ":nghttp2",
         ":murmurhash",
         ":re2",
+        ":ratelimit_proto_v2",
     ],
     includes = [
         "include",

@@ -31,6 +31,7 @@
 #include "polaris/model.h"
 #include "polaris/polaris_api.h"
 #include "polaris/provider.h"
+#include "provider/request.h"
 
 namespace polaris {
 extern const char* g_sdk_version_info;
@@ -493,12 +494,7 @@ void polaris_register_instance_req_set_version(polaris_register_instance_req* re
 
 void polaris_register_instance_req_add_metadata(polaris_register_instance_req* register_req,
                                                 const char* key, const char* value) {
-  polaris::InstanceRegisterRequestAccessor accessor(*register_req->request_);
-  if (!accessor.HasMetadata()) {
-    std::map<std::string, std::string> metadata;
-    register_req->request_->SetMetadata(metadata);
-  }
-  accessor.GetMetadata().insert(std::make_pair(key, value));
+  register_req->request_->GetImpl().AddMetdata(key, value);
 }
 
 void polaris_register_instance_req_set_health_check_flag(
