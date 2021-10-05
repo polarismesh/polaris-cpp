@@ -93,6 +93,15 @@ public:
   /// @param load_balance_type 负载均衡类型
   void SetLoadBalanceType(LoadBalanceType load_balance_type);
 
+  /// @brief 设置用于重试的实例数。可选，默认不返回用于重试的实例
+  ///
+  /// @note 第一个实例由负载均衡器给出，外加backup_instance_num个实例，实例不重复，但不保证数量
+  ///       内部的一致性环hash负载均衡返回实例后方相邻的实例，其他返回随机实例
+  ///       从GetOneInstance的InstancesResponse获取实例
+  ///
+  /// @param backup_instance_num 重试（备份）实例数
+  void SetBackupInstanceNum(uint32_t backup_instance_num);
+
   /// @brief 用于一致性hash算法时获取副本实例
   ///
   /// @param replicate_index 副本索引，默认为0表示当前hash实例本身

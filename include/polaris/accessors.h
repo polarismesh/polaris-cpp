@@ -58,6 +58,8 @@ public:
 
   LoadBalanceType GetLoadBalanceType();
 
+  uint32_t GetBackupInstanceNum();
+
 private:
   const GetOneInstanceRequest& request_;
 };

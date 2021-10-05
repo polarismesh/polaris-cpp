@@ -235,7 +235,10 @@ void InstancesFuture::SetServiceCacheNotify(ServiceCacheNotify* service_cache_no
   cache_manager->RegisterTimeoutWatcher(impl_, service_cache_notify);
 }
 
-ConsumerApiImpl::ConsumerApiImpl(Context* context) { context_ = context; }
+ConsumerApiImpl::ConsumerApiImpl(Context* context) {
+  context_ = context;
+  srand(time(NULL));
+}
 
 ConsumerApiImpl::~ConsumerApiImpl() {
   if (context_ != NULL && context_->GetContextMode() == kPrivateContext) {
@@ -340,6 +343,11 @@ ReturnCode ConsumerApiImpl::GetOneInstance(ServiceContext* service_context, Rout
     return kReturnInstanceNotFound;
   }
 
+  // 选取backup实例
+  std::vector<Instance*> backup_instances;
+  backup_instances.push_back(instance);
+  GetBackupInstances(service_instances, load_balancer, request, backup_instances);
+
   // 返回结果
   resp = new InstancesResponse();
   InstancesResponseSetter resp_setter(*resp);
@@ -348,9 +356,101 @@ ReturnCode ConsumerApiImpl::GetOneInstance(ServiceContext* service_context, Rout
   resp_setter.SetServiceName(route_info.GetServiceKey().name_);
   resp_setter.SetServiceNamespace(route_info.GetServiceKey().namespace_);
   resp_setter.SetRevision(service_instances->GetServiceData()->GetRevision());
-  resp_setter.AddInstance(*instance);
   resp_setter.SetSubset(route_result.GetSubset());
+  for (size_t i = 0; i < backup_instances.size(); ++i) {
+    resp_setter.AddInstance(*(backup_instances[i]));
+  }
   return kReturnOk;
+}
+
+void ConsumerApiImpl::GetBackupInstances(ServiceInstances* service_instances,
+                                         LoadBalancer* load_balancer,
+                                         GetOneInstanceRequestAccessor& request,
+                                         std::vector<Instance*>& backup_instances) {
+  uint32_t target_num = request.GetBackupInstanceNum() + 1;  // 加负载均衡选的那一个
+  if (target_num <= 1) {
+    return;
+  }
+
+  LoadBalanceType lb_type = load_balancer->GetLoadBalanceType();  // 不从request中取，规避default
+  InstancesSet* instances_set      = service_instances->GetAvailableInstances();
+  std::vector<Instance*> instances = instances_set->GetInstances();
+  Instance* instance               = NULL;
+  ReturnCode ret                   = kReturnOk;
+
+  // 内部ringhash, 返回节点后相邻的backup个不重复节点
+  if (lb_type == kLoadBalanceTypeRingHash || lb_type == kLoadBalanceTypeL5CstHash ||
+      lb_type == kLoadBalanceTypeCMurmurHash) {
+    uint32_t available_num = instances.size();  // 不考虑半开
+    if (target_num > available_num) {
+      POLARIS_LOG(LOG_WARN, "available instance num %d is small than needed instance num %d",
+                  available_num, target_num);
+      target_num = available_num;  // 修正目标值
+    }
+    int cycle_times   = available_num;  //循环次数上限
+    Criteria criteria = request.GetCriteria();
+
+    for (int i = 1; i <= cycle_times; ++i) {
+      if (backup_instances.size() >= target_num) {
+        break;
+      }
+      criteria.replicate_index_ = i;
+      ret = load_balancer->ChooseInstance(service_instances, criteria, instance);
+      if (ret != kReturnOk) {
+        POLARIS_LOG(LOG_ERROR, "load balancer %s choose backup instance error %d", lb_type.c_str(),
+                    ret);
+        return;
+      }
+      // 添加不重复的节点到数组
+      bool repeat_flag = false;
+      for (size_t j = 0; j < backup_instances.size(); ++j) {
+        if (backup_instances[j]->GetId() == instance->GetId()) {
+          repeat_flag = true;
+          break;
+        }
+      }
+      if (repeat_flag == false) {
+        backup_instances.push_back(instance);
+      }
+    }
+    return;
+  }
+
+  // 其它负载均衡
+  std::set<Instance*> half_open_instances;
+  service_instances->GetHalfOpenInstances(half_open_instances);  // 半开实例
+  instance = backup_instances[0];
+
+  uint32_t available_num = instances.size() - half_open_instances.size();
+  if (target_num > available_num) {
+    POLARIS_LOG(LOG_WARN, "available instance num %d is small than needed instance num %d",
+                available_num, target_num);
+    target_num = available_num;
+  }
+
+  // 获取一个随机数
+  static __thread bool thread_local_seed_not_init = true;
+  static __thread unsigned int thread_local_seed  = 0;
+  if (thread_local_seed_not_init) {
+    thread_local_seed_not_init = false;
+    thread_local_seed          = time(NULL) ^ pthread_self();
+  }
+  uint32_t index = rand_r(&thread_local_seed) % instances.size();
+  // 选择backup实例
+  for (size_t i = 0; i < instances.size(); ++i, ++index) {
+    if (backup_instances.size() >= target_num) {
+      break;  // 实例数已足够
+    }
+    if (index == instances.size()) {
+      index = 0;  // 回到起点
+    }
+    Instance*& item = instances[index];
+    if (item->GetId() == instance->GetId() ||
+        half_open_instances.find(item) != half_open_instances.end()) {
+      continue;  // 实例是负载均衡器选择的实例，或是一个半开实例
+    }
+    backup_instances.push_back(item);
+  }
 }
 
 ReturnCode ConsumerApiImpl::GetInstances(ServiceContext* service_context, RouteInfo& route_info,
