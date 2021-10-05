@@ -17,12 +17,8 @@
 #include <stdint.h>
 #include <time.h>
 
-namespace google {
-namespace protobuf {
-class Duration;
-class Timestamp;
-}  // namespace protobuf
-}  // namespace google
+#include <google/protobuf/duration.pb.h>
+#include <google/protobuf/timestamp.pb.h>
 
 namespace polaris {
 

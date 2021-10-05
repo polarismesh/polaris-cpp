@@ -138,18 +138,36 @@ void InMemoryRegistry::RunGcTask() {
   service_circuit_breaker_config_data_.CheckGc(min_gc_time);
 }
 
-Service* InMemoryRegistry::GetOrCreateServiceInLock(const ServiceKey& service_key) {
+Service* InMemoryRegistry::CreateServiceInLock(const ServiceKey& service_key) {
   Service* service = NULL;
   pthread_rwlock_wrlock(&rwlock_);
   std::map<ServiceKey, Service*>::iterator service_it = service_cache_.find(service_key);
-  if (service_it == service_cache_.end()) {
-    service                     = new Service(service_key, ++next_service_id_);
-    service_cache_[service_key] = service;
-  } else {
+  POLARIS_ASSERT(service_it == service_cache_.end())
+  service                     = new Service(service_key, ++next_service_id_);
+  service_cache_[service_key] = service;
+  pthread_rwlock_unlock(&rwlock_);
+  return service;
+}
+
+Service* InMemoryRegistry::GetServiceInLock(const ServiceKey& service_key) {
+  Service* service = NULL;
+  pthread_rwlock_wrlock(&rwlock_);
+  std::map<ServiceKey, Service*>::iterator service_it = service_cache_.find(service_key);
+  if (service_it != service_cache_.end()) {
     service = service_it->second;
   }
   pthread_rwlock_unlock(&rwlock_);
   return service;
+}
+
+void InMemoryRegistry::DeleteServiceInLock(const ServiceKey& service_key) {
+  pthread_rwlock_wrlock(&rwlock_);
+  std::map<ServiceKey, Service*>::iterator service_it = service_cache_.find(service_key);
+  if (service_it != service_cache_.end()) {
+    delete service_it->second;
+    service_cache_.erase(service_it);
+  }
+  pthread_rwlock_unlock(&rwlock_);
 }
 
 void InMemoryRegistry::CheckExpireServiceData(uint64_t min_access_time,
@@ -166,16 +184,16 @@ void InMemoryRegistry::CheckExpireServiceData(uint64_t min_access_time,
     if (service_data_notify_map_.erase(service_key_with_type) > 0) {  // 有通知对象表示注册过handler
       context_->GetServerConnector()->DeregisterEventHandler(expired_services[i],
                                                              service_data_type);
-    } else {  // 没有通知对象，表示未注册过handler，从磁盘加载后从未访问过的数据，直接删除数据
-      rcu_cache.Delete(expired_services[i]);
-      context_impl->GetServiceRecord()->ServiceDataDelete(expired_services[i], service_data_type);
-      context_impl->GetCacheManager()->GetCachePersist().PersistServiceData(expired_services[i],
-                                                                            service_data_type, "");
     }
-    pthread_rwlock_unlock(&notify_rwlock_);
     if (service_data_type == kServiceDataInstances) {  // 清除实例数据时对应的服务级别插件也删除
       context_impl->DeleteServiceContext(expired_services[i]);
+      DeleteServiceInLock(expired_services[i]);
     }
+    rcu_cache.Delete(expired_services[i]);
+    context_impl->GetServiceRecord()->ServiceDataDelete(expired_services[i], service_data_type);
+    context_impl->GetCacheManager()->GetCachePersist().PersistServiceData(expired_services[i],
+                                                                          service_data_type, "");
+    pthread_rwlock_unlock(&notify_rwlock_);
   }
 }
 
@@ -248,6 +266,9 @@ ReturnCode InMemoryRegistry::LoadServiceDataWithNotify(const ServiceKey& service
     if (interval_it != service_interval_map_.end()) {
       refresh_interval = interval_it->second;
     }
+    if (data_type == kServiceDataInstances) {
+      CreateServiceInLock(service_key);
+    }
     // 先加载磁盘缓存数据
     CachePersist& cache_persist = context_->GetContextImpl()->GetCacheManager()->GetCachePersist();
     ServiceData* disk_service_data = cache_persist.LoadServiceData(service_key, data_type);
@@ -268,25 +289,21 @@ ReturnCode InMemoryRegistry::LoadServiceDataWithNotify(const ServiceKey& service
   return kReturnOk;
 }
 
-void InMemoryRegistry::DeleteServiceInLock(const ServiceKey& service_key) {
-  pthread_rwlock_wrlock(&rwlock_);
-  std::map<ServiceKey, Service*>::iterator service_it = service_cache_.find(service_key);
-  if (service_it != service_cache_.end()) {
-    delete service_it->second;
-    service_cache_.erase(service_it);
-  }
-  pthread_rwlock_unlock(&rwlock_);
-}
-
 ReturnCode InMemoryRegistry::UpdateServiceData(const ServiceKey& service_key,
                                                ServiceDataType data_type,
                                                ServiceData* service_data) {
-  if (service_data != NULL) {  // 更新服务数据指向服务
-    Service* service = GetOrCreateServiceInLock(service_key);
+  Service* service = GetServiceInLock(service_key);
+  if (service != NULL) {  // 更新服务数据指向服务
     service->UpdateData(service_data);
   }
   ContextImpl* context_impl = context_->GetContextImpl();
   if (data_type == kServiceDataInstances) {
+    if (service == NULL) {  // 服务被反注册了
+      if (service_data != NULL) {
+        service_data->DecrementRef();
+      }
+      return kReturnOk;
+    }
     ServiceData* old_service_data = service_instances_data_.Get(service_key);
     if (old_service_data != NULL) {
       PluginManager::Instance().OnPreUpdateServiceData(old_service_data, service_data);
@@ -307,13 +324,6 @@ ReturnCode InMemoryRegistry::UpdateServiceData(const ServiceKey& service_key,
     POLARIS_ASSERT(false);
   }
   if (service_data == NULL) {  // Server Connector反注册Handler触发更新为NULL
-    if (data_type == kServiceDataInstances) {  // 删除服务实例数据时，同时删除服务
-      DeleteServiceInLock(service_key);
-    }
-    context_impl->GetServiceRecord()->ServiceDataDelete(service_key,
-                                                        data_type);  // 同步记录Service数据删除
-    context_impl->GetCacheManager()->GetCachePersist().PersistServiceData(
-        service_key, data_type, "");  // 异步删除磁盘服务数据
     return kReturnOk;
   }
   context_impl->GetServiceRecord()->ServiceDataUpdate(service_data);  // 同步记录Service版本变化
@@ -387,6 +397,47 @@ ReturnCode InMemoryRegistry::UpdateSetCircuitBreakerData(
   service = service_it->second;
   pthread_rwlock_unlock(&rwlock_);
   return service->WriteCircuitBreakerUnhealthySets(unhealthy_sets);
+}
+
+ReturnCode InMemoryRegistry::GetCircuitBreakerInstances(const ServiceKey& service_key,
+                                                        ServiceData*& service_data,
+                                                        std::vector<Instance*>& open_instances) {
+  service_data = service_instances_data_.Get(service_key, false);
+  if (service_data == NULL) {
+    return kReturnServiceNotFound;
+  }
+  if (service_data->GetDataStatus() < kDataIsSyncing) {
+    service_data->DecrementRef();
+    return kReturnServiceNotFound;
+  }
+  // 由于此处获取service data没有更新访问时间，服务可能淘汰，不能直接使用其关联的服务数据
+  pthread_rwlock_rdlock(&rwlock_);
+  std::map<ServiceKey, Service*>::iterator service_it = service_cache_.find(service_key);
+  if (service_it == service_cache_.end()) {
+    pthread_rwlock_unlock(&rwlock_);
+    return kReturnServiceNotFound;
+  }
+  std::set<std::string> open_instance = service_it->second->GetCircuitBreakerOpenInstances();
+  pthread_rwlock_unlock(&rwlock_);
+
+  ServiceInstances service_instances(service_data);
+  std::map<std::string, Instance*>& instance_map = service_instances.GetInstances();
+  for (std::set<std::string>::iterator it = open_instance.begin(); it != open_instance.end();
+       ++it) {
+    const std::string& instance_id                  = *it;
+    std::map<std::string, Instance*>::iterator iter = instance_map.find(instance_id);
+    if (iter == instance_map.end()) {
+      POLARIS_LOG(LOG_INFO, "The outlier detector of service[%s/%s] getting instance[%s] failed",
+                  service_key.namespace_.c_str(), service_key.name_.c_str(), instance_id.c_str());
+      continue;
+    }
+    open_instances.push_back(iter->second);
+  }
+  if (open_instances.empty()) {
+    return kReturnInstanceNotFound;
+  }
+  service_data->IncrementRef();
+  return kReturnOk;
 }
 
 }  // namespace polaris

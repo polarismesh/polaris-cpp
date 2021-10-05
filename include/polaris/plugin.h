@@ -285,6 +285,10 @@ public:
   virtual ReturnCode UpdateSetCircuitBreakerData(
       const ServiceKey& service_key, const CircuitBreakUnhealthySetsData& unhealthy_sets) = 0;
 
+  virtual ReturnCode GetCircuitBreakerInstances(const ServiceKey& service_key,
+                                                ServiceData*& service_data,
+                                                std::vector<Instance*>& open_instances) = 0;
+
   /// @brief 更新服务实例状态，properties存放的是状态值，当前支持2个key
   ///
   /// 1. ReadyToServe: 故障熔断标识，true or false

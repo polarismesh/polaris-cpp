@@ -14,8 +14,6 @@
 #include "utils/time_clock.h"
 
 #include <features.h>
-#include <google/protobuf/duration.pb.h>
-#include <google/protobuf/timestamp.pb.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,7 +110,7 @@ void Time::TrySetUpClock() {
 #if !defined(POLARIS_DISABLE_TIME_TICKER)  // 不使用自定义时钟
   pthread_mutex_lock(&g_custom_clock_lock);
   g_custom_clock_ref_count++;
-  if (g_custom_clock_update_tid == 0) {            // 创建更新线程
+  if (g_custom_clock_update_tid == 0 && current_time_impl == clock_real_time) {  // 创建更新线程
     pthread_atfork(ForkPrepare, NULL, ForkChild);  // 注册Fork事件回调
     // 这里必须先初始化自定义时钟，线程启动后会立即替换
     timespec clock_time;

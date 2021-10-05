@@ -343,6 +343,13 @@ bool GrpcServerConnector::SendDiscoverRequest(ServiceListener& service_listener)
       return false;
     }
   }
+  // 已经发送过请求正等待超时
+  if (service_listener.timeout_task_iter_ != reactor_.TimingTaskEnd()) {
+    POLARIS_LOG(LOG_WARN, "already discover %s for service[%s/%s]",
+                DataTypeToStr(service_listener.service_.data_type_), service_key.namespace_.c_str(),
+                service_key.name_.c_str());
+    return true;
+  }
   // 组装请求
   ::v1::DiscoverRequest request;
   if (!service_key.namespace_.empty()) {
@@ -517,8 +524,15 @@ ReturnCode GrpcServerConnector::ProcessDiscoverResponse(::v1::DiscoverResponse& 
                 response.info().value().c_str());
   }
   // 设置下一次的检查任务
-  listener.discover_task_iter_ = reactor_.AddTimingTask(
-      new TimingFuncTask<ServiceListener>(TimingDiscover, &listener, listener.sync_interval_));
+  // 这里检查，避免发现任务取消又注册后，之前的同步任务遗留的应答导致重复设置定时任务
+  if (listener.discover_task_iter_ == reactor_.TimingTaskEnd()) {
+    listener.discover_task_iter_ = reactor_.AddTimingTask(
+        new TimingFuncTask<ServiceListener>(TimingDiscover, &listener, listener.sync_interval_));
+    if (pending_for_connected_.count(&listener) > 0) {
+      // 清理由于切换失败保留在pending列表里的任务需要
+      pending_for_connected_.erase(&listener);
+    }
+  }
   return kReturnOk;
 }
 
@@ -545,7 +559,7 @@ void GrpcServerConnector::TimingServerSwitch(GrpcServerConnector* server_connect
     server_connector->UpdateCallResult(kServerCodeReturnOk, 0);
   } else if (server_connector->server_switch_state_ == kServerSwitchDefault) {
     server_connector->server_switch_state_ = kServerSwitchPeriodic;
-    POLARIS_LOG(LOG_INFO, "switch from default server[%s] to seed service",
+    POLARIS_LOG(LOG_INFO, "switch from seed server[%s] to seed service",
                 server_connector->grpc_client_->CurrentServer().c_str());
     server_connector->UpdateCallResult(kServerCodeReturnOk, 0);
   } else if (server_connector->server_switch_state_ == kServerSwitchBegin) {
@@ -580,6 +594,16 @@ void GrpcServerConnector::ServerSwitch() {
     reactor_.CancelTimingTask(server_switch_task_iter_);
   }
 
+  // 有超时检查的服务，说明本次未完成服务发现，加入pending列表，从而可在切换成功后立马发送
+  for (std::map<ServiceKeyWithType, ServiceListener>::iterator it = listener_map_.begin();
+       it != listener_map_.end(); ++it) {
+    if (it->second.timeout_task_iter_ != reactor_.TimingTaskEnd()) {
+      reactor_.CancelTimingTask(it->second.timeout_task_iter_);
+      pending_for_connected_.insert(&it->second);
+      it->second.timeout_task_iter_ = reactor_.TimingTaskEnd();
+    }
+  }
+
   // 选择一个服务器
   std::string host;
   int port = 0;
@@ -599,33 +623,21 @@ void GrpcServerConnector::ServerSwitch() {
       discover_stream_state_ = kDiscoverStreamInit;
       POLARIS_LOG(LOG_INFO, "discover stream switch to discover server[%s:%d]", host.c_str(), port);
     } else {
-      POLARIS_LOG(LOG_ERROR, "discover polaris service[%s/%s] return error[%s]",
+      POLARIS_LOG(LOG_WARN, "discover polaris service[%s/%s] return [%s], switch to seed server",
                   discover_service.namespace_.c_str(), discover_service.name_.c_str(),
                   ReturnCodeToMsg(ret_code).c_str());
-      server_switch_state_     = kServerSwitchNormal;  // 设置成正常状态，稍后重试
-      server_switch_task_iter_ = reactor_.AddTimingTask(new TimingFuncTask<GrpcServerConnector>(
-          GrpcServerConnector::TimingServerSwitch, this, message_timeout_.GetTimeout()));
-      return;
     }
-  } else {
-    SeedServer& server = server_lists_[rand() % server_lists_.size()];
-    host               = server.ip_;
-    port               = server.port_;
+  }
+  if (host.empty()) {
+    discover_stream_state_ = kDiscoverStreamNotInit;
+    SeedServer& server     = server_lists_[rand() % server_lists_.size()];
+    host                   = server.ip_;
+    port                   = server.port_;
     // 如果没有配置discover服务名，那么则此时已经初始化完成
     if (context_->GetContextImpl()->GetDiscoverService().service_.name_.empty()) {
       discover_stream_state_ = kDiscoverStreamInit;
     }
-    POLARIS_LOG(LOG_INFO, "discover stream switch to inner server[%s:%d]", host.c_str(), port);
-  }
-
-  // 有超时检查的服务，说明本次未完成服务发现，加入pending列表，从而可在切换成功后立马发送
-  for (std::map<ServiceKeyWithType, ServiceListener>::iterator it = listener_map_.begin();
-       it != listener_map_.end(); ++it) {
-    if (it->second.timeout_task_iter_ != reactor_.TimingTaskEnd()) {
-      reactor_.CancelTimingTask(it->second.timeout_task_iter_);
-      pending_for_connected_.insert(&it->second);
-      it->second.timeout_task_iter_ = reactor_.TimingTaskEnd();
-    }
+    POLARIS_LOG(LOG_INFO, "discover stream switch to seed server[%s:%d]", host.c_str(), port);
   }
 
   // 设置定时任务进行超时检查
