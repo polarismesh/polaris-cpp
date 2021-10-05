@@ -995,6 +995,7 @@ void Service::SetCircuitBreakerData(const CircuitBreakerData& circuit_breaker_da
     impl_->have_half_open_data_ = true;
   } else {
     impl_->have_half_open_data_ = false;
+    impl_->try_half_open_count_ = 20;
   }
 }
 
@@ -1020,6 +1021,19 @@ ReturnCode Service::TryChooseHalfOpenInstance(std::set<Instance*>& instances, In
   if (!impl_->have_half_open_data_ || instances.empty()) {
     return kReturnInstanceNotFound;
   }
+  // 控制释放半开节点的评论，有半开节点以后每20个请求
+  // 且距离上次释放半开节点超过2s就释放1个半开请求
+  if (++impl_->try_half_open_count_ < 20) {
+    return kReturnInstanceNotFound;  // 距离上次释放不足20个正常请求
+  }
+  uint64_t last_half_open_time = impl_->last_half_open_time_.Load();
+  uint64_t current_time        = Time::GetCurrentTimeMs();
+  if (current_time < last_half_open_time + 2000 ||
+      !impl_->last_half_open_time_.Cas(last_half_open_time, current_time)) {
+    return kReturnInstanceNotFound;  // 距离上一次释放半开间隔不足2s
+  }
+  impl_->try_half_open_count_ = 0;
+
   std::set<Instance*>::iterator split_it = instances.begin();
   std::advance(split_it, rand() % instances.size());
   std::set<Instance*>::iterator instance_it;

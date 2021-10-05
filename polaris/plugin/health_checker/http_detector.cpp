@@ -36,13 +36,12 @@ ReturnCode HttpHealthChecker::Init(Config* config, Context* /*context*/) {
 
   request_path_ = config->GetStringOrDefault(kHttpRequestPathKey, kHttpRequestPathDefault);
   if (request_path_.empty() || request_path_[0] != '/') {
-    POLARIS_LOG(LOG_ERROR, "outlier detector[%s] config %s invalid", kPluginHttpHealthChecker,
+    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s invalid", kPluginHttpHealthChecker,
                 kHttpRequestPathKey);
     return kReturnInvalidConfig;
   }
   timeout_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kTimeoutKey,
                                        HealthCheckerConfig::kTimeoutDefault);
-
   return kReturnOk;
 }
 

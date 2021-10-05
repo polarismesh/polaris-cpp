@@ -25,9 +25,6 @@
 
 namespace polaris {
 
-class Config;
-class Context;
-
 struct ErrorRateBucket {
   ErrorRateBucket() : total_count(0), error_count(0), bucket_time(0) {}
   int total_count;

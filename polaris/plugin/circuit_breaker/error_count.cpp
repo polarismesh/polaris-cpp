@@ -140,7 +140,7 @@ ReturnCode ErrorCountCircuitBreaker::TimingCircuitBreak(
           error_count_status.error_count      = 0;
           error_count_status.last_update_time = current_time;
         }
-      } else if (error_count_status.last_update_time + 20 * sleep_window_ <= current_time) {
+      } else if (error_count_status.last_access_time + 100 * sleep_window_ <= current_time) {
         // 兜底：如果访问量一定时间达不到要求，则重新熔断
         if (instances_status->TranslateStatus(it->first, kCircuitBreakerHalfOpen,
                                               kCircuitBreakerOpen)) {

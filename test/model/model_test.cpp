@@ -20,6 +20,7 @@
 #include "mock/fake_server_response.h"
 #include "model/model_impl.h"
 #include "polaris/plugin.h"
+#include "test_utils.h"
 #include "utils/string_utils.h"
 
 namespace polaris {
@@ -29,9 +30,10 @@ protected:
   void SetUp() {
     service_key_.namespace_ = "test_namespace";
     service_key_.name_      = "test_service";
+    TestUtils::SetUpFakeTime();
   }
 
-  void TearDown() {}
+  void TearDown() { TestUtils::TearDownFakeTime(); }
 
 protected:
   ServiceKey service_key_;
@@ -52,26 +54,39 @@ TEST_F(ModelTest, TryChooseHalfOpenInstance) {
   service->SetCircuitBreakerData(circuit_breaker_data);
 
   Instance *instance = NULL;
-  ASSERT_EQ(service->TryChooseHalfOpenInstance(service_instances, instance), kReturnOk);
-  ASSERT_TRUE(instance != NULL);
-  ASSERT_EQ(instance->GetId(), "instance_0");
-  instance = NULL;
-  ASSERT_EQ(service->TryChooseHalfOpenInstance(service_instances, instance),
-            kReturnInstanceNotFound);
-  ASSERT_TRUE(instance == NULL);
+  for (int i = 1; i <= 60; i++) {
+    instance       = NULL;
+    ReturnCode ret = service->TryChooseHalfOpenInstance(service_instances, instance);
+    if (i == 20) {
+      ASSERT_EQ(ret, kReturnOk) << i;
+      ASSERT_TRUE(instance != NULL);
+      ASSERT_EQ(instance->GetId(), "instance_0");
+    } else {
+      ASSERT_EQ(ret, kReturnInstanceNotFound);
+      ASSERT_TRUE(instance == NULL);
+    }
+    TestUtils::FakeNowIncrement(1500);
+  }
 
   circuit_breaker_data.version                           = 2;
   circuit_breaker_data.half_open_instances["instance_0"] = 1;
   circuit_breaker_data.half_open_instances["instance_x"] = 2;
   circuit_breaker_data.half_open_instances["instance_1"] = 5;
   service->SetCircuitBreakerData(circuit_breaker_data);
-  for (int i = 0; i < 5; i++) {
+  for (int i = 1; i <= 100; i++) {
     instance = NULL;
-    ASSERT_EQ(service->TryChooseHalfOpenInstance(service_instances, instance), kReturnOk);
-    ASSERT_TRUE(instance != NULL);
-    ASSERT_EQ(instance->GetId(), "instance_1");
+    TestUtils::FakeNowIncrement(1500);
+    ReturnCode ret = service->TryChooseHalfOpenInstance(service_instances, instance);
+    if (i % 20 == 0) {
+      ASSERT_EQ(ret, kReturnOk) << i;
+      ASSERT_TRUE(instance != NULL);
+      ASSERT_EQ(instance->GetId(), "instance_1");
+    } else {
+      ASSERT_EQ(ret, kReturnInstanceNotFound);
+    }
   }
   instance = NULL;
+  TestUtils::FakeNowIncrement(10000);
   ASSERT_EQ(service->TryChooseHalfOpenInstance(service_instances, instance),
             kReturnInstanceNotFound);
   ASSERT_TRUE(instance == NULL);
@@ -89,6 +104,8 @@ TEST_F(ModelTest, TryChooseHalfOpenInstanceRand) {
   Instance *instance;
   CircuitBreakerData circuit_breaker_data;
   circuit_breaker_data.version = 1;
+  service->SetCircuitBreakerData(circuit_breaker_data);
+  circuit_breaker_data.version = 2;
   for (int i = 0; i < 10; i++) {
     std::string instance_id = "instance_" + StringUtils::TypeToStr<int>(i);
     instance                = new Instance(instance_id, "host", 8000, 100);
@@ -98,9 +115,15 @@ TEST_F(ModelTest, TryChooseHalfOpenInstanceRand) {
   service->SetCircuitBreakerData(circuit_breaker_data);
 
   std::set<Instance *> select_instance;
-  for (int i = 0; i < 10; i++) {
-    ASSERT_EQ(service->TryChooseHalfOpenInstance(instances, instance), kReturnOk);
-    select_instance.insert(instance);
+  for (int i = 0; i < 200; i++) {
+    TestUtils::FakeNowIncrement(50);
+    ReturnCode ret_code = service->TryChooseHalfOpenInstance(instances, instance);
+    if (i % 40 == 0) {
+      ASSERT_EQ(ret_code, kReturnOk) << i;
+      select_instance.insert(instance);
+    } else {
+      ASSERT_EQ(ret_code, kReturnInstanceNotFound) << i;
+    }
   }
   ASSERT_GT(select_instance.size(), 1);
 
