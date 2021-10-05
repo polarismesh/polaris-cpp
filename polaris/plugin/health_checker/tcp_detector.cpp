@@ -29,22 +29,27 @@ TcpHealthChecker::TcpHealthChecker() { timeout_ms_ = 0; }
 TcpHealthChecker::~TcpHealthChecker() {}
 
 ReturnCode TcpHealthChecker::Init(Config* config, Context* /*context*/) {
-  std::string send_package = config->GetStringOrDefault(
-      HealthCheckerConfig::kTcpSendPackageKey, HealthCheckerConfig::kTcpSendPackageDefault);
+  static const char kTcpSendPackageKey[]        = "send";
+  static const char kTcpSendPackageDefault[]    = "";
+  static const char kTcpReceivePackageKey[]     = "receive";
+  static const char kTcpReceivePackageDefault[] = "";
+
+  std::string send_package = config->GetStringOrDefault(kTcpSendPackageKey, kTcpSendPackageDefault);
   if (!send_package.empty() && !Utils::HexStringToBytes(send_package, &send_package_)) {
-    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
-                kPluginTcpHealthChecker, HealthCheckerConfig::kTcpSendPackageKey);
+    POLARIS_LOG(LOG_ERROR, "outlier detector[%s] config %s hexstring to bytes failed",
+                kPluginTcpHealthChecker, kTcpSendPackageKey);
     return kReturnInvalidConfig;
   }
-  std::string receive_package = config->GetStringOrDefault(
-      HealthCheckerConfig::kTcpReceivePackageKey, HealthCheckerConfig::kTcpReceivePackageDefault);
+  std::string receive_package =
+      config->GetStringOrDefault(kTcpReceivePackageKey, kTcpReceivePackageDefault);
   if (!receive_package.empty() && !Utils::HexStringToBytes(receive_package, &receive_package_)) {
-    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
-                kPluginTcpHealthChecker, HealthCheckerConfig::kTcpReceivePackageKey);
+    POLARIS_LOG(LOG_ERROR, "outlier detector[%s] config %s hexstring to bytes failed",
+                kPluginTcpHealthChecker, kTcpReceivePackageKey);
     return kReturnInvalidConfig;
   }
-  timeout_ms_ = config->GetIntOrDefault(HealthCheckerConfig::kTimeoutKey,
-                                        HealthCheckerConfig::kTimeoutDefault);
+
+  timeout_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kTimeoutKey,
+                                       HealthCheckerConfig::kTimeoutDefault);
   return kReturnOk;
 }
 
