@@ -61,7 +61,8 @@ public:
 
 class ServiceCallResultImpl {
 public:
-  ServiceCallResultImpl() : port_(0), ret_status_(kCallRetOk), ret_code_(0), delay_(0) {}
+  ServiceCallResultImpl()
+      : port_(0), ret_status_(kCallRetOk), ret_code_(0), delay_(0), locality_aware_info_(0) {}
 
 public:
   std::string service_namespace_;
@@ -73,6 +74,7 @@ public:
   CallRetStatus ret_status_;
   int ret_code_;
   uint64_t delay_;
+  uint64_t locality_aware_info_;
 
   ServiceKey source_;
   std::map<std::string, std::string> subset_;

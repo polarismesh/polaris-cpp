@@ -326,6 +326,10 @@ void ServiceCallResult::SetLabels(const std::map<std::string, std::string>& labe
   impl->labels_ = labels;
 }
 
+void ServiceCallResult::SetLocalityAwareInfo(uint64_t locality_aware_info) {
+  impl->locality_aware_info_ = locality_aware_info;
+}
+
 // 调用上报读取
 const std::string& ServiceCallResultGetter::GetServiceName() { return result_.impl->service_name_; }
 
@@ -344,6 +348,10 @@ CallRetStatus ServiceCallResultGetter::GetRetStatus() { return result_.impl->ret
 int ServiceCallResultGetter::GetRetCode() { return result_.impl->ret_code_; }
 
 uint64_t ServiceCallResultGetter::GetDelay() { return result_.impl->delay_; }
+
+uint64_t ServiceCallResultGetter::GetLocalityAwareInfo() {
+  return result_.impl->locality_aware_info_;
+}
 
 const ServiceKey& ServiceCallResultGetter::GetSource() { return result_.impl->source_; }
 

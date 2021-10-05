@@ -26,6 +26,7 @@
 #include "logger.h"
 #include "model/model_impl.h"
 #include "monitor/api_stat.h"
+#include "plugin/load_balancer/locality_aware/locality_aware.h"
 #include "polaris/accessors.h"
 #include "polaris/config.h"
 #include "polaris/consumer.h"
@@ -648,15 +649,16 @@ ReturnCode ConsumerApi::UpdateServiceCallResult(const ServiceCallResult& req) {
 
   // 设置Gauge
   InstanceGauge instance_gauge;
-  instance_gauge.service_namespace  = result_getter.GetServiceNamespace();
-  instance_gauge.service_name       = result_getter.GetServiceName();
-  instance_gauge.instance_id        = result_getter.GetInstanceId();
-  instance_gauge.call_daley         = result_getter.GetDelay();
-  instance_gauge.call_ret_code      = result_getter.GetRetCode();
-  instance_gauge.call_ret_status    = result_getter.GetRetStatus();
-  instance_gauge.source_service_key = result_getter.GetSource();
-  instance_gauge.subset_            = result_getter.GetSubset();
-  instance_gauge.labels_            = result_getter.GetLabels();
+  instance_gauge.service_namespace   = result_getter.GetServiceNamespace();
+  instance_gauge.service_name        = result_getter.GetServiceName();
+  instance_gauge.instance_id         = result_getter.GetInstanceId();
+  instance_gauge.call_daley          = result_getter.GetDelay();
+  instance_gauge.call_ret_code       = result_getter.GetRetCode();
+  instance_gauge.call_ret_status     = result_getter.GetRetStatus();
+  instance_gauge.source_service_key  = result_getter.GetSource();
+  instance_gauge.subset_             = result_getter.GetSubset();
+  instance_gauge.labels_             = result_getter.GetLabels();
+  instance_gauge.locality_aware_info = result_getter.GetLocalityAwareInfo();
 
   ReturnCode ret_code;
   if (instance_gauge.instance_id.empty()) {
@@ -732,6 +734,22 @@ ReturnCode ConsumerApiImpl::UpdateServiceCallResult(Context* context, const Inst
   weight_adjuster->RealTimeAdjustDynamicWeight(gauge, need_adjust);
   // 权重调整插件有触发权重更新，则更新到本地缓存
 
+  // LocalityAwareLoadBalancer Feedback
+  if (gauge.locality_aware_info != 0) {
+    // locality_aware_info构造时默认为0，LA填写的均非0
+    LoadBalancer* load_balancer = service_context->GetLoadBalancer(kLoadBalanceTypeLocalityAware);
+    if (load_balancer != NULL) {
+      LocalityAwareLoadBalancer* locality_aware_load_balancer =
+          dynamic_cast<LocalityAwareLoadBalancer*>(load_balancer);
+      if (locality_aware_load_balancer != NULL) {
+        FeedbackInfo info;
+        info.call_daley          = gauge.call_daley;
+        info.instance_id         = gauge.instance_id;
+        info.locality_aware_info = gauge.locality_aware_info;
+        locality_aware_load_balancer->Feedback(info);
+      }
+    }
+  }
   // 执行熔断插件
   CircuitBreakerChain* circuit_breaker_chain = service_context->GetCircuitBreakerChain();
   circuit_breaker_chain->RealTimeCircuitBreak(gauge);

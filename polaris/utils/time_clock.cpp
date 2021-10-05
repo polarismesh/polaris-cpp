@@ -41,6 +41,12 @@ uint64_t Time::GetCurrentTimeMs() {
   return ts.tv_sec * Time::kThousandBase + ts.tv_nsec / Time::kMillionBase;
 }
 
+uint64_t Time::GetCurrentTimeUs() {
+  timespec ts;
+  clock_gettime(CLOCK_REALTIME, &ts);
+  return ts.tv_sec * Time::kMillionBase + ts.tv_nsec / Time::kThousandBase;
+}
+
 uint64_t Time::DiffMsWithCurrentTime(const timespec& ts) {
   timespec current_ts;
   current_time_impl(current_ts);

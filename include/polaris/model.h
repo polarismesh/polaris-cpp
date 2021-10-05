@@ -49,7 +49,7 @@ public:
 
   ~Instance();
 
-  std::string& GetId();  ///< 服务实例ID
+  std::string& GetId() const;  ///< 服务实例ID
 
   std::string& GetHost() const;  ///< 服务的节点IP或者域名
 
@@ -90,6 +90,8 @@ public:
   uint64_t GetHash();
 
   InstanceLocalValue* GetLocalValue();
+
+  uint64_t GetLocalityAwareInfo();  // locality_aware_info
 
 private:
   friend class InstanceSetter;
