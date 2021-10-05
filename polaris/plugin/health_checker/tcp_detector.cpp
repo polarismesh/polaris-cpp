@@ -36,18 +36,17 @@ ReturnCode TcpHealthChecker::Init(Config* config, Context* /*context*/) {
 
   std::string send_package = config->GetStringOrDefault(kTcpSendPackageKey, kTcpSendPackageDefault);
   if (!send_package.empty() && !Utils::HexStringToBytes(send_package, &send_package_)) {
-    POLARIS_LOG(LOG_ERROR, "outlier detector[%s] config %s hexstring to bytes failed",
+    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
                 kPluginTcpHealthChecker, kTcpSendPackageKey);
     return kReturnInvalidConfig;
   }
   std::string receive_package =
       config->GetStringOrDefault(kTcpReceivePackageKey, kTcpReceivePackageDefault);
   if (!receive_package.empty() && !Utils::HexStringToBytes(receive_package, &receive_package_)) {
-    POLARIS_LOG(LOG_ERROR, "outlier detector[%s] config %s hexstring to bytes failed",
+    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
                 kPluginTcpHealthChecker, kTcpReceivePackageKey);
     return kReturnInvalidConfig;
   }
-
   timeout_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kTimeoutKey,
                                        HealthCheckerConfig::kTimeoutDefault);
   return kReturnOk;

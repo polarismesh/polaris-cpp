@@ -38,12 +38,12 @@ ReturnCode UdpHealthChecker::Init(Config* config, Context* /*context*/) {
 
   std::string send_package = config->GetStringOrDefault(kUdpSendPackageKey, kUdpSendPackageDefault);
   if (send_package.empty()) {
-    POLARIS_LOG(LOG_ERROR, "outlier detector[%s] config %s should not be empty",
+    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s should not be empty",
                 kPluginUdpHealthChecker, kUdpSendPackageKey);
     return kReturnInvalidConfig;
   }
   if (!Utils::HexStringToBytes(send_package, &send_package_)) {
-    POLARIS_LOG(LOG_ERROR, "outlier detector[%s] config %s hexstring to bytes failed",
+    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
                 kPluginUdpHealthChecker, kUdpSendPackageKey);
     return kReturnInvalidConfig;
   }
@@ -51,12 +51,12 @@ ReturnCode UdpHealthChecker::Init(Config* config, Context* /*context*/) {
       config->GetStringOrDefault(kUdpReceivePackageKey, kUdpReceivePackageDefault);
   if (!receive_package.empty()) {
     if (!Utils::HexStringToBytes(receive_package, &receive_package_)) {
-      POLARIS_LOG(LOG_ERROR, "outlier detector[%s] config %s hexstring to bytes failed",
+      POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
                   kPluginUdpHealthChecker, kUdpReceivePackageKey);
       return kReturnInvalidConfig;
     }
   }
-  timeout_ms_ = config->GetMsOrDefault(HealthCheckerConfig ::kTimeoutKey,
+  timeout_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kTimeoutKey,
                                        HealthCheckerConfig::kTimeoutDefault);
   return kReturnOk;
 }
