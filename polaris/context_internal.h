@@ -110,6 +110,8 @@ public:
 
   AlertReporter* GetAlertReporter() { return alert_reporter_; }
 
+  ServerMetric* GetServerMetric() { return server_metric_.Get(); }
+
   ServiceContext* GetOrCreateServiceContext(const ServiceKey& service_key);
 
   void DeleteServiceContext(const ServiceKey& service_key);
@@ -219,6 +221,7 @@ private:
   LocalRegistry* local_registry_;
   StatReporter* stat_reporter_;
   AlertReporter* alert_reporter_;
+  ScopedPtr<ServerMetric> server_metric_;
   QuotaManager* quota_manager_;  // 配额管理器
 
   // Service config and Service level context

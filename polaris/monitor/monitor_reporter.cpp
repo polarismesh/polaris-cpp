@@ -869,23 +869,17 @@ bool MonitorReporter::GetInstance(ReportBase* report_data) {
 
 void MonitorReporter::UpdateCallResult(ReportBase* report_data) {
   POLARIS_ASSERT(report_data->instance_ != NULL);
-  InstanceGauge instance_gauge;
-  const PolarisCluster& monitor_cluster = context_->GetContextImpl()->GetMonitorService();
-  instance_gauge.service_namespace      = monitor_cluster.service_.namespace_;
-  instance_gauge.service_name           = monitor_cluster.service_.name_;
-  instance_gauge.instance_id            = report_data->instance_->GetId();
-  delete report_data->instance_;
-  report_data->instance_       = NULL;
-  instance_gauge.call_daley    = Time::GetCurrentTimeMs() - report_data->call_begin_;
-  instance_gauge.call_ret_code = report_data->server_code_;
+  const ServiceKey& service = context_->GetContextImpl()->GetMonitorService().service_;
+  CallRetStatus status      = kCallRetOk;
   if (kServerCodeConnectError <= report_data->server_code_ &&
       report_data->server_code_ <= kServerCodeInvalidResponse) {
-    instance_gauge.call_ret_status = kCallRetError;
-  } else {
-    instance_gauge.call_ret_status = kCallRetOk;
+    status = kCallRetError;
   }
-  ConsumerApiImpl::UpdateServiceCallResult(context_, instance_gauge);
-
+  uint64_t delay = Time::GetCurrentTimeMs() - report_data->call_begin_;
+  ConsumerApiImpl::UpdateServerResult(context_, service, *report_data->instance_,
+                                      report_data->server_code_, status, delay);
+  delete report_data->instance_;
+  report_data->instance_ = NULL;
   POLARIS_ASSERT(report_data->grpc_client_ != NULL);
   // 由于本方法在grpc stream的callback中调用，为了防止stream释放自身，需要异步释放grpc client
   report_data->grpc_client_->CloseStream();

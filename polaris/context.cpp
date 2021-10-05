@@ -572,8 +572,8 @@ ReturnCode ContextImpl::InitApiConfig(Config* api_config) {
 
 ReturnCode ContextImpl::InitGlobalConfig(Config* config, Context* context) {
   // Init server connector plugin
-  Config* plugin_config = config->GetSubConfig("serverConnector");
-  Plugin* plugin        = NULL;
+  ScopedPtr<Config> plugin_config(config->GetSubConfig("serverConnector"));
+  Plugin* plugin = NULL;
   std::string protocol =
       plugin_config->GetStringOrDefault("protocol", kPluginDefaultServerConnector);
   PluginManager::Instance().GetPlugin(protocol, kPluginServerConnector, plugin);
@@ -582,11 +582,9 @@ ReturnCode ContextImpl::InitGlobalConfig(Config* config, Context* context) {
     POLARIS_LOG(LOG_ERROR,
                 "Plugin factory register with name[%s] and type[%s] return error instance",
                 protocol.c_str(), PluginTypeToString(kPluginServerConnector));
-    delete plugin_config;
     return kReturnPluginError;
   }
-  ReturnCode ret = server_connector_->Init(plugin_config, context);
-  delete plugin_config;
+  ReturnCode ret = server_connector_->Init(plugin_config.Get(), context);
   if (ret != kReturnOk) {
     return ret;
   }
@@ -607,7 +605,7 @@ ReturnCode ContextImpl::InitGlobalConfig(Config* config, Context* context) {
   }
 
   // Init stat reporter
-  plugin_config           = config->GetSubConfig("statReporter");
+  plugin_config.Reset(config->GetSubConfig("statReporter"));
   plugin                  = NULL;
   std::string plugin_name = plugin_config->GetStringOrDefault("name", kPluginDefaultStatReporter);
   PluginManager::Instance().GetPlugin(plugin_name, kPluginStatReporter, plugin);
@@ -616,30 +614,45 @@ ReturnCode ContextImpl::InitGlobalConfig(Config* config, Context* context) {
     POLARIS_LOG(LOG_ERROR,
                 "Plugin factory register with name[%s] and type[%s] return error instance",
                 plugin_name.c_str(), PluginTypeToString(kPluginStatReporter));
-    delete plugin_config;
     return kReturnPluginError;
   }
-  ret = stat_reporter_->Init(plugin_config, context);
-  delete plugin_config;
+  ret = stat_reporter_->Init(plugin_config.Get(), context);
   if (ret != kReturnOk) {
     return ret;
   }
 
   // Init alert reporter
-  plugin_config = config->GetSubConfig("alertReporter");
-  plugin        = NULL;
-  plugin_name   = plugin_config->GetStringOrDefault("name", kPluginDefaultAlertReporter);
+  plugin_config.Reset(config->GetSubConfig("alertReporter"));
+  plugin      = NULL;
+  plugin_name = plugin_config->GetStringOrDefault("name", kPluginDefaultAlertReporter);
   PluginManager::Instance().GetPlugin(plugin_name, kPluginAlertReporter, plugin);
   alert_reporter_ = dynamic_cast<AlertReporter*>(plugin);
   if (alert_reporter_ == NULL) {
     POLARIS_LOG(LOG_ERROR,
                 "Plugin factory register with name[%s] and type[%s] return error instance",
                 plugin_name.c_str(), PluginTypeToString(kPluginAlertReporter));
-    delete plugin_config;
     return kReturnPluginError;
   }
-  ret = alert_reporter_->Init(plugin_config, context);
-  delete plugin_config;
+  ret = alert_reporter_->Init(plugin_config.Get(), context);
+  if (ret != kReturnOk) {
+    return ret;
+  }
+
+  // Init server metric
+  plugin_config.Reset(config->GetSubConfig("serverMetric"));
+  plugin      = NULL;
+  plugin_name = plugin_config->GetStringOrDefault("name", "");
+  if (!plugin_name.empty()) {
+    PluginManager::Instance().GetPlugin(plugin_name, kPluginServerMetric, plugin);
+    server_metric_.Set(dynamic_cast<ServerMetric*>(plugin));
+    if (server_metric_.IsNull()) {
+      POLARIS_LOG(LOG_ERROR,
+                  "Plugin factory register with name[%s] and type[%s] return error instance",
+                  plugin_name.c_str(), PluginTypeToString(kPluginServerMetric));
+      return kReturnPluginError;
+    }
+    ret = server_metric_->Init(plugin_config.Get(), context);
+  }
   return ret;
 }
 

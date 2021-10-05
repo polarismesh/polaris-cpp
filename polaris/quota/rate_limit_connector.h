@@ -88,7 +88,7 @@ class RateLimitConnection : public grpc::RequestCallback<metric::v2::TimeAdjustR
                             public grpc::StreamCallback<metric::v2::RateLimitResponse> {
 public:
   RateLimitConnection(RateLimitConnector& connector, const uint64_t& request_timeout,
-                      Instance& instance, const ServiceKey& cluster, const std::string& id);
+                      Instance* instance, const ServiceKey& cluster, const std::string& id);
   virtual ~RateLimitConnection();
 
   // 提供给连接回调对象使用
@@ -135,7 +135,7 @@ private:
   Reactor& reactor_;
   const uint64_t& request_timeout_;
   ServiceKey cluster_;
-  std::string instance_id_;
+  Instance* instance_;
   std::string connection_id_;
   grpc::GrpcClient* client_;
   grpc::GrpcStream* stream_;
@@ -195,8 +195,8 @@ public:
 
   Reactor& GetReactor() { return reactor_; }
 
-  void UpdateCallResult(const ServiceKey& service_key, const std::string& instance_id,
-                        uint64_t delay, PolarisServerCode server_code);
+  void UpdateCallResult(const ServiceKey& cluster, Instance* instance, uint64_t delay,
+                        PolarisServerCode server_code);
 
   void EraseConnection(const std::string& connection_id) { connection_mgr_.erase(connection_id); }
 

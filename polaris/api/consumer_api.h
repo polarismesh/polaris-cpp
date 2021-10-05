@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <string>
 
+#include "model/return_code.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
 #include "polaris/plugin.h"
@@ -93,6 +94,10 @@ public:
   static ReturnCode GetSystemServer(Context* context, const ServiceKey& service_key,
                                     const Criteria& criteria, Instance*& instance, uint64_t timeout,
                                     const std::string& protocol = "grpc");
+
+  static void UpdateServerResult(Context* context, const ServiceKey& service_key,
+                                 const Instance& instance, PolarisServerCode code,
+                                 CallRetStatus status, uint64_t delay);
 
 private:
   static void GetBackupInstances(ServiceInstances* service_instances, LoadBalancer* load_balancer,

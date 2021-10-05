@@ -45,36 +45,28 @@
 #include "polaris/model.h"
 #include "polaris/plugin.h"
 #include "utils/indestructible.h"
+#include "utils/static_assert.h"
 
 namespace polaris {
+
+#define TO_STR(value) #value
+
+static const char* g_PluginTypeString[] = {
+    TO_STR(kPluginServerConnector), TO_STR(kPluginLocalRegistry), TO_STR(kPluginServiceRouter),
+    TO_STR(kPluginLoadBalancer),    TO_STR(kPluginHealthChecker), TO_STR(kPluginCircuitBreaker),
+    TO_STR(kPluginWeightAdjuster),  TO_STR(kPluginStatReporter),  TO_STR(kPluginAlertReporter),
+    TO_STR(kPluginServerMetric)};
+
+STATIC_ASSERT(sizeof(g_PluginTypeString) / sizeof(const char*) == kPluginTypeMaxCount,
+              "plugin type define error");
 
 ReturnCode RegisterPlugin(std::string name, PluginType plugin_type, PluginFactory plugin_factory) {
   return PluginManager::Instance().RegisterPlugin(name, plugin_type, plugin_factory);
 }
 
 const char* PluginTypeToString(PluginType plugin_type) {
-  switch (plugin_type) {
-    case kPluginServerConnector:
-      return "ServerConnector";
-    case kPluginLocalRegistry:
-      return "LocalRegistry";
-    case kPluginServiceRouter:
-      return "ServiceRouter";
-    case kPluginLoadBalancer:
-      return "LoadBalancer";
-    case kPluginHealthChecker:
-      return "HealthChecker";
-    case kPluginCircuitBreaker:
-      return "CircuitBreaker";
-    case kPluginWeightAdjuster:
-      return "WeightAdjuster";
-    case kPluginStatReporter:
-      return "StatReporter";
-    case kPluginAlertReporter:
-      return "AlertReporter";
-    default:
-      return "UnknowPluginType";
-  }
+  POLARIS_ASSERT(plugin_type < kPluginTypeMaxCount);
+  return g_PluginTypeString[plugin_type];
 }
 
 PluginManager& PluginManager::Instance() {

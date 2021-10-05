@@ -474,19 +474,12 @@ ReturnCode MetricConnector::SelectConnection(const v1::MetricKey& metric_key,
 
 void MetricConnector::UpdateCallResult(Instance* instance, PolarisServerCode server_code) {
   POLARIS_ASSERT(instance != NULL);
-  const PolarisCluster& cluster = context_->GetContextImpl()->GetMetricService();
-  InstanceGauge instance_gauge;
-  instance_gauge.service_namespace = cluster.service_.namespace_;
-  instance_gauge.service_name      = cluster.service_.name_;
-  instance_gauge.instance_id       = instance->GetId();
-  instance_gauge.call_daley        = 100;
-  instance_gauge.call_ret_code     = server_code;
+  const ServiceKey& service = context_->GetContextImpl()->GetMetricService().service_;
+  CallRetStatus status      = kCallRetOk;
   if (kServerCodeConnectError <= server_code && server_code <= kServerCodeInvalidResponse) {
-    instance_gauge.call_ret_status = kCallRetError;
-  } else {
-    instance_gauge.call_ret_status = kCallRetOk;
+    status = kCallRetError;
   }
-  ConsumerApiImpl::UpdateServiceCallResult(context_, instance_gauge);
+  ConsumerApiImpl::UpdateServerResult(context_, service, *instance, server_code, status, 100);
 }
 
 }  // namespace polaris

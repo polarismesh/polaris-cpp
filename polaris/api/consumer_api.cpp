@@ -901,4 +901,25 @@ ReturnCode ConsumerApiImpl::GetSystemServer(Context* context, const ServiceKey& 
   return ret;
 }
 
+void ConsumerApiImpl::UpdateServerResult(Context* context, const ServiceKey& service_key,
+                                         const Instance& instance, PolarisServerCode code,
+                                         CallRetStatus status, uint64_t delay) {
+  InstanceGauge instance_gauge;
+  instance_gauge.service_namespace = service_key.namespace_;
+  instance_gauge.service_name      = service_key.name_;
+  instance_gauge.instance_id       = instance.GetId();
+  instance_gauge.call_daley        = delay;
+  instance_gauge.call_ret_code     = code;
+  instance_gauge.call_ret_status   = status;
+  ReturnCode ret_code              = kReturnOk;
+  if (kServerCodeConnectError <= code && code <= kServerCodeInvalidResponse) {
+    ret_code = (code == kServerCodeRpcTimeout) ? kReturnTimeout : kReturnServerError;
+  }
+  ConsumerApiImpl::UpdateServiceCallResult(context, instance_gauge);
+  ServerMetric* metric = context->GetContextImpl()->GetServerMetric();
+  if (metric != NULL) {
+    metric->MetricReport(service_key, instance, ret_code, status, delay);
+  }
+}
+
 }  // namespace polaris

@@ -43,7 +43,10 @@ enum PluginType {
   kPluginCircuitBreaker,   ///< 节点熔断扩展点
   kPluginWeightAdjuster,   ///< 动态权重调整扩展点
   kPluginStatReporter,     ///< 统计上报扩展点
-  kPluginAlertReporter     ///< 告警扩展点
+  kPluginAlertReporter,    ///< 告警扩展点
+  kPluginServerMetric,     ///< SDK与Server请求结果统计
+
+  kPluginTypeMaxCount  // 插件类型数量
 };
 
 /// @brief 路由插件事件回调
@@ -499,6 +502,25 @@ public:
   /// @param msg 告警消息内容
   /// @return ReturnCode 执行结果
   virtual ReturnCode ReportAlert(AlertLevel alert_level, std::string msg) = 0;
+};
+
+///@brief 扩展点接口：收集北极星SDK调用服务器结果
+class ServerMetric : public Plugin {
+public:
+  virtual ~ServerMetric() {}
+
+  /// @brief 通过配置进行初始化
+  virtual ReturnCode Init(Config* config, Context* context) = 0;
+
+  /// @brief 内部服务调用结果上报
+  ///
+  /// @param service_key 服务
+  /// @param instance 实例
+  /// @param ret_code 返回码
+  /// @param ret_status 是否成功
+  /// @param daley 延迟
+  virtual void MetricReport(const ServiceKey& service_key, const Instance& instance,
+                            ReturnCode ret_code, CallRetStatus ret_status, uint64_t daley) = 0;
 };
 
 }  // namespace polaris
