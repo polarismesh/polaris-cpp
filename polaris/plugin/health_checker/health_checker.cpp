@@ -31,14 +31,12 @@
 namespace polaris {
 
 HealthCheckerChainImpl::HealthCheckerChainImpl(const ServiceKey& service_key,
-                                               LocalRegistry* local_registry,
-                                               CircuitBreakerChain* circuit_breaker_chain) {
-  service_key_           = service_key;
-  local_registry_        = local_registry;
-  circuit_breaker_chain_ = circuit_breaker_chain;
-  when_                  = "never";
-  health_check_ttl_ms_   = 0;
-  last_detect_time_ms_   = Time::GetCurrentTimeMs();
+                                               LocalRegistry* local_registry) {
+  service_key_         = service_key;
+  local_registry_      = local_registry;
+  when_                = "never";
+  health_check_ttl_ms_ = 0;
+  last_detect_time_ms_ = Time::GetCurrentTimeMs();
 }
 
 HealthCheckerChainImpl::~HealthCheckerChainImpl() {
@@ -46,8 +44,7 @@ HealthCheckerChainImpl::~HealthCheckerChainImpl() {
     delete health_checker_list_[i];
   }
   health_checker_list_.clear();
-  local_registry_        = NULL;
-  circuit_breaker_chain_ = NULL;
+  local_registry_ = NULL;
 }
 
 ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
@@ -125,7 +122,7 @@ ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
   return kReturnOk;
 }
 
-ReturnCode HealthCheckerChainImpl::DetectInstance() {
+ReturnCode HealthCheckerChainImpl::DetectInstance(CircuitBreakerChain& circuit_breaker_chain) {
   POLARIS_LOG(LOG_INFO, "here detectInstance, namespace: %s, name: %s, when: %s",
               service_key_.namespace_.c_str(), service_key_.name_.c_str(), when_.c_str());
   uint64_t now_time_ms = Time::GetCurrentTimeMs();
@@ -198,16 +195,15 @@ ReturnCode HealthCheckerChainImpl::DetectInstance() {
     // 探活插件成功，则将熔断实例置为半开状态，其他实例状态不变
     // 探活插件失败，则将健康实例置为熔断状态，其他实例状态不变
     if (is_detect_success) {
-      circuit_breaker_chain_->TranslateStatus(instance_id, kCircuitBreakerOpen,
-                                              kCircuitBreakerHalfOpen);
+      circuit_breaker_chain.TranslateStatus(instance_id, kCircuitBreakerOpen,
+                                            kCircuitBreakerHalfOpen);
       POLARIS_LOG(LOG_INFO,
                   "service[%s/%s] getting instance[%s-%s:%d] detectoring success, change to "
                   "half-open status",
                   service_key_.namespace_.c_str(), service_key_.name_.c_str(),
                   instance->GetId().c_str(), instance->GetHost().c_str(), instance->GetPort());
     } else {
-      circuit_breaker_chain_->TranslateStatus(instance_id, kCircuitBreakerClose,
-                                              kCircuitBreakerOpen);
+      circuit_breaker_chain.TranslateStatus(instance_id, kCircuitBreakerClose, kCircuitBreakerOpen);
       POLARIS_LOG(LOG_INFO,
                   "service[%s/%s] getting instance[%s-%s:%d] detectoring failed, change to "
                   "open status",

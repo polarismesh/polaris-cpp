@@ -98,7 +98,7 @@ std::vector<NetServerParam> TcpHealthCheckerTest::tcp_server_list_;
 
 TEST_F(TcpHealthCheckerTest, DetectInstanceCheckConfig) {
   default_config_ = Config::CreateEmptyConfig();
-  ASSERT_EQ(tcp_detector_->Init(default_config_, NULL), kReturnInvalidConfig);
+  ASSERT_EQ(tcp_detector_->Init(default_config_, NULL), kReturnOk);
 
   delete default_config_;
   std::string err_msg, content = "send:\n  123456";

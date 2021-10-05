@@ -31,23 +31,17 @@ TcpHealthChecker::~TcpHealthChecker() {}
 ReturnCode TcpHealthChecker::Init(Config* config, Context* /*context*/) {
   std::string send_package = config->GetStringOrDefault(
       HealthCheckerConfig::kTcpSendPackageKey, HealthCheckerConfig::kTcpSendPackageDefault);
-  if (send_package.empty()) {
-    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s is empty", kPluginTcpHealthChecker,
-                HealthCheckerConfig::kTcpSendPackageKey);
-    return kReturnInvalidConfig;
-  } else if (!Utils::HexStringToBytes(send_package, &send_package_)) {
+  if (!send_package.empty() && !Utils::HexStringToBytes(send_package, &send_package_)) {
     POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
                 kPluginTcpHealthChecker, HealthCheckerConfig::kTcpSendPackageKey);
     return kReturnInvalidConfig;
   }
   std::string receive_package = config->GetStringOrDefault(
       HealthCheckerConfig::kTcpReceivePackageKey, HealthCheckerConfig::kTcpReceivePackageDefault);
-  if (!receive_package.empty()) {  // 需要匹配应答
-    if (!Utils::HexStringToBytes(receive_package, &receive_package_)) {
-      POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
-                  kPluginTcpHealthChecker, HealthCheckerConfig::kTcpReceivePackageKey);
-      return kReturnInvalidConfig;
-    }
+  if (!receive_package.empty() && !Utils::HexStringToBytes(receive_package, &receive_package_)) {
+    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
+                kPluginTcpHealthChecker, HealthCheckerConfig::kTcpReceivePackageKey);
+    return kReturnInvalidConfig;
   }
   timeout_ms_ = config->GetIntOrDefault(HealthCheckerConfig::kTimeoutKey,
                                         HealthCheckerConfig::kTimeoutDefault);

@@ -58,14 +58,13 @@ static const uint64_t kTimeoutDefault = 500;        // 默认500ms
 
 class HealthCheckerChainImpl : public HealthCheckerChain {
 public:
-  HealthCheckerChainImpl(const ServiceKey& service_key, LocalRegistry* local_registry,
-                         CircuitBreakerChain* circuit_breaker_chain);
+  HealthCheckerChainImpl(const ServiceKey& service_key, LocalRegistry* local_registry);
 
   virtual ~HealthCheckerChainImpl();
 
   virtual ReturnCode Init(Config* config, Context* context);
 
-  virtual ReturnCode DetectInstance();
+  virtual ReturnCode DetectInstance(CircuitBreakerChain& circuit_breaker_chain);
 
   virtual std::vector<HealthChecker*> GetHealthCheckers();
 
@@ -75,7 +74,6 @@ private:
   uint64_t last_detect_time_ms_;  //  上一次探测时间
   std::string when_;
   LocalRegistry* local_registry_;
-  CircuitBreakerChain* circuit_breaker_chain_;  // 用于通知熔断插件链将实例从熔断状态转换为半开状态
   std::vector<HealthChecker*> health_checker_list_;
 };
 
