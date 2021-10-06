@@ -72,6 +72,7 @@ TEST_F(LoggerTest, TestFileShift) {
 
   const char *text = "test logger file shift";
   logger->Log(LOG_INFO, "%s\n", text);
+
   ASSERT_TRUE(FileUtils::FileExists(log_path_ + "/" + log_file_name_));
   ASSERT_TRUE(logger->log_file_ != NULL);
   ASSERT_TRUE(logger->cur_file_size_ > 0);
