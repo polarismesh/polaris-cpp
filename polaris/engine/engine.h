@@ -47,7 +47,7 @@ private:
   CacheManager cache_manager_;
   MonitorReporter monitor_reporter_;
   CircuitBreakerExecutor circuit_breaker_executor_;
-  HealthCheckExecutor health_check_executor_;
+  HealthCheckExecutor health_checker_executor_;
 };
 
 }  // namespace polaris

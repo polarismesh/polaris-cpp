@@ -427,7 +427,7 @@ ReturnCode InMemoryRegistry::GetCircuitBreakerInstances(const ServiceKey& servic
     const std::string& instance_id                  = *it;
     std::map<std::string, Instance*>::iterator iter = instance_map.find(instance_id);
     if (iter == instance_map.end()) {
-      POLARIS_LOG(LOG_INFO, "The outlier detector of service[%s/%s] getting instance[%s] failed",
+      POLARIS_LOG(LOG_INFO, "The health checker of service[%s/%s] getting instance[%s] failed",
                   service_key.namespace_.c_str(), service_key.name_.c_str(), instance_id.c_str());
       continue;
     }

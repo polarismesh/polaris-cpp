@@ -351,8 +351,8 @@ public:
 
 /// @brief
 struct InstanceGauge {
-  InstanceGauge() : call_ret_status(kCallRetOk), call_ret_code(0), call_daley(0),
-                    locality_aware_info(0) {}
+  InstanceGauge()
+      : call_ret_status(kCallRetOk), call_ret_code(0), call_daley(0), locality_aware_info(0) {}
   std::string service_name;
   std::string service_namespace;
   std::string instance_id;
