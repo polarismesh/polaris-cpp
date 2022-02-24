@@ -15,9 +15,9 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "grpc/client.h"
-
 #include <gtest/gtest.h>
+#include "grpc/client.h"
+#include "grpc/http2.cpp"
 
 #include "mock/fake_net_server.h"
 #include "reactor/reactor.h"
