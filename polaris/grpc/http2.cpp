@@ -353,15 +353,15 @@ Http2Client::~Http2Client() {
 // step 2. 不是域名，则直接返回
 // step 3. 是域名，进行一次域名解析，然后从返回的IPList中随机选取一个IP进行链接
 static std::string TryLookup(const std::string& address) {
-  POLARIS_LOG(LOG_INFO, "try lookup address=[%s]", address.c_str());
+  GRPC_LOG(LOG_DEBUG, "try lookup address=[%s]", address.c_str());
   struct hostent* host = gethostbyname(address.c_str());
   if (!host) {
-    POLARIS_LOG(LOG_ERROR, "try lookup address=[%s] error, maybe address is ip", address.c_str());
+    GRPC_LOG(LOG_ERROR, "try lookup address=[%s] error, maybe address is ip", address.c_str());
     return address;
   }
 
-  POLARIS_LOG(LOG_TRACE, "address=[%s] type: [%s]", address.c_str(),
-              (host->h_addrtype == AF_INET) ? "AF_INET" : "AF_INET6");
+  GRPC_LOG(LOG_DEBUG, "address=[%s] type: [%s]", address.c_str(),
+           (host->h_addrtype == AF_INET) ? "AF_INET" : "AF_INET6");
 
   int total = sizeof(host->h_addr_list);
   if (total < 1) {
@@ -370,8 +370,8 @@ static std::string TryLookup(const std::string& address) {
 
   std::string target_address = inet_ntoa(*(struct in_addr*)host->h_addr_list[0]);
 
-  POLARIS_LOG(LOG_TRACE, "address=[%s] select one by random [%s]", address.c_str(),
-              target_address.c_str());
+  GRPC_LOG(LOG_TRACE, "address=[%s] select one by random [%s]", address.c_str(),
+           target_address.c_str());
 
   return target_address;
 }
