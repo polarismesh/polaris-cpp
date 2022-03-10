@@ -20,6 +20,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
+#include <re2/re2.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -354,6 +355,17 @@ Http2Client::~Http2Client() {
 // step 3. 是域名，进行一次域名解析，然后从返回的IPList中随机选取一个IP进行链接
 static std::string TryLookup(const std::string& address) {
   GRPC_LOG(LOG_DEBUG, "try lookup address=[%s]", address.c_str());
+
+  std::string domain_reg =
+      "^[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+\\.?$";
+  re2::RE2 domain(domain_reg.c_str());
+  bool is_domain = domain.ok() && re2::RE2::PartialMatch(address.c_str(), domain);
+
+  // 使用正则表达式判断是否是域名, 不是域名，直接返回 address
+  if (!is_domain) {
+    return address;
+  }
+
   struct hostent* host = gethostbyname(address.c_str());
   if (!host) {
     GRPC_LOG(LOG_ERROR, "try lookup address=[%s] error, maybe address is ip", address.c_str());
