@@ -14,7 +14,8 @@
 #ifndef POLARIS_CPP_POLARIS_CACHE_LRU_QUEUE_H_
 #define POLARIS_CPP_POLARIS_CACHE_LRU_QUEUE_H_
 
-#include "sync/atomic.h"
+#include <atomic>
+
 #include "utils/time_clock.h"
 
 namespace polaris {
@@ -22,58 +23,53 @@ namespace polaris {
 // 无锁多生产者单消费者队列，用于LRU回收
 template <typename T>
 class LruQueue {
-public:
-  LruQueue() {
-    head_.Store(new QueueNode());
-    QueueNode* front = head_.Load();
-    front->next_.Store(NULL);
-    tail_.Store(front);
-  }
+ public:
+  LruQueue() : head_(new QueueNode()), tail_(head_.load(std::memory_order_relaxed)) {}
 
   ~LruQueue() {
-    QueueNode* tail = tail_.Load();
-    QueueNode* next = tail->next_.Load();
-    while (next != NULL) {
+    QueueNode* tail = tail_.load();
+    QueueNode* next = tail->next_.load();
+    while (next != nullptr) {
       tail = next->next_;
       delete next->data_;
       delete next;
       next = tail;
     }
-    delete tail_.Load();
+    delete tail_.load();
   }
 
   void Enqueue(T* data) {
-    QueueNode* node      = new QueueNode(data);
-    QueueNode* prev_head = head_.Exchange(node);
-    prev_head->next_.Store(node);
+    QueueNode* node = new QueueNode(data);
+    QueueNode* prev_head = head_.exchange(node);
+    prev_head->next_.store(node);
   }
 
   bool Dequeue(uint64_t min_time) {
-    QueueNode* tail = tail_.Load();
-    QueueNode* next = tail->next_.Load();
-    if (next == NULL) {
+    QueueNode* tail = tail_.load();
+    QueueNode* next = tail->next_.load();
+    if (next == nullptr) {
       return false;
     }
     if (next->delete_time_ < min_time) {
       delete next->data_;
-      next->data_ = NULL;
-      tail_.Store(next);
+      next->data_ = nullptr;
+      tail_.store(next);
       delete tail;
       return true;
     }
     return false;
   }
 
-private:
+ private:
   struct QueueNode {
-    explicit QueueNode(T* data = NULL) : delete_time_(Time::GetCurrentTimeMs()), data_(data) {}
+    explicit QueueNode(T* data = nullptr) : delete_time_(Time::GetCoarseSteadyTimeMs()), data_(data), next_(nullptr) {}
     uint64_t delete_time_;
     T* data_;
-    sync::Atomic<QueueNode*> next_;
+    std::atomic<QueueNode*> next_;
   };
 
-  sync::Atomic<QueueNode*> head_;
-  sync::Atomic<QueueNode*> tail_;
+  std::atomic<QueueNode*> head_;
+  std::atomic<QueueNode*> tail_;
 };
 
 }  // namespace polaris

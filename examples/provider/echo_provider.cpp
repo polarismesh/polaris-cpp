@@ -41,11 +41,11 @@ struct ServerArgs {
 
 void* UdpServer(void* args) {
   ServerArgs* server_args = static_cast<ServerArgs*>(args);
-  int socket_fd           = socket(AF_INET, SOCK_DGRAM, 0);
+  int socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (socket_fd < 0) {
     std::cout << "create socket error:" << errno << " msg:" << strerror(errno) << std::endl;
     server_args->stop_ = true;
-    return NULL;
+    return nullptr;
   }
   sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
@@ -56,51 +56,48 @@ void* UdpServer(void* args) {
     std::cout << "bind " << server_args->host_ << ":" << server_args->port_ << " error:" << errno
               << " msg:" << strerror(errno) << std::endl;
     server_args->stop_ = true;
-    return NULL;
+    return nullptr;
   }
   struct timeval tv = {0, 10000};  // 10ms
   if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const void*)&tv, sizeof(tv)) < 0) {
-    std::cout << "setsockopt SO_RCVTIMEO error:" << errno << " msg:" << strerror(errno)
-              << std::endl;
+    std::cout << "setsockopt SO_RCVTIMEO error:" << errno << " msg:" << strerror(errno) << std::endl;
     server_args->stop_ = true;
-    return NULL;
+    return nullptr;
   }
   while (!server_args->stop_) {
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
-    char buffer[512]          = {0};
-    ssize_t read_bytes        = recvfrom(socket_fd, buffer, sizeof(buffer), 0,
-                                  reinterpret_cast<sockaddr*>(&client_addr), &client_addr_len);
+    char buffer[512] = {0};
+    ssize_t read_bytes =
+        recvfrom(socket_fd, buffer, sizeof(buffer), 0, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_len);
     if (read_bytes < 0) {
       continue;
     }
-    std::cout << "recv from " << inet_ntoa(client_addr.sin_addr) << ":"
-              << ntohs(client_addr.sin_port) << ", data:" << buffer << std::endl;
+    std::cout << "recv from " << inet_ntoa(client_addr.sin_addr) << ":" << ntohs(client_addr.sin_port)
+              << ", data:" << buffer << std::endl;
     usleep(10 * 1000);  // sleep 10ms
-    ssize_t send_bytes = sendto(socket_fd, buffer, read_bytes, 0,
-                                reinterpret_cast<sockaddr*>(&client_addr), client_addr_len);
+    ssize_t send_bytes =
+        sendto(socket_fd, buffer, read_bytes, 0, reinterpret_cast<sockaddr*>(&client_addr), client_addr_len);
     if (send_bytes < 0) {
-      std::cout << "send failed to " << inet_ntoa(client_addr.sin_addr) << ":"
-                << ntohs(client_addr.sin_port) << ",  errno:" << errno
-                << ", errmsg:" << strerror(errno) << std::endl;
+      std::cout << "send failed to " << inet_ntoa(client_addr.sin_addr) << ":" << ntohs(client_addr.sin_port)
+                << ",  errno:" << errno << ", errmsg:" << strerror(errno) << std::endl;
     } else {
-      std::cout << "send to " << inet_ntoa(client_addr.sin_addr) << ":"
-                << ntohs(client_addr.sin_port) << ", data:" << buffer << std::endl;
+      std::cout << "send to " << inet_ntoa(client_addr.sin_addr) << ":" << ntohs(client_addr.sin_port)
+                << ", data:" << buffer << std::endl;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 int main(int argc, char** argv) {
   if (argc < 6) {
-    std::cout << "usage: " << argv[0]
-              << " service_namespace service_name service_token host port [no_heartbeat]"
+    std::cout << "usage: " << argv[0] << " service_namespace service_name service_token host port [no_heartbeat]"
               << std::endl;
     return -1;
   }
   std::string service_namespace = argv[1];
-  std::string service_name      = argv[2];
-  std::string service_token     = argv[3];
+  std::string service_name = argv[2];
+  std::string service_token = argv[3];
   ServerArgs server_args;
   server_args.host_ = argv[4];
   server_args.port_ = atoi(argv[5]);
@@ -112,32 +109,31 @@ int main(int argc, char** argv) {
   // 启动UDP Echo server
   server_args.stop_ = false;
   pthread_t server_tid;
-  pthread_create(&server_tid, NULL, UdpServer, &server_args);
-  std::cout << "start upd server " << server_args.host_ << ":" << server_args.port_ << " success."
-            << std::endl;
+  pthread_create(&server_tid, nullptr, UdpServer, &server_args);
+  std::cout << "start upd server " << server_args.host_ << ":" << server_args.port_ << " success." << std::endl;
 
   // 启动服务成功后稍微等待2s，再去注册服务
   sleep(2);
 
   // 设置Logger目录和日志级别
   char temp_dir[] = "/tmp/polaris_log_XXXXXX";
-  char* dir_name  = mkdtemp(temp_dir);
+  char* dir_name = mkdtemp(temp_dir);
   std::cout << "set log dir to " << dir_name << std::endl;
   polaris::SetLogDir(dir_name);
   polaris::GetLogger()->SetLogLevel(polaris::kTraceLogLevel);
 
   // 创建Provider API
   polaris::ProviderApi* provider = polaris::ProviderApi::CreateWithDefaultFile();
-  if (provider == NULL) {
+  if (provider == nullptr) {
     std::cout << "create provider api failed" << std::endl;
     server_args.stop_ = true;
-    pthread_join(server_tid, NULL);
+    pthread_join(server_tid, nullptr);
     return -1;
   }
   sleep(2);
   // 准备服务注册请求
-  polaris::InstanceRegisterRequest register_req(service_namespace, service_name, service_token,
-                                                server_args.host_, server_args.port_);
+  polaris::InstanceRegisterRequest register_req(service_namespace, service_name, service_token, server_args.host_,
+                                                server_args.port_);
   if (!no_heartbeat) {
     register_req.SetHealthCheckFlag(true);
     register_req.SetHealthCheckType(polaris::kHeartbeatHealthCheck);
@@ -159,17 +155,16 @@ int main(int argc, char** argv) {
     if (ret == polaris::kReturnOk || ret == polaris::kReturnExistedResource) {
       break;
     }
-    std::cout << "register instance with error code:" << ret
-              << " msg:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+    std::cout << "register instance with error code:" << ret << " msg:" << polaris::ReturnCodeToMsg(ret).c_str()
+              << std::endl;
     if (retry_times == 0) {
       delete provider;
       server_args.stop_ = true;
-      pthread_join(server_tid, NULL);
+      pthread_join(server_tid, nullptr);
       return -1;
     }
   }
-  std::cout << "register instance return id:" << instance_id << " use time:" << (end - begin)
-            << std::endl;
+  std::cout << "register instance return id:" << instance_id << " use time:" << (end - begin) << std::endl;
   sleep(2);
 
   // 循环上报心跳
@@ -183,8 +178,8 @@ int main(int argc, char** argv) {
       clock_gettime(CLOCK_REALTIME, &ts);
       end = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
       if (ret != polaris::kReturnOk) {
-        std::cout << "instance heartbeat with error code:" << ret
-                  << " msg:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+        std::cout << "instance heartbeat with error code:" << ret << " msg:" << polaris::ReturnCodeToMsg(ret).c_str()
+                  << std::endl;
         break;
       }
       std::cout << "heartbeat instance use time:" << (end - begin) << std::endl;
@@ -206,12 +201,12 @@ int main(int argc, char** argv) {
       std::cout << "deregister instance use time:" << (end - begin) << std::endl;
       break;
     }
-    std::cout << "instance deregister with error code:" << ret
-              << " msg:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+    std::cout << "instance deregister with error code:" << ret << " msg:" << polaris::ReturnCodeToMsg(ret).c_str()
+              << std::endl;
   }
   delete provider;
   // 再停止服务
   server_args.stop_ = true;
-  pthread_join(server_tid, NULL);
+  pthread_join(server_tid, nullptr);
   return 0;
 }

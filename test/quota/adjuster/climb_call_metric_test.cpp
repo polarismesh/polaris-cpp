@@ -21,14 +21,15 @@
 #include <v1/metric.pb.h>
 #include <v1/ratelimit.pb.h>
 
+#include <memory>
+
 #include "quota/adjuster/climb_config.h"
 #include "test_utils.h"
-#include "utils/scoped_ptr.h"
 
 namespace polaris {
 
 class ClimbCallMetricTest : public ::testing::TestWithParam<bool> {
-protected:
+ protected:
   void SetUp() {
     v1::ClimbConfig climb_config;
     metric_config_.InitMetricConfig(climb_config.metric());
@@ -40,16 +41,16 @@ protected:
       special_config->mutable_errorrate()->set_value(10);
     }
     trigger_policy_.InitPolicy(climb_config.policy());
-    metric_data_.Set(new CallMetricData(metric_config_, trigger_policy_));
+    metric_data_.reset(new CallMetricData(metric_config_, trigger_policy_));
     TestUtils::SetUpFakeTime();
   }
 
   void TearDown() { TestUtils::TearDownFakeTime(); }
 
-protected:
+ protected:
   ClimbMetricConfig metric_config_;
   ClimbTriggerPolicy trigger_policy_;
-  ScopedPtr<CallMetricData> metric_data_;
+  std::unique_ptr<CallMetricData> metric_data_;
 };
 
 TEST_P(ClimbCallMetricTest, RecordAndSerialize) {

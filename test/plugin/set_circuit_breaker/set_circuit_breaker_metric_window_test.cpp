@@ -18,6 +18,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <string>
 
 #include "mock/mock_local_registry.h"
@@ -27,39 +28,37 @@
 #include "plugin/circuit_breaker/set_circuit_breaker_chain_data.h"
 #include "test_context.h"
 #include "test_utils.h"
-#include "utils/scoped_ptr.h"
 #include "v1/circuitbreaker.pb.h"
 #include "v1/response.pb.h"
 
 namespace polaris {
 
 class SetMetricWindowTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
     context_ = TestContext::CreateContext();
     TestUtils::SetUpFakeTime();
     std::string err_msg, content = "enable:\n  true";
     service_key_.namespace_ = "test_service_namespace";
-    service_key_.name_      = "test_service_name";
+    service_key_.name_ = "test_service_name";
 
     set_info_.subset_map_["k1"] = "v1";
-    labels_.labels_["l1"]       = "v1";
+    labels_.labels_["l1"] = "v1";
 
     SetDstConf();
 
     const v1::DestinationSet *ptr = dst_conf_;
 
-    manager_ = new MetricWindowManager(context_, NULL);
+    manager_ = new MetricWindowManager(context_, nullptr);
 
-    record_     = new ServiceRecord();
-    chain_data_ = new CircuitBreakSetChainData(service_key_, NULL, manager_, record_);
+    record_ = new ServiceRecord();
+    chain_data_ = new CircuitBreakSetChainData(service_key_, nullptr, manager_, record_);
 
-    window_ =
-        new MetricWindow(context_, service_key_, &set_info_, &labels_, ptr, "idtest", chain_data_);
+    window_ = new MetricWindow(context_, service_key_, &set_info_, &labels_, ptr, "idtest", chain_data_);
     std::string version = "test01";
 
-    executor_         = new CircuitBreakerExecutor(context_);
-    metric_connector_ = new MockMetricConnector(executor_->GetReactor(), NULL);
+    executor_ = new CircuitBreakerExecutor(context_);
+    metric_connector_ = new MockMetricConnector(executor_->GetReactor(), nullptr);
     executor_->SetMetricConnector(metric_connector_);
 
     window_->Init(executor_, version);
@@ -76,13 +75,13 @@ protected:
     ms.mutable_value()->set_value(".*");
     ms.set_type(v1::MatchString_MatchStringType_REGEX);
     (*dst_conf_->mutable_metadata())["k1"] = ms;
-    v1::CbPolicy_ErrRateConfig *err_rate   = dst_conf_->mutable_policy()->mutable_errorrate();
+    v1::CbPolicy_ErrRateConfig *err_rate = dst_conf_->mutable_policy()->mutable_errorrate();
     err_rate->mutable_enable()->set_value(true);
     err_rate->mutable_errorratetopreserved()->set_value(10);
     err_rate->mutable_errorratetoopen()->set_value(30);
 
     v1::CbPolicy_ErrRateConfig_SpecialConfig *sp = err_rate->mutable_specials()->Add();
-    google::protobuf::Int64Value *v1             = sp->mutable_errorcodes()->Add();
+    google::protobuf::Int64Value *v1 = sp->mutable_errorcodes()->Add();
     v1->set_value(131232);
     sp->mutable_type()->set_value("sp_err_type1");
 
@@ -105,32 +104,32 @@ protected:
   }
 
   virtual void TearDown() {
-    if (context_ != NULL) delete context_;
-    if (dst_conf_ != NULL) {
+    if (context_ != nullptr) delete context_;
+    if (dst_conf_ != nullptr) {
       delete dst_conf_;
     }
-    if (window_ != NULL) {
+    if (window_ != nullptr) {
       window_->DecrementRef();
     }
 
-    if (manager_ != NULL) {
+    if (manager_ != nullptr) {
       delete manager_;
     }
-    if (executor_ != NULL) {
+    if (executor_ != nullptr) {
       executor_->GetReactor().Stop();
       delete executor_;
     }
-    if (record_ != NULL) {
+    if (record_ != nullptr) {
       delete record_;
-      record_ = NULL;
+      record_ = nullptr;
     }
-    if (chain_data_ != NULL) {
+    if (chain_data_ != nullptr) {
       chain_data_->DecrementRef();
     }
     TestUtils::TearDownFakeTime();
   }
 
-public:
+ public:
   ReturnCode MockOnSuccessRespCode500(v1::MetricRequest * /*request*/, uint64_t /*timeout*/,
                                       grpc::RpcCallback<v1::MetricResponse> *callback) {
     v1::MetricResponse *resp = new v1::MetricResponse();
@@ -139,7 +138,7 @@ public:
     return kReturnOk;
   }
 
-protected:
+ protected:
   ServiceKey service_key_;
   Context *context_;
 
@@ -163,34 +162,33 @@ TEST_F(SetMetricWindowTest, Test1) {
       .WillRepeatedly(::testing::Return(true));
   EXPECT_CALL(*metric_connector_, Report(::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::Exactly(2))
-      .WillRepeatedly(::testing::DoAll(
-          ::testing::Invoke(metric_connector_,
-                            &MockMetricConnector::OnResponse200<v1::MetricRequest>),
-          ::testing::Return(kReturnOk)));
+      .WillRepeatedly(
+          ::testing::DoAll(::testing::Invoke(metric_connector_, &MockMetricConnector::OnResponse200<v1::MetricRequest>),
+                           ::testing::Return(kReturnOk)));
   EXPECT_CALL(*metric_connector_, Query(::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::Exactly(1))
       .WillRepeatedly(::testing::DoAll(
-          ::testing::Invoke(metric_connector_,
-                            &MockMetricConnector::OnResponse200<v1::MetricQueryRequest>),
+          ::testing::Invoke(metric_connector_, &MockMetricConnector::OnResponse200<v1::MetricQueryRequest>),
           ::testing::Return(kReturnOk)));
   InstanceGauge gauge;
-  gauge.source_service_key = service_key_;
-  gauge.service_namespace  = service_key_.namespace_;
-  gauge.service_name       = service_key_.name_;
-  gauge.call_ret_status    = kCallRetOk;
-  gauge.call_ret_code      = 0;
-  gauge.call_daley         = 0;
+  gauge.source_service_key = new ServiceKey(service_key_);
+  gauge.service_key_ = service_key_;
+  gauge.call_ret_status = kCallRetOk;
+  gauge.call_ret_code = 0;
+  gauge.call_daley = 0;
 
-  gauge.subset_["set_flag"] = "set1";
-  gauge.labels_["l1"]       = "v1";
+  gauge.subset_ = new std::map<std::string, std::string>();
+  gauge.subset_->insert(std::make_pair("set_flag", "set1"));
+  gauge.labels_ = new std::map<std::string, std::string>();
+  gauge.labels_->insert(std::make_pair("l1", "v1"));
   window_->AddCount(gauge);
 
   v1::MetricInitRequest *req = window_->AssembleInitReq();
-  ASSERT_TRUE(req != NULL);
+  ASSERT_TRUE(req != nullptr);
   delete req;
 
   v1::MetricRequest *req1 = window_->AssembleReportReq();
-  ASSERT_TRUE(req1 != NULL);
+  ASSERT_TRUE(req1 != nullptr);
 
   MetricInitCallBack *cb = new MetricInitCallBack(window_);
   delete cb;
@@ -213,15 +211,13 @@ TEST_F(SetMetricWindowTest, Test2) {
       .WillRepeatedly(::testing::Return(true));
   EXPECT_CALL(*metric_connector_, Report(::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::Exactly(3))
-      .WillRepeatedly(::testing::DoAll(
-          ::testing::Invoke(metric_connector_,
-                            &MockMetricConnector::OnResponse500<v1::MetricRequest>),
-          ::testing::Return(kReturnOk)));
+      .WillRepeatedly(
+          ::testing::DoAll(::testing::Invoke(metric_connector_, &MockMetricConnector::OnResponse500<v1::MetricRequest>),
+                           ::testing::Return(kReturnOk)));
   EXPECT_CALL(*metric_connector_, Query(::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::Exactly(1))
       .WillRepeatedly(::testing::DoAll(
-          ::testing::Invoke(metric_connector_,
-                            &MockMetricConnector::OnResponse200<v1::MetricQueryRequest>),
+          ::testing::Invoke(metric_connector_, &MockMetricConnector::OnResponse200<v1::MetricQueryRequest>),
           ::testing::Return(kReturnOk)));
   TestUtils::FakeNowIncrement(3000);
   executor_->GetReactor().RunOnce();

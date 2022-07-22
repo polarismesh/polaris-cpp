@@ -15,21 +15,21 @@
 #define POLARIS_CPP_POLARIS_API_LIMIT_API_H_
 
 #include "polaris/defs.h"
+#include "polaris/limit.h"
 
 namespace polaris {
 
 class Context;
-class QuotaRequestAccessor;
 
 class LimitApiImpl {
-public:
+ public:
   explicit LimitApiImpl(Context* context);
 
   ~LimitApiImpl();
 
-  ReturnCode CheckRequest(QuotaRequestAccessor& request);
+  ReturnCode CheckRequest(QuotaRequest::Impl& request);
 
-private:
+ private:
   friend class LimitApi;
   Context* context_;
 };

@@ -20,7 +20,7 @@
 #include <iomanip>
 #include <iostream>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "mock/fake_server_response.h"
 #include "mock/mock_server_connector.h"
 #include "polaris/consumer.h"
@@ -34,8 +34,8 @@
 namespace polaris {
 
 class LocalityAwareLBBaseTest : public ::testing::Test {
-protected:
-  LocalityAwareLBBaseTest() { srand(time(NULL)); }
+ protected:
+  LocalityAwareLBBaseTest() { srand(time(nullptr)); }
   virtual ~LocalityAwareLBBaseTest() {}
   virtual void SetUp() {}
   virtual void TearDown() {}
@@ -99,7 +99,7 @@ TEST_F(LocalityAwareLBBaseTest, TestCircularQueue) {
     // 取top数据进行核对，并讲其弹出
     for (size_t i = 0; i < queue_size; ++i) {
       Foo *data = q.Top();
-      ASSERT_TRUE(data != NULL);
+      ASSERT_TRUE(data != nullptr);
       ASSERT_EQ(data->x, i);
       ASSERT_TRUE(q.Pop());
     }
@@ -111,7 +111,7 @@ TEST_F(LocalityAwareLBBaseTest, TestCircularQueue) {
     // 取top返回NULL，pop返回false
     for (size_t i = 0; i < queue_size; ++i) {
       Foo *data = q.Top();
-      ASSERT_TRUE(data == NULL);
+      ASSERT_TRUE(data == nullptr);
       ASSERT_FALSE(q.Pop());
     }
 
@@ -134,7 +134,7 @@ TEST_F(LocalityAwareLBBaseTest, TestCircularQueue) {
     // 核对elim_push写的数据
     for (size_t i = 0; i < queue_size; ++i) {
       Foo *data = q.Top();
-      ASSERT_TRUE(data != NULL);
+      ASSERT_TRUE(data != nullptr);
       ASSERT_EQ(data->x, queue_size - i);
       ASSERT_TRUE(q.Pop());
     }
@@ -150,7 +150,7 @@ TEST_F(LocalityAwareLBBaseTest, TestCircularQueue) {
     ASSERT_TRUE(q.Full());
     q.Clear();
     ASSERT_TRUE(q.Empty());
-    ASSERT_TRUE(q.Top() == NULL);
+    ASSERT_TRUE(q.Top() == nullptr);
 
     for (size_t i = 0; i < queue_size; ++i) {
       data.x = static_cast<uint64_t>(i);
@@ -161,7 +161,7 @@ TEST_F(LocalityAwareLBBaseTest, TestCircularQueue) {
 
     for (size_t i = 0; i < queue_size; ++i) {
       Foo *data = q.Top();
-      ASSERT_TRUE(data != NULL);
+      ASSERT_TRUE(data != nullptr);
       ASSERT_EQ(data->x, i);
       ASSERT_TRUE(q.Pop());
     }
@@ -175,7 +175,7 @@ TEST_F(LocalityAwareLBBaseTest, TestLocalityAwareSelector) {
   LocalityAwareSelector lalb(1000);
   SelectIn in;
   SelectOut out;
-  in.begin_time_us     = 0;
+  in.begin_time_us = 0;
   in.changable_weights = false;
 
   // 无节点时返回kReturnInstanceNotFound
@@ -246,11 +246,11 @@ struct SelectInfo {
 };
 
 class LocalityAwareLBTest : public MockServerConnectorTest {
-protected:
+ protected:
   virtual void SetUp() {
     MockServerConnectorTest::SetUp();
-    context_      = NULL;
-    consumer_api_ = NULL;
+    context_ = nullptr;
+    consumer_api_ = nullptr;
     TestUtils::CreateTempDir(persist_dir_);
     std::string err_msg, content =
                              "global:\n"
@@ -262,21 +262,21 @@ protected:
                              "    persistDir: " +
                              persist_dir_;
     Config *config = Config::CreateFromString(content, err_msg);
-    POLARIS_ASSERT(config != NULL && err_msg.empty());
+    POLARIS_ASSERT(config != nullptr && err_msg.empty());
     context_ = Context::Create(config);
     delete config;
-    ASSERT_TRUE(context_ != NULL);
-    ASSERT_TRUE((consumer_api_ = ConsumerApi::Create(context_)) != NULL);
+    ASSERT_TRUE(context_ != nullptr);
+    ASSERT_TRUE((consumer_api_ = ConsumerApi::Create(context_)) != nullptr);
 
     // check
     MockServerConnector *server_connector_in_context =
-        dynamic_cast<MockServerConnector *>(context_->GetServerConnector());
-    ASSERT_TRUE(server_connector_ != NULL);
+        dynamic_cast<MockServerConnector *>(context_->GetContextImpl()->GetServerConnector());
+    ASSERT_TRUE(server_connector_ != nullptr);
     ASSERT_EQ(server_connector_, server_connector_in_context);
-    service_key_.name_      = "cpp_test_service";
+    service_key_.name_ = "cpp_test_service";
     service_key_.namespace_ = "cpp_test_namespace";
-    instance_num_           = 10;
-    instance_healthy_       = true;
+    instance_num_ = 10;
+    instance_healthy_ = true;
 
     v1::CircuitBreaker *cb = circuit_breaker_pb_response_.mutable_circuitbreaker();
     cb->mutable_name()->set_value("xxx");
@@ -284,17 +284,17 @@ protected:
   }
 
   virtual void TearDown() {
-    if (consumer_api_ != NULL) {
+    if (consumer_api_ != nullptr) {
       delete consumer_api_;
-      consumer_api_ = NULL;
+      consumer_api_ = nullptr;
     }
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
     TestUtils::RemoveDir(persist_dir_);
     for (std::size_t i = 0; i < event_thread_list_.size(); ++i) {
-      pthread_join(event_thread_list_[i], NULL);
+      pthread_join(event_thread_list_[i], nullptr);
     }
     MockServerConnectorTest::TearDown();
   }
@@ -303,15 +303,14 @@ protected:
     FakeServer::InstancesResponse(instances_response_, service_key_);
     v1::Service *service = instances_response_.mutable_service();
     for (int i = 0; i < 10; i++) {
-      (*service->mutable_metadata())["key" + StringUtils::TypeToStr<int>(i)] =
-          "value" + StringUtils::TypeToStr<int>(i);
+      (*service->mutable_metadata())["key" + std::to_string(i)] = "value" + std::to_string(i);
     }
     for (int i = 0; i < instance_num_ + 2; i++) {
       ::v1::Instance *instance = instances_response_.mutable_instances()->Add();
       instance->mutable_namespace_()->set_value(service_key_.namespace_);
       instance->mutable_service()->set_value(service_key_.name_);
-      instance->mutable_id()->set_value("instance_" + StringUtils::TypeToStr<int>(i));
-      instance->mutable_host()->set_value("host" + StringUtils::TypeToStr<int>(i));
+      instance->mutable_id()->set_value("instance_" + std::to_string(i));
+      instance->mutable_host()->set_value("host" + std::to_string(i));
       instance->mutable_port()->set_value(8080 + i);
       instance->mutable_healthy()->set_value(instance_healthy_);
       instance->mutable_weight()->set_value(i != instance_num_ ? 100 : 0);  // 第11个权重为0
@@ -322,9 +321,9 @@ protected:
     FakeServer::RoutingResponse(routing_response_, service_key_);
   }
 
-public:
-  void MockFireEventHandler(const ServiceKey &service_key, ServiceDataType data_type,
-                            uint64_t /*sync_interval*/, ServiceEventHandler *handler) {
+ public:
+  void MockFireEventHandler(const ServiceKey &service_key, ServiceDataType data_type, uint64_t /*sync_interval*/,
+                            const std::string & /*disk_revision*/, ServiceEventHandler *handler) {
     ServiceData *service_data;
     if (data_type == kServiceDataInstances) {
       service_data = ServiceData::CreateFromPb(&instances_response_, kDataIsSyncing);
@@ -337,17 +336,17 @@ public:
     }
     // 创建单独的线程去下发数据更新，否则会死锁
     EventHandlerData *event_data = new EventHandlerData();
-    event_data->service_key_     = service_key;
-    event_data->data_type_       = data_type;
-    event_data->service_data_    = service_data;
-    event_data->handler_         = handler;
+    event_data->service_key_ = service_key;
+    event_data->data_type_ = data_type;
+    event_data->service_data_ = service_data;
+    event_data->handler_ = handler;
     pthread_t tid;
-    pthread_create(&tid, NULL, AsyncEventUpdate, event_data);
+    pthread_create(&tid, nullptr, AsyncEventUpdate, event_data);
     handler_list_.push_back(handler);
     event_thread_list_.push_back(tid);
   }
 
-protected:
+ protected:
   Context *context_;
   ConsumerApi *consumer_api_;
   v1::DiscoverResponse instances_response_;
@@ -361,7 +360,7 @@ protected:
 };
 
 void *SelectWithUpdate(void *arg) {
-  CountInfo *count_info   = new CountInfo;
+  CountInfo *count_info = new CountInfo;
   SelectInfo *select_info = reinterpret_cast<SelectInfo *>(arg);
   ReturnCode ret;
   Instance instance;
@@ -388,8 +387,7 @@ void *SelectWithUpdate(void *arg) {
       result.SetRetStatus(polaris::kCallRetOk);
     } else {
       result.SetRetCode(ret);
-      result.SetRetStatus(ret == polaris::kReturnTimeout ? polaris::kCallRetTimeout
-                                                         : polaris::kCallRetError);
+      result.SetRetStatus(ret == polaris::kReturnTimeout ? polaris::kCallRetTimeout : polaris::kCallRetError);
     }
     ret = select_info->consumer_api->UpdateServiceCallResult(result);
   }
@@ -399,23 +397,21 @@ void *SelectWithUpdate(void *arg) {
 TEST_F(LocalityAwareLBTest, TestSelectWithUpdate) {
   instance_num_ = 200;
   InitServiceData();
-  EXPECT_CALL(*server_connector_, RegisterEventHandler(::testing::Eq(service_key_), ::testing::_,
-                                                       ::testing::_, ::testing::_))
+  EXPECT_CALL(*server_connector_,
+              RegisterEventHandler(::testing::Eq(service_key_), ::testing::_, ::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::Exactly(2))
-      .WillRepeatedly(
-          ::testing::DoAll(::testing::Invoke(this, &LocalityAwareLBTest::MockFireEventHandler),
-                           ::testing::Return(kReturnOk)));
+      .WillRepeatedly(::testing::DoAll(::testing::Invoke(this, &LocalityAwareLBTest::MockFireEventHandler),
+                                       ::testing::Return(kReturnOk)));
 
   // 创建子线程
-  global_stop               = false;
-  SelectInfo *select_info   = new SelectInfo;
+  global_stop = false;
+  SelectInfo *select_info = new SelectInfo;
   select_info->consumer_api = consumer_api_;
-  select_info->service_key  = service_key_;
-  size_t pthread_num        = 3;
+  select_info->service_key = service_key_;
+  size_t pthread_num = 3;
   pthread_t th[pthread_num];
   for (size_t i = 0; i < pthread_num; ++i) {
-    ASSERT_EQ(
-        0, pthread_create(&th[i], NULL, SelectWithUpdate, reinterpret_cast<void *>(select_info)));
+    ASSERT_EQ(0, pthread_create(&th[i], nullptr, SelectWithUpdate, reinterpret_cast<void *>(select_info)));
   }
 
   // 在本线程进行Select和Update
@@ -441,8 +437,7 @@ TEST_F(LocalityAwareLBTest, TestSelectWithUpdate) {
       result.SetRetStatus(polaris::kCallRetOk);
     } else {
       result.SetRetCode(ret);
-      result.SetRetStatus(ret == polaris::kReturnTimeout ? polaris::kCallRetTimeout
-                                                         : polaris::kCallRetError);
+      result.SetRetStatus(ret == polaris::kReturnTimeout ? polaris::kCallRetTimeout : polaris::kCallRetError);
     }
     ret = consumer_api_->UpdateServiceCallResult(result);
     ASSERT_EQ(ret, kReturnOk);

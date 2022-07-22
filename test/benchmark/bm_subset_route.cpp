@@ -19,7 +19,7 @@
 
 #include <errno.h>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "mock/fake_server_response.h"
 #include "polaris/consumer.h"
 #include "polaris/context.h"
@@ -35,10 +35,10 @@ namespace polaris {
 //又分别测试正常，熔断，隔离下的性能情况
 
 void MakeBreaker(const std::string& dest_service, const std::string& ins,
-                 const std::map<std::string, std::string>& subset,
-                 const std::map<std::string, std::string>& labels, polaris::ServiceKey& service_key,
-                 int total, float threhold, int waite, polaris::GetOneInstanceRequest& request,
-                 polaris::InstancesResponse*& response, polaris::ConsumerApi* consumer) {
+                 const std::map<std::string, std::string>& subset, const std::map<std::string, std::string>& labels,
+                 polaris::ServiceKey& service_key, int total, float threhold, int waite,
+                 polaris::GetOneInstanceRequest& request, polaris::InstancesResponse*& response,
+                 polaris::ConsumerApi* consumer) {
   //制造熔断、保持、恢复
   //通过total，thre，waite三个参数控制要制造的状态
   polaris::ServiceCallResult result;
@@ -74,7 +74,7 @@ void MakeBreaker(const std::string& dest_service, const std::string& ins,
 }
 
 class BM_SubSetRoute : public benchmark::Fixture {
-public:
+ public:
   void SetUp(const ::benchmark::State& state) {
     if (state.thread_index != 0) {
       return;
@@ -86,10 +86,10 @@ public:
     GetLogger()->SetLogLevel(kInfoLogLevel);
 
     service_key_.namespace_ = "benchmark_namespace";
-    service_key_.name_      = "benchmark_service";
+    service_key_.name_ = "benchmark_service";
     //获取ip
     char* env = getenv("POLARIS_SERVER");
-    if (env == NULL) {
+    if (env == nullptr) {
       std::cout << "get env POLARIS_SERVER error " << errno << std::endl;
       exit(-1);
     }
@@ -107,24 +107,23 @@ public:
                              "    persistDir: " +
                              persist_dir_;
     Config* config = Config::CreateFromString(content, err_msg);
-    if (config == NULL) {
+    if (config == nullptr) {
       std::cout << "create config with error: " << err_msg << std::endl;
       exit(-1);
     }
     context_ = Context::Create(config);
     delete config;
-    if (context_ == NULL) {
+    if (context_ == nullptr) {
       std::cout << "create context failed" << std::endl;
       exit(-1);
     }
-    ServiceContext* service_connext = context_->GetOrCreateServiceContext(service_key_);
-    chain_                          = service_connext->GetServiceRouterChain();
-    assert(chain_ != NULL);
-    service_connext->DecrementRef();
+    ServiceContext* service_connext = context_->GetContextImpl()->GetServiceContext(service_key_);
+    chain_ = service_connext->GetServiceRouterChain();
+    assert(chain_ != nullptr);
 
     sleep(3);
     consumer_api_ = ConsumerApi::Create(context_);
-    if (consumer_api_ == NULL) {
+    if (consumer_api_ == nullptr) {
       std::cout << "create consumer_api_ failed" << std::endl;
       exit(-1);
     }
@@ -135,13 +134,13 @@ public:
     if (state.thread_index != 0) {
       return;
     }
-    chain_ = NULL;
+    chain_ = nullptr;
     delete consumer_api_;
-    consumer_api_ = NULL;
-    context_      = NULL;
-    if (context_ != NULL) {
+    consumer_api_ = nullptr;
+    context_ = nullptr;
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
     TestUtils::RemoveDir(log_dir_);
     TestUtils::RemoveDir(persist_dir_);
@@ -174,18 +173,18 @@ BENCHMARK_DEFINE_F(BM_SubSetRoute, BM_SubSetRouteNum1000)
   polaris::ServiceKey service_key = {"Test", serverB};
   polaris::GetOneInstanceRequest request(service_key);
   polaris::Instance instance;
-  polaris::InstancesResponse* response = NULL;
+  polaris::InstancesResponse* response = nullptr;
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "reg3";
-  sinfo.service_key_.name_      = serverA;
+  sinfo.metadata_["num"] = "reg3";
+  sinfo.service_key_.name_ = serverA;
   sinfo.service_key_.namespace_ = "Test";
   request.SetSourceService(sinfo);
 
-  int total  = 1;
+  int total = 1;
   int64_t cc = 0;
   while (state.KeepRunning()) {
-    if (consumer_api_ == NULL) {
-      std::cout << "api NULL " << state.thread_index << std::endl;
+    if (consumer_api_ == nullptr) {
+      std::cout << "api nullptr " << state.thread_index << std::endl;
       break;
     }
     if (consumer_api_->GetOneInstance(request, response) == polaris::kReturnOk) {
@@ -211,18 +210,18 @@ BENCHMARK_DEFINE_F(BM_SubSetRoute, BM_SubSetRouteNum10)
   polaris::ServiceKey service_key = {"Test", serverB};
   polaris::GetOneInstanceRequest request(service_key);
   polaris::Instance instance;
-  polaris::InstancesResponse* response = NULL;
+  polaris::InstancesResponse* response = nullptr;
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "reg3";
-  sinfo.service_key_.name_      = serverA;
+  sinfo.metadata_["num"] = "reg3";
+  sinfo.service_key_.name_ = serverA;
   sinfo.service_key_.namespace_ = "Test";
   request.SetSourceService(sinfo);
 
-  int total  = 1;
+  int total = 1;
   int64_t cc = 0;
   while (state.KeepRunning()) {
-    if (consumer_api_ == NULL) {
-      std::cout << "api NULL " << state.thread_index << std::endl;
+    if (consumer_api_ == nullptr) {
+      std::cout << "api nullptr " << state.thread_index << std::endl;
       break;
     }
     if (consumer_api_->GetOneInstance(request, response) == polaris::kReturnOk) {
@@ -248,18 +247,18 @@ BENCHMARK_DEFINE_F(BM_SubSetRoute, BM_SubSetRouteNum100)
   polaris::ServiceKey service_key = {"Test", serverB};
   polaris::GetOneInstanceRequest request(service_key);
   polaris::Instance instance;
-  polaris::InstancesResponse* response = NULL;
+  polaris::InstancesResponse* response = nullptr;
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "reg3";
-  sinfo.service_key_.name_      = serverA;
+  sinfo.metadata_["num"] = "reg3";
+  sinfo.service_key_.name_ = serverA;
   sinfo.service_key_.namespace_ = "Test";
   request.SetSourceService(sinfo);
 
-  int total  = 1;
+  int total = 1;
   int64_t cc = 0;
   while (state.KeepRunning()) {
-    if (consumer_api_ == NULL) {
-      std::cout << "api NULL " << state.thread_index << std::endl;
+    if (consumer_api_ == nullptr) {
+      std::cout << "api nullptr " << state.thread_index << std::endl;
       break;
     }
     if (consumer_api_->GetOneInstance(request, response) == polaris::kReturnOk) {
@@ -285,18 +284,18 @@ BENCHMARK_DEFINE_F(BM_SubSetRoute, BM_SubSetRouteNum500)
   polaris::ServiceKey service_key = {"Test", serverB};
   polaris::GetOneInstanceRequest request(service_key);
   polaris::Instance instance;
-  polaris::InstancesResponse* response = NULL;
+  polaris::InstancesResponse* response = nullptr;
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "reg3";
-  sinfo.service_key_.name_      = serverA;
+  sinfo.metadata_["num"] = "reg3";
+  sinfo.service_key_.name_ = serverA;
   sinfo.service_key_.namespace_ = "Test";
   request.SetSourceService(sinfo);
 
-  int total  = 1;
+  int total = 1;
   int64_t cc = 0;
   while (state.KeepRunning()) {
-    if (consumer_api_ == NULL) {
-      std::cout << "api NULL " << state.thread_index << std::endl;
+    if (consumer_api_ == nullptr) {
+      std::cout << "api nullptr " << state.thread_index << std::endl;
       break;
     }
     if (consumer_api_->GetOneInstance(request, response) == polaris::kReturnOk) {
@@ -322,10 +321,10 @@ BENCHMARK_DEFINE_F(BM_SubSetRoute, BM_SubSetRouteNum1000Break)
   polaris::ServiceKey service_key = {"Test", serverB};
   polaris::GetOneInstanceRequest request(service_key);
   polaris::Instance instance;
-  polaris::InstancesResponse* response = NULL;
+  polaris::InstancesResponse* response = nullptr;
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "reg3";
-  sinfo.service_key_.name_      = serverA;
+  sinfo.metadata_["num"] = "reg3";
+  sinfo.service_key_.name_ = serverA;
   sinfo.service_key_.namespace_ = "Test";
   request.SetSourceService(sinfo);
   if (state.thread_index == 0) {
@@ -333,19 +332,19 @@ BENCHMARK_DEFINE_F(BM_SubSetRoute, BM_SubSetRouteNum1000Break)
     std::map<std::string, std::string> subset;
     std::map<std::string, std::string> labels;
     subset["set"] = "s2";
-    if (consumer_api_ == NULL) {
+    if (consumer_api_ == nullptr) {
       std::cout << "api NULL1 " << state.thread_index << std::endl;
       state.SetItemsProcessed(state.iterations());
       return;
     }
-    MakeBreaker(serverB, "456tgb8980ik", subset, labels, sinfo.service_key_, 60, 0.4, 13, request,
-                response, consumer_api_);
+    MakeBreaker(serverB, "456tgb8980ik", subset, labels, sinfo.service_key_, 60, 0.4, 13, request, response,
+                consumer_api_);
   }
-  int total  = 1;
+  int total = 1;
   int64_t cc = 0;
   while (state.KeepRunning()) {
-    if (consumer_api_ == NULL) {
-      std::cout << "api NULL " << state.thread_index << std::endl;
+    if (consumer_api_ == nullptr) {
+      std::cout << "api nullptr " << state.thread_index << std::endl;
       break;
     }
     if (consumer_api_->GetOneInstance(request, response) == polaris::kReturnOk) {
@@ -371,10 +370,10 @@ BENCHMARK_DEFINE_F(BM_SubSetRoute, BM_SubSetRouteNum1000Labels)
   polaris::ServiceKey service_key = {"Test", serverB};
   polaris::GetOneInstanceRequest request(service_key);
   polaris::Instance instance;
-  polaris::InstancesResponse* response = NULL;
+  polaris::InstancesResponse* response = nullptr;
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "reg3";
-  sinfo.service_key_.name_      = serverA;
+  sinfo.metadata_["num"] = "reg3";
+  sinfo.service_key_.name_ = serverA;
   sinfo.service_key_.namespace_ = "Test";
   request.SetSourceService(sinfo);
   if (state.thread_index == 0) {
@@ -382,15 +381,15 @@ BENCHMARK_DEFINE_F(BM_SubSetRoute, BM_SubSetRouteNum1000Labels)
     std::map<std::string, std::string> subset;
     std::map<std::string, std::string> labels;
     subset["set"] = "s2";
-    if (consumer_api_ == NULL) {
+    if (consumer_api_ == nullptr) {
       std::cout << "api NULL1 " << state.thread_index << std::endl;
       state.SetItemsProcessed(state.iterations());
       return;
     }
-    MakeBreaker(serverB, "456tgb8980ik", subset, labels, sinfo.service_key_, 60, 0.4, 13, request,
-                response, consumer_api_);
+    MakeBreaker(serverB, "456tgb8980ik", subset, labels, sinfo.service_key_, 60, 0.4, 13, request, response,
+                consumer_api_);
   }
-  int total  = 1;
+  int total = 1;
   int64_t cc = 0;
   //先构造labels
   std::vector<std::string> labes;
@@ -404,8 +403,8 @@ BENCHMARK_DEFINE_F(BM_SubSetRoute, BM_SubSetRouteNum1000Labels)
   lbmap["num"] = "2";
   // request.SetLabels(lbmap);
   while (state.KeepRunning()) {
-    if (consumer_api_ == NULL) {
-      std::cout << "api NULL " << state.thread_index << std::endl;
+    if (consumer_api_ == nullptr) {
+      std::cout << "api nullptr " << state.thread_index << std::endl;
       break;
     }
     cc &= maxlen;

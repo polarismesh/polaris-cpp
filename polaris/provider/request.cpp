@@ -18,10 +18,8 @@
 namespace polaris {
 
 /// @brief 创建服务注册请求
-InstanceRegisterRequest::InstanceRegisterRequest(const std::string& service_namespace,
-                                                 const std::string& service_name,
-                                                 const std::string& service_token,
-                                                 const std::string& host, int port) {
+InstanceRegisterRequest::InstanceRegisterRequest(const std::string& service_namespace, const std::string& service_name,
+                                                 const std::string& service_token, const std::string& host, int port) {
   impl_ = new Impl();
   impl_->SetWithHostPort(service_namespace, service_name, service_token, host, port);
 }
@@ -36,9 +34,7 @@ void InstanceRegisterRequest::SetTimeout(uint64_t timeout) { impl_->SetTimeout(t
 
 void InstanceRegisterRequest::SetVpcId(const std::string& vpc_id) { impl_->SetVpcId(vpc_id); }
 
-void InstanceRegisterRequest::SetProtocol(const std::string& protocol) {
-  impl_->protocol_ = protocol;
-}
+void InstanceRegisterRequest::SetProtocol(const std::string& protocol) { impl_->protocol_ = protocol; }
 
 void InstanceRegisterRequest::SetWeight(int weight) { impl_->weight_ = weight; }
 
@@ -60,16 +56,21 @@ void InstanceRegisterRequest::SetHealthCheckType(HealthCheckType health_check_ty
 
 void InstanceRegisterRequest::SetTtl(int ttl) { impl_->ttl_ = ttl; }
 
+void InstanceRegisterRequest::SetLocation(const std::string& region, const std::string& zone,
+                                          const std::string& campus) {
+  impl_->region_ = region;
+  impl_->zone_ = zone;
+  impl_->campus_ = campus;
+}
+
 // 反注册请求
-InstanceDeregisterRequest::InstanceDeregisterRequest(const std::string& service_token,
-                                                     const std::string& instance_id) {
+InstanceDeregisterRequest::InstanceDeregisterRequest(const std::string& service_token, const std::string& instance_id) {
   impl_ = new Impl();
   impl_->SetWithId(service_token, instance_id);
 }
 
 InstanceDeregisterRequest::InstanceDeregisterRequest(const std::string& service_namespace,
-                                                     const std::string& service_name,
-                                                     const std::string& service_token,
+                                                     const std::string& service_name, const std::string& service_token,
                                                      const std::string& host, int port) {
   impl_ = new Impl();
   impl_->SetWithHostPort(service_namespace, service_name, service_token, host, port);
@@ -86,15 +87,13 @@ void InstanceDeregisterRequest::SetFlowId(uint64_t flow_id) { impl_->SetFlowId(f
 void InstanceDeregisterRequest::SetTimeout(uint64_t timeout) { impl_->SetTimeout(timeout); }
 
 // 心跳请求
-InstanceHeartbeatRequest::InstanceHeartbeatRequest(const std::string& service_token,
-                                                   const std::string& instance_id) {
+InstanceHeartbeatRequest::InstanceHeartbeatRequest(const std::string& service_token, const std::string& instance_id) {
   impl_ = new Impl();
   impl_->SetWithId(service_token, instance_id);
 }
 
 InstanceHeartbeatRequest::InstanceHeartbeatRequest(const std::string& service_namespace,
-                                                   const std::string& service_name,
-                                                   const std::string& service_token,
+                                                   const std::string& service_name, const std::string& service_token,
                                                    const std::string& host, int port) {
   impl_ = new Impl();
   impl_->SetWithHostPort(service_namespace, service_name, service_token, host, port);
@@ -172,6 +171,17 @@ v1::Instance* InstanceRegisterRequest::Impl::ToPb() const {
     for (it = metadata_.begin(); it != metadata_.end(); it++) {
       (*req_metadata)[it->first] = it->second;
     }
+  }
+
+  // 设置位置信息
+  if (!region_.empty()) {
+    instance->mutable_location()->mutable_region()->set_value(region_);
+  }
+  if (!zone_.empty()) {
+    instance->mutable_location()->mutable_zone()->set_value(zone_);
+  }
+  if (!campus_.empty()) {
+    instance->mutable_location()->mutable_campus()->set_value(campus_);
   }
 
   if (health_check_flag_) {  // 设置健康检查信息

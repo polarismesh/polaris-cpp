@@ -15,7 +15,7 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "plugin/load_balancer/l5_csthash.h"
+#include "plugin/load_balancer/ringhash/l5_csthash.h"
 
 #include <gtest/gtest.h>
 #include <stdlib.h>
@@ -51,12 +51,12 @@ static inline bool server_comp(const ROUTE_NODE &a, const ROUTE_NODE &b) {
 }
 
 class Cl5CSTHashLB {
-public:
+ public:
   explicit Cl5CSTHashLB(bool is_brpc_murmurhash) : is_brpc_murmurhash_(is_brpc_murmurhash) {}
   int AddRoute(unsigned int ip, unsigned short port, int weight) {
     ROUTE_NODE node = {"", ip, port, weight};
-    snprintf(node.ip_str, sizeof(node.ip_str), "%u.%u.%u.%u", ip & 0xFF, (ip >> 8) & 0xFF,
-             (ip >> 16) & 0xFF, (ip >> 24) & 0xFF);
+    snprintf(node.ip_str, sizeof(node.ip_str), "%u.%u.%u.%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF,
+             (ip >> 24) & 0xFF);
     node.ip_str[sizeof(node.ip_str) - 1] = 0;
 
     servers.push_back(node);
@@ -72,18 +72,15 @@ public:
 
     CstIterServer server_beg, server_end;
     IterRoute pos;
-    for (server_beg = servers.begin(), server_end = servers.end(); server_beg != server_end;
-         server_beg++) {
+    for (server_beg = servers.begin(), server_end = servers.end(); server_beg != server_end; server_beg++) {
       /*计算该节点应该建立的虚拟节点数*/
       for (index = 0, virtual_node_cnt = server_beg->weight; index < virtual_node_cnt; index++) {
         /*因为空间足够大故这里不使用snprintf*/
         if (is_brpc_murmurhash_) {
-          len  = snprintf(node, sizeof(node) - 1, "%s:%u-%u", server_beg->ip_str, server_beg->port,
-                         index);
+          len = snprintf(node, sizeof(node) - 1, "%s:%u-%u", server_beg->ip_str, server_beg->port, index);
           hash = Murmur3_32(node, len, 0);
         } else {
-          len  = snprintf(node, sizeof(node) - 1, "%s:%u:%u", server_beg->ip_str, index,
-                         server_beg->port);
+          len = snprintf(node, sizeof(node) - 1, "%s:%u:%u", server_beg->ip_str, index, server_beg->port);
           hash = Murmur3_32(node, len, 16);
         }
         /*添加到map表中*/
@@ -105,7 +102,7 @@ public:
 
   int GetRoute(unsigned long long key, std::string &ip, unsigned short &port) {
     unsigned int hash = 0;
-    ROUTE_NODE *route = NULL;
+    ROUTE_NODE *route = nullptr;
     /*寻找hash key >= key的结点*/
     if (is_brpc_murmurhash_) {
       hash = key;
@@ -121,12 +118,12 @@ public:
       return (-1);
     }
 
-    ip   = route->ip_str;
+    ip = route->ip_str;
     port = route->port;
     return 0;
   }
 
-private:
+ private:
   typedef std::vector<ROUTE_NODE> Servers;
   typedef Servers::iterator IterServer;
   typedef Servers::const_iterator CstIterServer;
@@ -147,30 +144,30 @@ private:
 class L5CsthashLbTest : public ::testing::Test {
   virtual void SetUp() {
     context_ = TestContext::CreateContext();
-    ASSERT_TRUE(context_ != NULL);
+    ASSERT_TRUE(context_ != nullptr);
     l5_csthash_lb_ = new L5CstHashLoadBalancer();
-    ASSERT_EQ(l5_csthash_lb_->Init(NULL, context_), kReturnOk);
+    ASSERT_EQ(l5_csthash_lb_->Init(nullptr, context_), kReturnOk);
     brpc_murmurhash_lb_ = new L5CstHashLoadBalancer(true);
-    ASSERT_EQ(brpc_murmurhash_lb_->Init(NULL, context_), kReturnOk);
-    srandom(time(NULL));
+    ASSERT_EQ(brpc_murmurhash_lb_->Init(nullptr, context_), kReturnOk);
+    srandom(time(nullptr));
   }
 
   virtual void TearDown() {
-    if (l5_csthash_lb_ != NULL) {
+    if (l5_csthash_lb_ != nullptr) {
       delete l5_csthash_lb_;
-      l5_csthash_lb_ = NULL;
+      l5_csthash_lb_ = nullptr;
     }
-    if (brpc_murmurhash_lb_ != NULL) {
+    if (brpc_murmurhash_lb_ != nullptr) {
       delete brpc_murmurhash_lb_;
-      brpc_murmurhash_lb_ = NULL;
+      brpc_murmurhash_lb_ = nullptr;
     }
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
   }
 
-protected:
+ protected:
   L5CstHashLoadBalancer *l5_csthash_lb_;
   L5CstHashLoadBalancer *brpc_murmurhash_lb_;
   Context *context_;
@@ -183,19 +180,18 @@ TEST_F(L5CsthashLbTest, TestSelectInstance) {
   v1::DiscoverResponse response;
   FakeServer::InstancesResponse(response, service_key);
   for (int i = 0; i < 40 + random() % 20; ++i) {
-    std::string host =
-        StringUtils::TypeToStr(random() % 255) + "." + StringUtils::TypeToStr(random() % 255) +
-        "." + StringUtils::TypeToStr(random() % 255) + "." + StringUtils::TypeToStr(random() % 255);
+    std::string host = std::to_string(random() % 255) + "." + std::to_string(random() % 255) + "." +
+                       std::to_string(random() % 255) + "." + std::to_string(random() % 255);
     uint32_t ip;
     ASSERT_TRUE(IpUtils::StrIpToInt(host, ip));
-    int port   = 8000 + i;
+    int port = 8000 + i;
     int weight = 80 + random() % 40;
 
     old_l5_cst_lb.AddRoute(ip, port, weight);
     brpc_hash_lb.AddRoute(ip, port, weight);
 
     v1::Instance *instance = response.add_instances();
-    instance->mutable_id()->set_value("instance_" + StringUtils::TypeToStr<int>(i));
+    instance->mutable_id()->set_value("instance_" + std::to_string(i));
     instance->mutable_host()->set_value(host);
     instance->mutable_port()->set_value(port);
     instance->mutable_weight()->set_value(weight);
@@ -207,9 +203,9 @@ TEST_F(L5CsthashLbTest, TestSelectInstance) {
   service.UpdateData(service_data);
   ServiceInstances service_instances(service_data);
   for (int i = 0; i < 10000; ++i) {
-    Instance *instance = NULL;
+    Instance *instance = nullptr;
     Criteria criteria;
-    criteria.hash_key_  = random();
+    criteria.hash_key_ = random();
     ReturnCode ret_code = l5_csthash_lb_->ChooseInstance(&service_instances, criteria, instance);
     ASSERT_EQ(ret_code, kReturnOk);
 
@@ -223,11 +219,10 @@ TEST_F(L5CsthashLbTest, TestSelectInstance) {
   }
 
   for (int i = 0; i < 10000; ++i) {
-    Instance *instance = NULL;
+    Instance *instance = nullptr;
     Criteria criteria;
     criteria.hash_key_ = random();
-    ReturnCode ret_code =
-        brpc_murmurhash_lb_->ChooseInstance(&service_instances, criteria, instance);
+    ReturnCode ret_code = brpc_murmurhash_lb_->ChooseInstance(&service_instances, criteria, instance);
     ASSERT_EQ(ret_code, kReturnOk);
 
     std::string ip;
@@ -238,6 +233,66 @@ TEST_F(L5CsthashLbTest, TestSelectInstance) {
     ASSERT_EQ(ip, instance->GetHost()) << i;
     ASSERT_EQ(port, instance->GetPort());
   }
+  service_data->DecrementRef();
+}
+
+TEST_F(L5CsthashLbTest, TestSelectReplicateInstance) {
+  ServiceKey service_key = {"test_namespace", "test_name"};
+  v1::DiscoverResponse response;
+  FakeServer::InstancesResponse(response, service_key);
+  int instance_count = 10;
+  for (int i = 0; i < instance_count; ++i) {
+    v1::Instance *instance = response.add_instances();
+    instance->mutable_id()->set_value("instance_" + std::to_string(i));
+    instance->mutable_host()->set_value("host" + std::to_string(random()));
+    instance->mutable_port()->set_value(8081 + i);
+    instance->mutable_weight()->set_value(80 + random() % 40);
+  }
+  ServiceData *service_data = ServiceData::CreateFromPb(&response, kDataIsSyncing);
+  Service service(service_key, 1);
+  service.UpdateData(service_data);
+  ServiceInstances service_instances(service_data);
+  for (int i = 0; i < 1000; ++i) {
+    Criteria criteria;
+    criteria.hash_key_ = random();
+    std::set<Instance *> l5_instance_set;
+    for (int j = 0; j < instance_count + 1; ++j) {
+      Instance *instance = nullptr, *instance1 = nullptr;
+      criteria.replicate_index_ = j;
+      ASSERT_EQ(l5_csthash_lb_->ChooseInstance(&service_instances, criteria, instance), kReturnOk);
+      ASSERT_EQ(l5_csthash_lb_->ChooseInstance(&service_instances, criteria, instance1), kReturnOk);
+      ASSERT_TRUE(instance != nullptr);
+      ASSERT_EQ(instance, instance1);
+      if (j < instance_count) {
+        ASSERT_TRUE(l5_instance_set.insert(instance).second);  // 验证去重
+      } else {
+        instance1 = nullptr;
+        criteria.replicate_index_ = 0;
+        ASSERT_EQ(l5_csthash_lb_->ChooseInstance(&service_instances, criteria, instance1), kReturnOk);
+        ASSERT_TRUE(instance1 != nullptr);
+        ASSERT_EQ(instance, instance1);
+      }
+    }
+    std::set<Instance *> brpc_instance_set;
+    for (int j = 0; j < instance_count + 1; ++j) {
+      Instance *instance, *instance1 = nullptr;
+      criteria.replicate_index_ = j;
+      ASSERT_EQ(brpc_murmurhash_lb_->ChooseInstance(&service_instances, criteria, instance), kReturnOk);
+      ASSERT_EQ(brpc_murmurhash_lb_->ChooseInstance(&service_instances, criteria, instance1), kReturnOk);
+      ASSERT_TRUE(instance != nullptr);
+      ASSERT_EQ(instance, instance1);
+      if (j < instance_count) {
+        ASSERT_TRUE(brpc_instance_set.insert(instance).second);  // 验证去重
+      } else {
+        instance1 = nullptr;
+        criteria.replicate_index_ = 0;
+        ASSERT_EQ(brpc_murmurhash_lb_->ChooseInstance(&service_instances, criteria, instance1), kReturnOk);
+        ASSERT_TRUE(instance1 != nullptr);
+        ASSERT_EQ(instance, instance1);
+      }
+    }
+  }
+  service_data->DecrementRef();
 }
 
 }  // namespace polaris

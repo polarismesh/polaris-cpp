@@ -16,17 +16,17 @@
 
 #include <stdint.h>
 
+#include <atomic>
 #include <map>
+#include <mutex>
 #include <set>
 #include <string>
 #include <vector>
 
-#include "grpc/client.h"
 #include "model/model_impl.h"
+#include "network/grpc/client.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
-#include "sync/atomic.h"
-#include "sync/mutex.h"
 #include "v1/circuitbreaker.pb.h"
 #include "v1/metric.pb.h"
 
@@ -52,23 +52,24 @@ struct MetricReqStatus {
 };
 
 struct CbMetricBucket {
-public:
-  void AddCount(const MetricReqStatus& status);
+ public:
+  CbMetricBucket();
   ~CbMetricBucket();
 
-  sync::Atomic<uint64_t> metric_total_count_;
-  sync::Atomic<uint64_t> metric_err_count_;
-  sync::Atomic<uint64_t> metric_slow_count_;
-  std::map<std::string, sync::Atomic<uint64_t>*> specific_errs_count_;
+  void AddCount(const MetricReqStatus& status);
+
+  std::atomic<uint64_t> metric_total_count_;
+  std::atomic<uint64_t> metric_err_count_;
+  std::atomic<uint64_t> metric_slow_count_;
+  std::map<std::string, std::atomic<uint64_t>*> specific_errs_count_;
 };
 
 class CircuitBreakSetChainData;
 
 class MetricWindow : public ServiceBase {
-public:
-  MetricWindow(Context* context, const ServiceKey& service_key, SubSetInfo* set_info,
-               Labels* labels, const v1::DestinationSet*& dst_set_conf, const std::string& cb_id,
-               CircuitBreakSetChainData* chain_data);
+ public:
+  MetricWindow(Context* context, const ServiceKey& service_key, SubSetInfo* set_info, Labels* labels,
+               const v1::DestinationSet*& dst_set_conf, const std::string& cb_id, CircuitBreakSetChainData* chain_data);
 
   ~MetricWindow();
 
@@ -93,7 +94,7 @@ public:
 
   void MarkDeleted() { is_delete_ = true; }
 
-  bool IsDeleted() { return is_delete_.Load(); }
+  bool IsDeleted() { return is_delete_.load(); }
 
   void InitCallback(v1::MetricResponse* response);
 
@@ -101,12 +102,12 @@ public:
 
   std::string GetWindowKey();
 
-private:
+ private:
   ReturnCode InitBucket();
   ReturnCode InitErrorConf();
   ReturnCode InitSlowConf();
 
-private:
+ private:
   Context* context_;
   const ServiceKey& service_key_;
   v1::DestinationSet* dst_set_conf_;
@@ -140,10 +141,10 @@ private:
 
   std::string version_;
 
-  sync::Atomic<bool> is_delete_;
+  std::atomic<bool> is_delete_;
 
-  sync::Atomic<uint64_t> cnt_;
-  sync::Atomic<uint64_t> report_cnt_;
+  std::atomic<uint64_t> cnt_;
+  std::atomic<uint64_t> report_cnt_;
 
   uint64_t report_interval_;
   uint64_t query_interval_;
@@ -165,7 +166,7 @@ struct WindowInfo {
 };
 
 class MetricWindowManager {
-public:
+ public:
   MetricWindowManager(Context* context, CircuitBreakerExecutor* executor);
 
   ~MetricWindowManager();
@@ -178,8 +179,8 @@ public:
 
   void WindowGc();  // 定期已经删除的窗口
 
-private:
-  sync::Mutex update_lock_;
+ private:
+  std::mutex update_lock_;
   RcuMap<std::string, MetricWindow>* windows_;
 
   CircuitBreakerExecutor* executor_;
@@ -187,7 +188,7 @@ private:
 };
 
 class MetricInitCallBack : public grpc::RpcCallback<v1::MetricResponse> {
-public:
+ public:
   explicit MetricInitCallBack(MetricWindow* window);
 
   virtual ~MetricInitCallBack();
@@ -196,12 +197,12 @@ public:
 
   virtual void OnError(ReturnCode ret_code);
 
-private:
+ private:
   MetricWindow* window_;
 };
 
 class MetricReportCallBack : public grpc::RpcCallback<v1::MetricResponse> {
-public:
+ public:
   explicit MetricReportCallBack(MetricWindow* window, v1::MetricRequest& req);
 
   virtual ~MetricReportCallBack();
@@ -212,14 +213,14 @@ public:
 
   const v1::MetricRequest& GetRequest() { return request_; }
 
-private:
+ private:
   MetricWindow* window_;
   v1::MetricRequest request_;
   int try_times_;
 };
 
 class MetricQueryCallback : public grpc::RpcCallback<v1::MetricResponse> {
-public:
+ public:
   explicit MetricQueryCallback(MetricWindow* window);
 
   ~MetricQueryCallback();
@@ -228,7 +229,7 @@ public:
 
   virtual void OnError(ReturnCode ret_code);
 
-private:
+ private:
   MetricWindow* window_;
 };
 

@@ -25,42 +25,47 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <string>
 #include <vector>
 
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 #include "utils/utils.h"
 
 namespace polaris {
 
-extern void (*current_time_impl)(timespec &ts);
-extern void (*current_time_impl_backup)(timespec &ts);
-extern volatile uint64_t g_fake_time_now_ms;
+extern std::atomic<uint64_t> g_fake_system_time_ms;
+extern std::atomic<uint64_t> g_fake_steady_time_ms;
 
 class TestUtils {
-public:
+ public:
   static void SetUpFakeTime() {
-    g_fake_time_now_ms       = Time::GetCurrentTimeMs();
-    current_time_impl_backup = current_time_impl;
-    current_time_impl        = FakeNow;
+    g_fake_system_time_ms = Time::GetSystemTimeMs();
+    g_fake_steady_time_ms = Time::GetCoarseSteadyTimeMs();
+    Time::SetCustomTimeFunc(FakeSystemTime, FakeSteadyTime);
   }
 
-  static void TearDownFakeTime() { current_time_impl = current_time_impl_backup; }
+  static void TearDownFakeTime() { Time::SetDefaultTimeFunc(); }
 
-  static void FakeNowIncrement(uint64_t add_ms) { ATOMIC_ADD(&g_fake_time_now_ms, add_ms); }
-
-private:
-  static void FakeNow(timespec &ts) {
-    ts.tv_sec  = g_fake_time_now_ms / Time::kThousandBase;
-    ts.tv_nsec = (g_fake_time_now_ms % Time::kThousandBase) * Time::kMillionBase;
+  static void FakeNowIncrement(uint64_t add_ms) {
+    FakeSystemTimeInc(add_ms);
+    FakeSteadyTimeInc(add_ms);
   }
 
-public:
+  static void FakeSystemTimeInc(uint64_t add_ms) { g_fake_system_time_ms.fetch_add(add_ms, std::memory_order_relaxed); }
+
+  static void FakeSteadyTimeInc(uint64_t add_ms) { g_fake_steady_time_ms.fetch_add(add_ms, std::memory_order_relaxed); }
+
+ private:
+  static uint64_t FakeSystemTime() { return g_fake_system_time_ms; }
+
+  static uint64_t FakeSteadyTime() { return g_fake_steady_time_ms; }
+
+ public:
   static int PickUnusedPort() {
     struct sockaddr_in addr;
-    addr.sin_family      = AF_INET;
-    addr.sin_port        = 0;
+    addr.sin_family = AF_INET;
+    addr.sin_port = 0;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -74,8 +79,7 @@ public:
     }
 
     socklen_t addr_len = sizeof(addr);
-    if (getsockname(sock, reinterpret_cast<struct sockaddr *>(&addr), &addr_len) != 0 ||
-        addr_len > sizeof(addr)) {
+    if (getsockname(sock, reinterpret_cast<struct sockaddr *>(&addr), &addr_len) != 0 || addr_len > sizeof(addr)) {
       close(sock);
       return -1;
     }
@@ -85,7 +89,7 @@ public:
 
   static bool CreateTempFile(std::string &file) {
     char temp_file[] = "/tmp/polaris_test_XXXXXX";
-    int fd           = mkstemp(temp_file);
+    int fd = mkstemp(temp_file);
     if (fd < 0) return false;
     close(fd);
     file = temp_file;
@@ -94,7 +98,7 @@ public:
 
   static bool CreateTempFileWithContent(std::string &file, const std::string &content) {
     char temp_file[] = "/tmp/polaris_test_XXXXXX";
-    int fd           = mkstemp(temp_file);
+    int fd = mkstemp(temp_file);
     if (fd < 0) return false;
     std::size_t len = write(fd, content.c_str(), content.size());
     if (len != content.size()) return false;
@@ -105,19 +109,16 @@ public:
 
   static bool CreateTempDir(std::string &dir) {
     char temp_dir[] = "/tmp/polaris_test_XXXXXX";
-    char *dir_name  = mkdtemp(temp_dir);
-    if (dir_name == NULL) return false;
+    char *dir_name = mkdtemp(temp_dir);
+    if (dir_name == nullptr) return false;
     dir = temp_dir;
     return true;
   }
 
-  static bool RemoveDir(const std::string &dir) {
-    return nftw(dir.c_str(), RemoveFile, 10, FTW_DEPTH | FTW_PHYS) == 0;
-  }
+  static bool RemoveDir(const std::string &dir) { return nftw(dir.c_str(), RemoveFile, 10, FTW_DEPTH | FTW_PHYS) == 0; }
 
-private:
-  static int RemoveFile(const char *path, const struct stat * /*sbuf*/, int /*type*/,
-                        struct FTW * /*ftwb*/) {
+ private:
+  static int RemoveFile(const char *path, const struct stat * /*sbuf*/, int /*type*/, struct FTW * /*ftwb*/) {
     return remove(path);
   }
 };

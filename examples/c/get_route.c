@@ -38,31 +38,29 @@ int main(int argc, char** argv) {
   // 创建线程安全的polaris api对象
   // 该方法检查当前路径下是否有polaris.yaml文件，如果有则加载该文件配置中的配置项覆盖默认配置，没有则使用默认配置
   polaris_api* polaris_api = polaris_api_new();
-  if (polaris_api == NULL) {
+  if (polaris_api == nullptr) {
     printf("create polaris api failed, see log file ~/polairs/log/polaris.log");
     return -1;
   }
 
   // 准备请求
-  polaris_get_one_instance_req* get_one_instance_req =
-      polaris_get_one_instance_req_new(argv[1], argv[2]);
-  polaris_instance* instance = NULL;
+  polaris_get_one_instance_req* get_one_instance_req = polaris_get_one_instance_req_new(argv[1], argv[2]);
+  polaris_instance* instance = nullptr;
 
   // 调用接口
   struct timeval stop, start;
   int ret;
   while (!signal_received) {
-    gettimeofday(&start, NULL);
+    gettimeofday(&start, nullptr);
     ret = polaris_api_get_one_instance(polaris_api, get_one_instance_req, &instance);
     if (ret != 0) {
       printf("get instance for service with error %s\n", polaris_get_err_msg(ret));
       sleep(1);
       continue;
     }
-    gettimeofday(&stop, NULL);
-    printf("get instance, ip: %s, port: %d, use time: %lu us\n",
-           polaris_instance_get_host(instance), polaris_instance_get_port(instance),
-           (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec);
+    gettimeofday(&stop, nullptr);
+    printf("get instance, ip: %s, port: %d, use time: %lu us\n", polaris_instance_get_host(instance),
+           polaris_instance_get_port(instance), (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec);
     usleep(interval * 1000);
     polaris_instance_destroy(&instance);
   }

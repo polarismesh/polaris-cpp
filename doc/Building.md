@@ -127,3 +127,29 @@ add_executable(main main.cpp)
 target_link_libraries(main polaris_api pthread z rt)
 
 ```
+
+## 通过Bazel引入
+
+在WORKSPACE中添加依赖：
+```
+    git_repository(
+        name = "polaris_cpp",
+        remote = "http://git.woa.com/polaris/polaris-cpp.git",
+        tag = "v0.13.1",  # 替换成需要依赖的版本
+    )
+```
+
+在WORKSPACE中加载北极星依赖：
+```
+# 可以放到比较后面，这样如果有自定义其他依赖版本，则会优先使用其他自定义版本
+load("//:polaris_deps.bzl", "polaris_deps")
+polaris_deps()
+```
+
+在BUILD中设置编译目标添加依赖：
+```
+deps = [
+        "@polaris_cpp//:polaris_api",
+    ],
+```
+

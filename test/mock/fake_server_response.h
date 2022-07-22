@@ -21,7 +21,6 @@
 
 #include "polaris/defs.h"
 #include "polaris/plugin.h"
-#include "utils/string_utils.h"
 #include "utils/utils.h"
 #include "v1/code.pb.h"
 #include "v1/response.pb.h"
@@ -29,7 +28,7 @@
 namespace polaris {
 
 class FakeServer {
-public:
+ public:
   static void SetService(v1::DiscoverResponse &response, const ServiceKey &service_key,
                          const std::string version = "init_version") {
     v1::Service *service = response.mutable_service();
@@ -50,8 +49,8 @@ public:
     SetService(response, service_key, version);
   }
 
-  static void CreateServiceInstances(v1::DiscoverResponse &response, const ServiceKey &service_key,
-                                     int instance_num, int index_begin = 0) {
+  static void CreateServiceInstances(v1::DiscoverResponse &response, const ServiceKey &service_key, int instance_num,
+                                     int index_begin = 0) {
     response.Clear();
     response.mutable_code()->set_value(v1::ExecuteSuccess);
     FakeServer::InstancesResponse(response, service_key, "version_one");
@@ -59,8 +58,8 @@ public:
       ::v1::Instance *instance = response.add_instances();
       instance->mutable_namespace_()->set_value(service_key.namespace_);
       instance->mutable_service()->set_value(service_key.name_);
-      instance->mutable_id()->set_value("instance_" + StringUtils::TypeToStr<int>(index_begin + i));
-      instance->mutable_host()->set_value("host_" + StringUtils::TypeToStr<int>(index_begin + i));
+      instance->mutable_id()->set_value("instance_" + std::to_string(index_begin + i));
+      instance->mutable_host()->set_value("host_" + std::to_string(index_begin + i));
       instance->mutable_port()->set_value(1000 + i);
       instance->mutable_weight()->set_value(100);
       instance->mutable_location()->mutable_region()->set_value("华南");
@@ -69,8 +68,7 @@ public:
     }
   }
 
-  static void CreateServiceRoute(v1::DiscoverResponse &response, const ServiceKey &service_key,
-                                 bool need_router) {
+  static void CreateServiceRoute(v1::DiscoverResponse &response, const ServiceKey &service_key, bool need_router) {
     response.Clear();
     response.mutable_code()->set_value(v1::ExecuteSuccess);
     FakeServer::RoutingResponse(response, service_key, "version_one");
@@ -96,18 +94,16 @@ public:
     }
   }
 
-  static ReturnCode InitService(LocalRegistry *local_registry, const ServiceKey &service_key,
-                                int instance_num, bool need_router) {
+  static ReturnCode InitService(LocalRegistry *local_registry, const ServiceKey &service_key, int instance_num,
+                                bool need_router) {
     ReturnCode ret_code;
-    ServiceDataNotify *data_notify = NULL;
-    ServiceData *service_data      = NULL;
-    ret_code = local_registry->LoadServiceDataWithNotify(service_key, kServiceDataInstances,
-                                                         service_data, data_notify);
+    ServiceDataNotify *data_notify = nullptr;
+    ServiceData *service_data = nullptr;
+    ret_code = local_registry->LoadServiceDataWithNotify(service_key, kServiceDataInstances, service_data, data_notify);
     if (ret_code != kReturnOk) {
       return ret_code;
     }
-    ret_code = local_registry->LoadServiceDataWithNotify(service_key, kServiceDataRouteRule,
-                                                         service_data, data_notify);
+    ret_code = local_registry->LoadServiceDataWithNotify(service_key, kServiceDataRouteRule, service_data, data_notify);
     if (ret_code != kReturnOk) {
       return ret_code;
     }
@@ -127,8 +123,7 @@ public:
     return kReturnOk;
   }
 
-  static void CreateServiceRateLimit(v1::DiscoverResponse &response, const ServiceKey &service_key,
-                                     int qps) {
+  static void CreateServiceRateLimit(v1::DiscoverResponse &response, const ServiceKey &service_key, int qps) {
     response.Clear();
     response.mutable_code()->set_value(v1::ExecuteSuccess);
     response.set_type(v1::DiscoverResponse::RATE_LIMIT);
@@ -144,8 +139,8 @@ public:
     match_string.set_type(v1::MatchString::REGEX);
     match_string.mutable_value()->set_value("v*");
     (*rule->mutable_subset())["subset"] = match_string;
-    (*rule->mutable_labels())["label"]  = match_string;
-    v1::Amount *amount                  = rule->add_amounts();
+    (*rule->mutable_labels())["label"] = match_string;
+    v1::Amount *amount = rule->add_amounts();
     amount->mutable_maxamount()->set_value(qps);
     amount->mutable_validduration()->set_seconds(1);
     rule->mutable_revision()->set_value("5483700359f342bcba4421cc58e8a9cd");

@@ -26,76 +26,78 @@
 
 namespace polaris {
 
-HttpHealthChecker::HttpHealthChecker() { timeout_ms_ = 0; }
+HttpHealthChecker::HttpHealthChecker() {}
 
 HttpHealthChecker::~HttpHealthChecker() {}
 
-ReturnCode HttpHealthChecker::Init(Config* config, Context* /*context*/) {
-  static const char kHttpRequestPathKey[]     = "path";
+ReturnCode HttpHealthChecker::Init(Config* config, Context* context) {
+  ReturnCode base_result = BaseHealthChecker::Init(config, context);
+  if (base_result != kReturnOk) return base_result;
+
+  static const char kHttpRequestPathKey[] = "path";
   static const char kHttpRequestPathDefault[] = "";
 
   request_path_ = config->GetStringOrDefault(kHttpRequestPathKey, kHttpRequestPathDefault);
   if (request_path_.empty() || request_path_[0] != '/') {
-    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s invalid", kPluginHttpHealthChecker,
-                kHttpRequestPathKey);
+    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s invalid", Name(), kHttpRequestPathKey);
     return kReturnInvalidConfig;
   }
-  timeout_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kTimeoutKey,
-                                       HealthCheckerConfig::kTimeoutDefault);
   return kReturnOk;
 }
 
-ReturnCode HttpHealthChecker::DetectInstance(Instance& instance, DetectResult& detect_result) {
-  uint64_t start_time_ms    = Time::GetCurrentTimeMs();
+const char* HttpHealthChecker::Name() { return kPluginHttpHealthChecker; }
+
+ReturnCode HttpHealthChecker::DetectInstanceOnce(Instance& instance, DetectResult& detect_result) {
+  uint64_t start_time_ms = Time::GetCoarseSteadyTimeMs();
   detect_result.detect_type = kPluginHttpHealthChecker;
   if (request_path_.empty()) {
     detect_result.return_code = kReturnInvalidConfig;
-    detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+    detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
     return kReturnInvalidConfig;
   }
-  std::string host         = instance.GetHost();
-  int port                 = instance.GetPort();
+  std::string host = instance.GetHost();
+  int port = instance.GetPort();
   std::string http_request = std::string("GET ") + request_path_ + " HTTP/1.0\r\n\r\n";
   std::string http_response;
   int retcode = NetClient::TcpSendRecv(host, port, timeout_ms_, http_request, &http_response);
   if (retcode < 0) {
     detect_result.return_code = kReturnNetworkFailed;
-    detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+    detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
     return kReturnNetworkFailed;
   }
   if (http_response.find("\r\n\r\n") == std::string::npos) {
     detect_result.return_code = kReturnServerError;
-    detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+    detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
     return kReturnServerError;
   }
   size_t pos = http_response.find("\r\n");
   if (pos == std::string::npos) {
     detect_result.return_code = kReturnServerError;
-    detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+    detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
     return kReturnServerError;
   }
   std::string status_line = StringUtils::StringTrim(http_response.substr(0, pos));
-  pos                     = status_line.find(' ');
+  pos = status_line.find(' ');
   if (pos == std::string::npos) {
     detect_result.return_code = kReturnServerError;
-    detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+    detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
     return kReturnServerError;
   }
   status_line = StringUtils::StringTrim(status_line.substr(pos));
-  pos         = status_line.find(' ');
+  pos = status_line.find(' ');
   if (pos == std::string::npos) {
     detect_result.return_code = kReturnServerError;
-    detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+    detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
     return kReturnServerError;
   }
   int status_code = atoi(status_line.substr(0, pos).c_str());
   if (status_code < 100 || status_code >= 400) {
     detect_result.return_code = kReturnServerError;
-    detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+    detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
     return kReturnServerError;
   }
   detect_result.return_code = kReturnOk;
-  detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+  detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
   return kReturnOk;
 }
 

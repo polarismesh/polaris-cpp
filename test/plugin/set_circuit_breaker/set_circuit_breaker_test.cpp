@@ -32,31 +32,31 @@
 namespace polaris {
 
 class SetCircuitBreakerChainTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
     context_ = TestContext::CreateContext();
     TestUtils::SetUpFakeTime();
     std::string err_msg, content = "enable:\n  true";
     default_config_ = Config::CreateFromString(content, err_msg);
-    POLARIS_ASSERT(default_config_ != NULL && err_msg.empty());
+    POLARIS_ASSERT(default_config_ != nullptr && err_msg.empty());
     service_key_.namespace_ = "test_service_namespace";
-    service_key_.name_      = "test_service_name";
-    mock_local_registry_    = TestContext::SetupMockLocalRegistry(context_);
-    chain_                  = new SetCircuitBreakerImpl(service_key_);
+    service_key_.name_ = "test_service_name";
+    mock_local_registry_ = TestContext::SetupMockLocalRegistry(context_);
+    chain_ = new SetCircuitBreakerImpl(service_key_);
     SetRegistryData();
   }
 
   virtual void TearDown() {
-    if (default_config_ != NULL) delete default_config_;
-    if (chain_ != NULL) delete chain_;
-    if (mock_local_registry_ != NULL) {
+    if (default_config_ != nullptr) delete default_config_;
+    if (chain_ != nullptr) delete chain_;
+    if (mock_local_registry_ != nullptr) {
       // mock_local_registry_->DeleteNotify();
       for (size_t i = 0; i < mock_local_registry_->service_data_list_.size(); ++i) {
         mock_local_registry_->service_data_list_[i]->DecrementAndGetRef();
       }
     }
     TestUtils::TearDownFakeTime();
-    if (context_ != NULL) delete context_;
+    if (context_ != nullptr) delete context_;
   }
 
   void SetRegistryData() {
@@ -66,7 +66,7 @@ protected:
     response.mutable_circuitbreaker()->mutable_name()->set_value("test");
     response.mutable_circuitbreaker()->mutable_service()->set_value("name1");
     response.mutable_circuitbreaker()->mutable_revision()->set_value("v2112");
-    v1::CbRule* rule          = response.mutable_circuitbreaker()->mutable_inbounds()->Add();
+    v1::CbRule* rule = response.mutable_circuitbreaker()->mutable_inbounds()->Add();
     v1::SourceMatcher* source = rule->mutable_sources()->Add();
     source->mutable_namespace_()->set_value("*");
     source->mutable_service()->set_value("*");
@@ -74,10 +74,10 @@ protected:
     ms.mutable_value()->set_value(".*");
     ms.set_type(v1::MatchString_MatchStringType_REGEX);
     (*source->mutable_labels())["l1"] = ms;
-    v1::DestinationSet* dst           = rule->mutable_destinations()->Add();
+    v1::DestinationSet* dst = rule->mutable_destinations()->Add();
     dst->mutable_namespace_()->set_value("*");
     dst->mutable_service()->set_value("*");
-    (*dst->mutable_metadata())["k1"]     = ms;
+    (*dst->mutable_metadata())["k1"] = ms;
     v1::CbPolicy_ErrRateConfig* err_rate = dst->mutable_policy()->mutable_errorrate();
     err_rate->mutable_enable()->set_value(true);
     err_rate->mutable_errorratetopreserved()->set_value(10);
@@ -93,7 +93,7 @@ protected:
     ASSERT_EQ(ret, kReturnOk);
   }
 
-protected:
+ protected:
   Config* default_config_;
   ServiceKey service_key_;
   Context* context_;
@@ -109,7 +109,7 @@ TEST_F(SetCircuitBreakerChainTest, TestRealTime01) {
   SubSetInfo sub;
   sub.subset_map_["k1"] = "v1";
   sub.subset_map_["k2"] = "v2";
-  std::string ret       = sub.GetSubInfoStrId();
+  std::string ret = sub.GetSubInfoStrId();
   ASSERT_EQ(ret, "k1:v1|k2:v2");
 }
 

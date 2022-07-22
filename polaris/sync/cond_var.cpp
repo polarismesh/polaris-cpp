@@ -13,59 +13,40 @@
 
 #include "cond_var.h"
 
-#include <errno.h>
-#include <time.h>
-
-#include "utils/time_clock.h"
-
 namespace polaris {
 
 namespace sync {
-
-CondVar::CondVar() { pthread_cond_init(&cond_, NULL); }
-
-CondVar::~CondVar() { pthread_cond_destroy(&cond_); }
-
-int CondVar::Wait(Mutex& mutex, timespec& ts) {
-  return pthread_cond_timedwait(&cond_, &mutex.mutex_, &ts);
-}
-
-void CondVar::Signal() { pthread_cond_signal(&cond_); }
-
-void CondVar::Broadcast() { pthread_cond_broadcast(&cond_); }
 
 CondVarNotify::CondVarNotify() : notified_(false) {}
 
 CondVarNotify::~CondVarNotify() {}
 
-bool CondVarNotify::Wait(uint64_t timeout) {
+bool CondVarNotify::WaitFor(uint64_t timeout) {
   if (notified_) return true;  // 已经就绪直接返回
-
-  timespec ts = Time::CurrentTimeAddWith(timeout);
-  return Wait(ts);
+  return WaitUntil(std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout));
 }
 
-bool CondVarNotify::Wait(timespec& ts) {
+bool CondVarNotify::WaitUntil(const std::chrono::steady_clock::time_point& time_point) {
   if (notified_) return true;  // 已经就绪直接返回
-  MutexGuard mutex_guard(mutex_);
-  while (!notified_) {
-    if (cond_.Wait(mutex_, ts) == ETIMEDOUT) {
-      break;
-    }
-  }
+  std::unique_lock<std::mutex> mutex_guard(mutex_);
+  cond_.wait_until(mutex_guard, time_point, [=] { return notified_; });
   return notified_;
 }
 
 void CondVarNotify::Notify() {
-  MutexGuard mutex_guard(mutex_);
-  notified_ = true;
-  cond_.Signal();
+  {
+    std::lock_guard<std::mutex> mutex_guard(mutex_);
+    notified_ = true;
+  }
+  cond_.notify_one();
 }
 
 void CondVarNotify::NotifyAll() {
-  MutexGuard mutex_guard(mutex_);
-  notified_ = true;
-  cond_.Broadcast();
+  {
+    std::lock_guard<std::mutex> mutex_guard(mutex_);
+    notified_ = true;
+  }
+  cond_.notify_all();
 }
 
 };  // namespace sync

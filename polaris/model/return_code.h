@@ -29,32 +29,32 @@ enum PolarisServerCode {
   kServerCodeReturnOk = 2000,  // 服务器返回正常
 
   // 以下五个错误码需要触发熔断
-  kServerCodeConnectError    = 2001,  // 服务器连接超时
-  kServerCodeServerError     = 2002,  // 服务器返回500错误
-  kServerCodeRpcError        = 2003,  // RPC调用出错
-  kServerCodeRpcTimeout      = 2004,  // RPC调用超时
+  kServerCodeConnectError = 2001,     // 服务器连接超时
+  kServerCodeServerError = 2002,      // 服务器返回500错误
+  kServerCodeRpcError = 2003,         // RPC调用出错
+  kServerCodeRpcTimeout = 2004,       // RPC调用超时
   kServerCodeInvalidResponse = 2005,  // 服务器应答不合法
 
   kServerCodeInvalidRequest = 2006,  // 服务器返回请求不合法
-  kServerCodeUnauthorized   = 2007,  // 请求未授权
-  kServerCodeRequestLimit   = 2008,  // 请求被限流
-  kServerCodeCmdbNotFound   = 2009,  // 获取CMDB失败
-  kServerCodeUnknownError   = 2100,  // 未知错误码
+  kServerCodeUnauthorized = 2007,    // 请求未授权
+  kServerCodeRequestLimit = 2008,    // 请求被限流
+  kServerCodeCmdbNotFound = 2009,    // 获取CMDB失败
+  kServerCodeRemoteClose = 2010,     // 服务器关闭链接
+  kServerCodeUnknownError = 2100,    // 未知错误码
 };
 
 PolarisServerCode ToPolarisServerCode(uint32_t code);
 
 // API返回码类型
 enum ReturnCodeType {
-  kReturnCodeTypeUnknow      = 0,  // 调用成功
-  kReturnCodeTypeSucc        = 1,  // 调用成功
-  kReturnCodeTypeUserFail    = 2,  // 业务错误
-  kReturnCodeTypePolarisFail = 3   // 北极星Server或SDK错误
+  kReturnCodeTypeUnknow = 0,      // 调用成功
+  kReturnCodeTypeSucc = 1,        // 调用成功
+  kReturnCodeTypeUserFail = 2,    // 业务错误
+  kReturnCodeTypePolarisFail = 3  // 北极星Server或SDK错误
 };
 
 struct ReturnCodeInfo {
-  ReturnCodeInfo(const char* message, const char* str_code, ReturnCodeType type,
-                 std::size_t stat_index)
+  ReturnCodeInfo(const char* message, const char* str_code, ReturnCodeType type, std::size_t stat_index)
       : message_(message), str_code_(str_code), type_(type), stat_index_(stat_index) {}
   const char* message_;     // 返回码对应的消息
   const char* str_code_;    // 返回码上报字符串

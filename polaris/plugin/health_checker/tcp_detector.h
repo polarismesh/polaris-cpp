@@ -18,6 +18,7 @@
 
 #include <string>
 
+#include "plugin/health_checker/health_checker.h"
 #include "polaris/defs.h"
 #include "polaris/plugin.h"
 
@@ -27,20 +28,21 @@ class Config;
 class Context;
 class Instance;
 
-class TcpHealthChecker : public HealthChecker {
-public:
+class TcpHealthChecker : public BaseHealthChecker {
+ public:
   TcpHealthChecker();
 
   virtual ~TcpHealthChecker();
 
   virtual ReturnCode Init(Config* config, Context* context);
 
-  virtual ReturnCode DetectInstance(Instance& instance, DetectResult& detect_result);
+ private:
+  virtual ReturnCode DetectInstanceOnce(Instance& instance, DetectResult& detect_result);
 
-private:
+  virtual const char* Name();
+
   std::string send_package_;
   std::string receive_package_;
-  uint64_t timeout_ms_;
 };
 
 }  // namespace polaris

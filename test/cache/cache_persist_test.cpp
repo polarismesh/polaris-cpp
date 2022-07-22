@@ -35,13 +35,13 @@ namespace polaris {
 static Config *CreateConfig(const std::string &content) {
   std::string err_msg;
   Config *config = Config::CreateFromString(content, err_msg);
-  EXPECT_TRUE(config != NULL && err_msg.empty());
+  EXPECT_TRUE(config != nullptr && err_msg.empty());
   return config;
 }
 
 TEST(CachePersistConfigTest, TestInitDefault) {
   Config *config = CreateConfig("");
-  ASSERT_TRUE(config != NULL);
+  ASSERT_TRUE(config != nullptr);
   CachePersistConfig persist_config;
   ASSERT_TRUE(persist_config.Init(config));
   delete config;
@@ -52,7 +52,7 @@ TEST(CachePersistConfigTest, TestInitDefault) {
 
 TEST(CachePersistConfigTest, TestErrorMaxWriteRetry) {
   Config *config = CreateConfig("persistMaxWriteRetry: -1");
-  ASSERT_TRUE(config != NULL);
+  ASSERT_TRUE(config != nullptr);
   CachePersistConfig persist_config;
   ASSERT_FALSE(persist_config.Init(config));
   delete config;
@@ -60,28 +60,28 @@ TEST(CachePersistConfigTest, TestErrorMaxWriteRetry) {
 
 TEST(CachePersistConfigTest, TestErrorRetryInterval) {
   Config *config = CreateConfig("persistRetryInterval: 0");
-  ASSERT_TRUE(config != NULL);
+  ASSERT_TRUE(config != nullptr);
   CachePersistConfig persist_config;
   ASSERT_FALSE(persist_config.Init(config));
   delete config;
 }
 
 class CachePersistTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
     cache_persist = new CachePersist(reactor_);
     ASSERT_TRUE(TestUtils::CreateTempDir(persist_dir_));
     std::string content = "persistDir: " + persist_dir_;
-    Config *config      = CreateConfig(content);
-    ASSERT_TRUE(config != NULL);
+    Config *config = CreateConfig(content);
+    ASSERT_TRUE(config != nullptr);
     ASSERT_EQ(cache_persist->Init(config), kReturnOk);
     delete config;
   }
 
   virtual void TearDown() {
-    if (cache_persist != NULL) {
+    if (cache_persist != nullptr) {
       delete cache_persist;
-      cache_persist = NULL;
+      cache_persist = nullptr;
     }
     reactor_.Stop();
     if (!persist_dir_.empty()) {
@@ -89,7 +89,7 @@ protected:
     }
   }
 
-protected:
+ protected:
   Reactor reactor_;
   std::string persist_dir_;
   CachePersist *cache_persist;
@@ -102,13 +102,13 @@ TEST_F(CachePersistTest, LoadFromNonexistDir) {
     ASSERT_TRUE(TestUtils::RemoveDir(persist_dir));
   }
   std::string content = "persistDir: " + persist_dir;
-  Config *config      = CreateConfig(content);
-  ASSERT_TRUE(config != NULL);
+  Config *config = CreateConfig(content);
+  ASSERT_TRUE(config != nullptr);
   ASSERT_EQ(cache_persist->Init(config), kReturnOk);
   delete config;
 
-  Location *location = cache_persist->LoadLocation();
-  ASSERT_TRUE(location == NULL);
+  std::unique_ptr<Location> location = cache_persist->LoadLocation();
+  ASSERT_TRUE(location == nullptr);
 
   ASSERT_TRUE(FileUtils::FileExists(persist_dir));
   TestUtils::RemoveDir(persist_dir);
@@ -117,22 +117,21 @@ TEST_F(CachePersistTest, LoadFromNonexistDir) {
 TEST_F(CachePersistTest, PersistAndDeleteServiceData) {
   ServiceKey service_key = {"test", "test.cache"};
   for (int i = 0; i < 10; ++i) {
-    ServiceData *service_data = NULL;
+    ServiceData *service_data = nullptr;
     if (i % 3 == 0) {
       v1::DiscoverResponse response;
       FakeServer::CreateServiceInstances(response, service_key, 10 + i);
       service_data = ServiceData::CreateFromPb(&response, kDataIsSyncing);
     }
-    std::string data = service_data != NULL ? service_data->ToJsonString() : "";
+    std::string data = service_data != nullptr ? service_data->ToJsonString() : "";
     cache_persist->PersistServiceData(service_key, kServiceDataInstances, data);
     reactor_.RunOnce();
 
-    Location *load_location = cache_persist->LoadLocation();
-    ServiceData *disk_service_data =
-        cache_persist->LoadServiceData(service_key, kServiceDataInstances);
-    ASSERT_TRUE(load_location == NULL);
-    if (service_data != NULL) {
-      ASSERT_TRUE(disk_service_data != NULL);
+    std::unique_ptr<Location> load_location = cache_persist->LoadLocation();
+    ServiceData *disk_service_data = cache_persist->LoadServiceData(service_key, kServiceDataInstances);
+    ASSERT_TRUE(load_location == nullptr);
+    if (service_data != nullptr) {
+      ASSERT_TRUE(disk_service_data != nullptr);
       service_data->DecrementRef();
       disk_service_data->DecrementRef();
     }
@@ -141,16 +140,15 @@ TEST_F(CachePersistTest, PersistAndDeleteServiceData) {
 
 TEST_F(CachePersistTest, PersistAndLoadLocation) {
   for (int i = 0; i < 10; ++i) {
-    Location persist_location = {"华南", "深圳", "大学城" + StringUtils::TypeToStr(i)};
+    Location persist_location = {"华南", "深圳", "大学城" + std::to_string(i)};
     cache_persist->PersistLocation(persist_location);
     reactor_.RunOnce();
 
-    Location *load_location = cache_persist->LoadLocation();
-    ASSERT_TRUE(load_location != NULL);
+    std::unique_ptr<Location> load_location = cache_persist->LoadLocation();
+    ASSERT_TRUE(load_location != nullptr);
     ASSERT_EQ(persist_location.region, load_location->region);
     ASSERT_EQ(persist_location.zone, load_location->zone);
     ASSERT_EQ(persist_location.campus, load_location->campus);
-    delete load_location;
   }
 }
 
@@ -158,23 +156,21 @@ TEST_F(CachePersistTest, PersistAndLoad) {
   int count = 10;
   ServiceData *disk_service_data;
   for (int i = 1; i <= count; ++i) {
-    ServiceKey service_key = {"test", "test.cache" + StringUtils::TypeToStr(i)};
+    ServiceKey service_key = {"test", "test.cache" + std::to_string(i)};
     v1::DiscoverResponse response;
     FakeServer::CreateServiceInstances(response, service_key, i);
     ServiceData *service_data = ServiceData::CreateFromPb(&response, kDataIsSyncing);
-    cache_persist->PersistServiceData(service_key, kServiceDataInstances,
-                                      service_data->ToJsonString());
-    Location persist_location = {"华南", "深圳", "大学城" + StringUtils::TypeToStr(i)};
+    cache_persist->PersistServiceData(service_key, kServiceDataInstances, service_data->ToJsonString());
+    Location persist_location = {"华南", "深圳", "大学城" + std::to_string(i)};
     cache_persist->PersistLocation(persist_location);
     reactor_.RunOnce();
     service_data->DecrementRef();
     disk_service_data = cache_persist->LoadServiceData(service_key, kServiceDataInstances);
-    ASSERT_TRUE(disk_service_data != NULL);
+    ASSERT_TRUE(disk_service_data != nullptr);
     disk_service_data->DecrementRef();
   }
-  Location *load_location = cache_persist->LoadLocation();
-  ASSERT_TRUE(load_location != NULL);
-  delete load_location;
+  std::unique_ptr<Location> load_location = cache_persist->LoadLocation();
+  ASSERT_TRUE(load_location != nullptr);
 }
 
 struct ThreadArg {
@@ -194,11 +190,11 @@ void *PersistThreadFunc(void *arg) {
   }
   reactor.RunOnce();
   reactor.Stop();
-  return NULL;
+  return nullptr;
 }
 
 class MultiThreadPersistTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() { ASSERT_TRUE(TestUtils::CreateTempDir(persist_dir_)); }
 
   virtual void TearDown() {
@@ -207,23 +203,23 @@ protected:
     }
   }
 
-protected:
+ protected:
   std::string persist_dir_;
 };
 
 // 多线程持久化校验
 TEST_F(MultiThreadPersistTest, TestDoPersist) {
-  int thread_size  = 4;
+  int thread_size = 4;
   std::string file = persist_dir_ + "/polaris_data.bin";
   ThreadArg thread_arg[thread_size];
   for (int i = 0; i < thread_size; ++i) {
     thread_arg[i].file = file;
-    thread_arg[i].ch   = 'A' + i;
-    int rc = pthread_create(&thread_arg[i].tid, NULL, PersistThreadFunc, &thread_arg[i]);
+    thread_arg[i].ch = 'A' + i;
+    int rc = pthread_create(&thread_arg[i].tid, nullptr, PersistThreadFunc, &thread_arg[i]);
     ASSERT_EQ(rc, 0);
   }
   for (int i = 0; i < thread_size; ++i) {
-    int rc = pthread_join(thread_arg[i].tid, NULL);
+    int rc = pthread_join(thread_arg[i].tid, nullptr);
     ASSERT_EQ(rc, 0);
   }
   std::ifstream input_file(file.c_str());

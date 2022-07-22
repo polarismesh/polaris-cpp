@@ -29,11 +29,11 @@
 namespace polaris {
 
 class ConfigTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {}
 
   virtual void TearDown() {
-    if (config_ != NULL) {
+    if (config_ != nullptr) {
       delete config_;
     }
   }
@@ -48,7 +48,7 @@ TEST_F(ConfigTest, TestCreateConfigFromFile) {
   // 从不存在的文件创建配置失败
   config_ = Config::CreateFromFile("not_exist.file", err_msg_);
   ASSERT_FALSE(err_msg_.empty());
-  ASSERT_TRUE(config_ == NULL);
+  ASSERT_TRUE(config_ == nullptr);
 
   // 创建临时文件
   std::string temp_file;
@@ -56,7 +56,7 @@ TEST_F(ConfigTest, TestCreateConfigFromFile) {
 
   // 从该临时文件创建配置成功
   config_ = Config::CreateFromFile(temp_file, err_msg_);
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
 
   FileUtils::RemoveFile(temp_file);
 }
@@ -66,13 +66,13 @@ TEST_F(ConfigTest, TestCreateConfigFromString) {
   // 从非法的字符串创建配置失败
   config_ = Config::CreateFromString("[,,,", err_msg_);
   ASSERT_FALSE(err_msg_.empty());
-  ASSERT_TRUE(config_ == NULL);
+  ASSERT_TRUE(config_ == nullptr);
 
   std::string content = "{int: 1, string: string, string_seq: [seq1, seq2], path1.path2: file}";
   // 从该合法字符串创建成功，并能成功读取到数据
   err_msg_.clear();
   config_ = Config::CreateFromString(content, err_msg_);
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
   ASSERT_TRUE(err_msg_.empty());
   ASSERT_EQ(config_->GetIntOrDefault("int", -1), 1);
   ASSERT_EQ(config_->GetStringOrDefault("string", ""), "string");
@@ -86,10 +86,10 @@ TEST_F(ConfigTest, TestCreateConfigFromString) {
 // 创建空配置
 TEST_F(ConfigTest, TestCreateEmptyConfig) {
   config_ = Config::CreateEmptyConfig();
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
 
   Config *another_config = Config::CreateEmptyConfig();
-  ASSERT_TRUE(another_config != NULL);
+  ASSERT_TRUE(another_config != nullptr);
 
   // 两次返回的对象必须不一样，这样对其进行修改不会相互影响
   ASSERT_TRUE(config_ != another_config);
@@ -102,20 +102,20 @@ TEST_F(ConfigTest, TestGetSubConfig) {
       "{\"root\": {\"sub1\": {\"key1\": \"value11\", \"key2\": \"value12\"}, "
       "\"sub2\": {\"key1\": \"value21\"}}}";
   config_ = Config::CreateFromString(content_, err_msg_);
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
   ASSERT_TRUE(err_msg_.empty());
 
   Config *sub_config = config_->GetSubConfig("root");
-  ASSERT_TRUE(sub_config != NULL);
+  ASSERT_TRUE(sub_config != nullptr);
 
   Config *sub1 = sub_config->GetSubConfig("sub1");
-  ASSERT_TRUE(sub1 != NULL);
+  ASSERT_TRUE(sub1 != nullptr);
   EXPECT_EQ(sub1->GetStringOrDefault("key1", ""), "value11");
   EXPECT_EQ(sub1->GetStringOrDefault("key2", ""), "value12");
   delete sub1;
 
   Config *sub2 = sub_config->GetSubConfig("sub2");
-  ASSERT_TRUE(sub2 != NULL);
+  ASSERT_TRUE(sub2 != nullptr);
   EXPECT_EQ(sub2->GetStringOrDefault("key1", ""), "value21");
   delete sub2;
   delete sub_config;
@@ -136,7 +136,7 @@ TEST_F(ConfigTest, TestGetEmptyConfig) {
   ASSERT_EQ(config_->GetStringOrDefault("string", "value"), "value");
 
   Config *sub_config = config_->GetSubConfig("sub_config");
-  ASSERT_TRUE(sub_config != NULL);
+  ASSERT_TRUE(sub_config != nullptr);
   delete sub_config;
 }
 
@@ -155,7 +155,7 @@ TEST_F(ConfigTest, TestGetStringOrDefault) {
       "  - 2\n"
       "str_list: 1,2";
   config_ = Config::CreateFromString(content_, err_msg_);
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
   ASSERT_TRUE(err_msg_.empty());
 
   EXPECT_EQ(config_->GetStringOrDefault("int", ""), "1");
@@ -175,7 +175,7 @@ TEST_F(ConfigTest, ToStringWithDefaultValue) {
       "key1:\n"
       "  42";
   config_ = Config::CreateFromString(content_, err_msg_);
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
   ASSERT_TRUE(err_msg_.empty());
 
   EXPECT_EQ(config_->GetStringOrDefault("key1", "default"), "42");
@@ -194,7 +194,7 @@ TEST_F(ConfigTest, TestGetIntOrDefault) {
       "str:\n"
       "  value";
   config_ = Config::CreateFromString(content_, err_msg_);
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
   ASSERT_TRUE(err_msg_.empty());
 
   EXPECT_EQ(config_->GetIntOrDefault("int1", 0), 100);
@@ -221,7 +221,7 @@ TEST_F(ConfigTest, TestGetBoolOrDefault) {
       "string:\n"
       "  value";
   config_ = Config::CreateFromString(content_, err_msg_);
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
   ASSERT_TRUE(err_msg_.empty());
 
   EXPECT_EQ(config_->GetBoolOrDefault("bool1", false), true);
@@ -231,8 +231,7 @@ TEST_F(ConfigTest, TestGetBoolOrDefault) {
   EXPECT_EQ(config_->GetBoolOrDefault("not_exist_key", false), false);
   EXPECT_EQ(config_->GetBoolOrDefault("not_exist_key2", true), true);
 
-  EXPECT_EQ(config_->ToString(),
-            "bool1: true\nbool2: false\nnot_exist_key: false\nnot_exist_key2: true");
+  EXPECT_EQ(config_->ToString(), "bool1: true\nbool2: false\nnot_exist_key: false\nnot_exist_key2: true");
   EXPECT_EQ(config_->ToJsonString(),
             "{\"bool1\": true, \"bool2\": false,"
             " \"not_exist_key\": false, \"not_exist_key2\": true}");
@@ -253,7 +252,7 @@ TEST_F(ConfigTest, TestGetFloatOrDefault) {
       "string:\n"
       "  value";
   config_ = Config::CreateFromString(content_, err_msg_);
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
   ASSERT_TRUE(err_msg_.empty());
 
   EXPECT_FLOAT_EQ(config_->GetFloatOrDefault("float1", 0), 0.8);
@@ -289,7 +288,7 @@ TEST_F(ConfigTest, TestGetMsOrDefault) {
       "negative:\n"
       "  -100";
   config_ = Config::CreateFromString(content_, err_msg_);
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
   ASSERT_TRUE(err_msg_.empty());
 
   ASSERT_EQ(config_->GetMsOrDefault("hour", 0), 2 * 60 * 60 * 1000);
@@ -323,7 +322,7 @@ TEST_F(ConfigTest, TestGetListOrDefault) {
       "list2: [3, 4]\n"
       "string: value";
   config_ = Config::CreateFromString(content_, err_msg_);
-  ASSERT_TRUE(config_ != NULL);
+  ASSERT_TRUE(config_ != nullptr);
   ASSERT_TRUE(err_msg_.empty());
 
   std::vector<std::string> list;
@@ -382,7 +381,7 @@ TEST_F(ConfigTest, TestGetMap) {
       "map3:\n"
       "  k1";
   config_ = Config::CreateFromString(content_, err_msg_);
-  ASSERT_TRUE(config_ != NULL) << err_msg_;
+  ASSERT_TRUE(config_ != nullptr) << err_msg_;
   ASSERT_TRUE(err_msg_.empty());
 
   std::map<std::string, std::string> map;
@@ -401,11 +400,57 @@ TEST_F(ConfigTest, TestGetMap) {
   map = config_->GetMap("map3");
   ASSERT_TRUE(map.empty());
 
-  EXPECT_EQ(config_->ToString(),
-            "map0:\n  {}\nmap1:\n  k1: v1\n  k2: v2\nmap2:\n  k1: v1\nmap3:\n  {}");
+  EXPECT_EQ(config_->ToString(), "map0:\n  {}\nmap1:\n  k1: v1\n  k2: v2\nmap2:\n  k1: v1\nmap3:\n  {}");
   EXPECT_EQ(config_->ToJsonString(),
             "{\"map0\": {}, \"map1\": {\"k1\": \"v1\", \"k2\": \"v2\"}, \"map2\": {\"k1\": "
             "\"v1\"}, \"map3\": {}}");
+}
+
+TEST_F(ConfigTest, TestSubConfig) {
+  content_ = R"###(
+service:
+  - name: service.name1  # 服务名
+    namespace: Test      # 服务所属命名空间
+    serviceRouter:       # 服务级路由配置
+      plugin:
+        nearbyBasedRouter:
+          matchLevel: campus
+  - name: service.name2  # 服务名
+    namespace: Test      # 服务所属命名空间
+    loadBalancer:        # 服务级负载均衡配置
+      type: ringHash
+      vnodeCount: 10240
+)###";
+
+  config_ = Config::CreateFromString(content_, err_msg_);
+  ASSERT_TRUE(config_ != nullptr) << err_msg_;
+  ASSERT_TRUE(err_msg_.empty());
+
+  auto service_config = config_->GetSubConfigList("service");
+  for (auto item : service_config) {
+    ASSERT_TRUE(item->GetStringOrDefault("name", "").find("service.name") != std::string::npos);
+    ASSERT_EQ(item->GetStringOrDefault("namespace", ""), "Test");
+    delete item;
+  }
+  ASSERT_FALSE(config_->ToString().empty());
+}
+
+TEST_F(ConfigTest, TestSubConfigExist) {
+  content_ = R"###(
+loadBalancer:
+  type: ringHash
+  vnodeCount: 10240
+)###";
+
+  config_ = Config::CreateFromString(content_, err_msg_);
+  ASSERT_TRUE(config_ != nullptr) << err_msg_;
+  ASSERT_TRUE(err_msg_.empty());
+
+  ASSERT_TRUE(config_->SubConfigExist("loadBalancer"));
+  ASSERT_FALSE(config_->SubConfigExist("circuitBreaker"));
+  auto sub_config = config_->GetSubConfig("loadBalancer");
+  ASSERT_TRUE(sub_config->SubConfigExist("vnodeCount"));
+  delete sub_config;
 }
 
 }  // namespace polaris

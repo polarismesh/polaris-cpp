@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
       "    connectTimeout: 250ms\n";
 
   polaris::LimitApi* limit_api = polaris::LimitApi::CreateFromString(config);
-  assert(limit_api != NULL);
+  assert(limit_api != nullptr);
 
   delete limit_api;
   return 0;

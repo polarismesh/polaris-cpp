@@ -24,19 +24,18 @@ namespace polaris {
 
 // 针对label的key和value构建的索引
 class RateLimitRuleSubIndex {
-public:
+ public:
   // 插入规则
-  void AddRule(RateLimitRule* rule,
-               const std::map<std::string, MatchString>::const_iterator& label_it,
+  void AddRule(RateLimitRule* rule, const std::map<std::string, MatchString>::const_iterator& label_it,
                const std::map<std::string, MatchString>::const_iterator& label_end);
 
   // 用当前索引查询rule
   RateLimitRule* Search(const std::string& value, const std::map<std::string, std::string>& subset,
                         const std::map<std::string, std::string>& labels) const;
 
-private:
+ private:
   // value -> rule 最后一个label的value的索引
-  std::map<std::string, RateLimitRule*> value_index_;
+  std::map<std::string, std::vector<RateLimitRule*> > value_index_;
 
   // value -> <key, sub_index>  非最后一个label的value，指向下一个label的key
   std::map<std::string, std::map<std::string, RateLimitRuleSubIndex> > sub_index_;
@@ -44,7 +43,7 @@ private:
 
 // 限流规则索引
 class RateLimitRuleIndex {
-public:
+ public:
   // 插入规则索引
   void AddRule(RateLimitRule* rule);
 
@@ -52,7 +51,7 @@ public:
   RateLimitRule* MatchRule(const std::map<std::string, std::string>& subset,
                            const std::map<std::string, std::string>& labels) const;
 
-private:
+ private:
   std::vector<RateLimitRule*> rules_;  // 没有精确匹配label
 
   // <key, index> 第一个精确匹配的label的key的索引

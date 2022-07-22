@@ -16,27 +16,24 @@
 
 #include <string>
 
-namespace YAML_0_3 {
-class Emitter;
-class Node;
-}  // namespace YAML_0_3
+#include <yaml-cpp/yaml.h>
 
 namespace polaris {
 
 // 配置接口实现
 class ConfigImpl {
-public:
+ public:
   ConfigImpl();
 
   // 用于构造根配置
   explicit ConfigImpl(YAML_0_3::Node* data);
 
   // 用于构造子配置
-  ConfigImpl(YAML_0_3::Node* data, YAML_0_3::Emitter* emitter, YAML_0_3::Emitter* json_emitter);
+  ConfigImpl(YAML_0_3::Node* data, YAML_0_3::Emitter* emitter, YAML_0_3::Emitter* json_emitter, const std::string& key);
 
   ~ConfigImpl();
 
-private:
+ private:
   friend class Config;
   template <typename T>
   friend T GetOrDefault(ConfigImpl* impl_, const std::string& key, const T& default_value);
@@ -45,6 +42,7 @@ private:
   YAML_0_3::Node* data_;
   YAML_0_3::Emitter* emitter_;
   YAML_0_3::Emitter* json_emitter_;
+  std::string root_;
 };
 
 }  // namespace polaris

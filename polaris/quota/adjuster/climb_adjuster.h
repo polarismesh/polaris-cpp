@@ -19,8 +19,8 @@
 
 #include <vector>
 
-#include "grpc/client.h"
 #include "metric/metric_connector.h"
+#include "network/grpc/client.h"
 #include "polaris/defs.h"
 #include "quota/adjuster/climb_config.h"
 #include "quota/adjuster/quota_adjuster.h"
@@ -39,7 +39,7 @@ class Reactor;
 class RemoteAwareBucket;
 
 class ClimbAdjuster : public QuotaAdjuster {
-public:
+ public:
   ClimbAdjuster(Reactor& reactor, MetricConnector* connector, RemoteAwareBucket* remote_bucket);
 
   virtual ~ClimbAdjuster();
@@ -47,7 +47,7 @@ public:
   // 初始化，配置未开启调整则返回kReturnInvalidConfig
   virtual ReturnCode Init(RateLimitRule* rule);
 
-  virtual void RecordResult(const LimitCallResult& call_result);
+  virtual void RecordResult(const LimitCallResult::Impl& request);
 
   virtual void MakeDeleted();
 
@@ -70,14 +70,14 @@ public:
 
   void QueryCallback(ReturnCode ret_code, v1::MetricResponse* response);
 
-private:
+ private:
   void SendInitRequest();
 
   void UpdateLocalTIme(int64_t service_time, uint64_t elapsed_time);
 
   int64_t GetServerTime();
 
-private:
+ private:
   v1::MetricKey metric_key_;
   v1::MetricRequest report_request_;
   bool is_deleted_;
@@ -96,7 +96,7 @@ private:
 
 // 初始化或同步应答回调
 class MetricResponseCallback : public grpc::RpcCallback<v1::MetricResponse> {
-public:
+ public:
   MetricResponseCallback(ClimbAdjuster* adjuster_, MetricRpcType rpc_type);
 
   virtual ~MetricResponseCallback();
@@ -105,7 +105,7 @@ public:
 
   virtual void OnError(ReturnCode ret_code);
 
-private:
+ private:
   ClimbAdjuster* adjuster_;
   MetricRpcType rpc_type_;
   uint64_t begin_time_;

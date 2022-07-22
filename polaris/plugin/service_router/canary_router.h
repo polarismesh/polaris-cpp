@@ -17,23 +17,15 @@
 #include <set>
 #include <string>
 #include <vector>
-#include "polaris/defs.h"
-#include "polaris/plugin.h"
+
+#include "cache/service_cache.h"
+#include "plugin/service_router/service_router.h"
 
 namespace polaris {
 
-class Config;
-class Context;
-class Instance;
-class RouteInfo;
-class RouteResult;
-struct CanaryCacheKey;
-template <typename K>
-class ServiceCache;
-
 // 就近路由的实现
 class CanaryServiceRouter : public ServiceRouter {
-public:
+ public:
   CanaryServiceRouter();
 
   virtual ~CanaryServiceRouter();
@@ -44,16 +36,16 @@ public:
 
   virtual RouterStatData* CollectStat();
 
-private:
-  bool CalculateResult(const std::vector<Instance*>& instances,
-                       const std::set<Instance*>& unhealthy_set, std::vector<Instance*>& result);
+ private:
+  bool CalculateResult(const std::vector<Instance*>& instances, const std::set<Instance*>& unhealthy_set,
+                       std::vector<Instance*>& result);
 
   bool CalculateResult(const std::vector<Instance*>& instances, const std::string& canary_value,
                        const std::set<Instance*>& unhealthy_set, std::vector<Instance*>& result);
 
-private:
+ private:
   Context* context_;
-  ServiceCache<CanaryCacheKey>* router_cache_;  // 路由结果缓存
+  ServiceCache<CanaryCacheKey, RouterSubsetCache>* router_cache_;  // 路由结果缓存
 };
 
 }  // namespace polaris

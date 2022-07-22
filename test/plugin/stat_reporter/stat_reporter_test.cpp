@@ -20,25 +20,23 @@
 #include <gtest/gtest.h>
 #include <pthread.h>
 
-#include "utils/string_utils.h"
-
 namespace polaris {
 
 class StatReporterTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
     stat_reporter_ = new MonitorStatReporter();
-    ASSERT_TRUE(stat_reporter_ != NULL);
+    ASSERT_TRUE(stat_reporter_ != nullptr);
   }
 
   virtual void TearDown() {
-    if (stat_reporter_ != NULL) {
+    if (stat_reporter_ != nullptr) {
       delete stat_reporter_;
-      stat_reporter_ = NULL;
+      stat_reporter_ = nullptr;
     }
   }
 
-protected:
+ protected:
   MonitorStatReporter *stat_reporter_;
 
   void CheckCollect(int thread) {
@@ -49,7 +47,7 @@ protected:
     ServiceStat &service_stat = report_data.begin()->second;
     ASSERT_TRUE(service_stat.find("instance_0") != service_stat.end());
     InstanceStat &instance_stat = service_stat["instance_0"];
-    ASSERT_TRUE(instance_stat.service_key_ == NULL);
+    ASSERT_TRUE(instance_stat.service_key_ == nullptr);
     ASSERT_EQ(instance_stat.ret_code_stat_.size(), 2);
     ASSERT_EQ(instance_stat.ret_code_stat_[0].success_count_, 25 * thread);
     ASSERT_EQ(instance_stat.ret_code_stat_[0].success_delay_, 25 * thread);
@@ -67,16 +65,16 @@ protected:
 void *ThreadFunc(void *args) {
   MonitorStatReporter *stat_reporter = static_cast<MonitorStatReporter *>(args);
   InstanceGauge instance_gauge;
-  instance_gauge.service_namespace = "namespace";
-  instance_gauge.service_name      = "service";
+  instance_gauge.service_key_.namespace_ = "namespace";
+  instance_gauge.service_key_.name_ = "service";
   for (int i = 0; i < 100; ++i) {
-    instance_gauge.instance_id     = "instance_" + StringUtils::TypeToStr<int>(i % 2);
-    instance_gauge.call_daley      = 1 + i % 2;
-    instance_gauge.call_ret_code   = i % 4;
+    instance_gauge.instance_id = "instance_" + std::to_string(i % 2);
+    instance_gauge.call_daley = 1 + i % 2;
+    instance_gauge.call_ret_code = i % 4;
     instance_gauge.call_ret_status = (i % 2 == 0 ? kCallRetOk : kCallRetError);
     stat_reporter->ReportStat(instance_gauge);
   }
-  return NULL;
+  return nullptr;
 }
 
 TEST_F(StatReporterTest, SingleThreadTest) {
@@ -92,11 +90,11 @@ TEST_F(StatReporterTest, MultiThreadTest) {
   int thread_size = 5;
   pthread_t tid;
   for (int i = 0; i < thread_size; ++i) {
-    pthread_create(&tid, NULL, ThreadFunc, stat_reporter_);
+    pthread_create(&tid, nullptr, ThreadFunc, stat_reporter_);
     thread_list.push_back(tid);
   }
   for (std::size_t i = 0; i < thread_list.size(); ++i) {
-    pthread_join(thread_list[i], NULL);
+    pthread_join(thread_list[i], nullptr);
   }
   CheckCollect(thread_size);
 }
@@ -109,18 +107,18 @@ struct ThreadArgWithStop {
 void *ThreadFuncWithStop(void *params) {
   ThreadArgWithStop *args = static_cast<ThreadArgWithStop *>(params);
   InstanceGauge instance_gauge;
-  instance_gauge.service_namespace = "namespace";
-  instance_gauge.service_name      = "service";
-  instance_gauge.instance_id       = "instance_0";
-  int i                            = 0;
+  instance_gauge.service_key_.namespace_ = "namespace";
+  instance_gauge.service_key_.name_ = "service";
+  instance_gauge.instance_id = "instance_0";
+  int i = 0;
   while (!args->stop_) {
-    instance_gauge.call_daley      = 1 + i % 2;
-    instance_gauge.call_ret_code   = (i % 2 == 0 ? kReturnOk : kReturnNetworkFailed);
+    instance_gauge.call_daley = 1 + i % 2;
+    instance_gauge.call_ret_code = (i % 2 == 0 ? kReturnOk : kReturnNetworkFailed);
     instance_gauge.call_ret_status = (i % 2 == 0 ? kCallRetOk : kCallRetError);
     args->stat_reporter_->ReportStat(instance_gauge);
     i++;
   }
-  return NULL;
+  return nullptr;
 }
 
 TEST_F(StatReporterTest, MultiThreadWithStopTest) {
@@ -129,9 +127,9 @@ TEST_F(StatReporterTest, MultiThreadWithStopTest) {
   pthread_t tid;
   ThreadArgWithStop args;
   args.stat_reporter_ = stat_reporter_;
-  args.stop_          = false;
+  args.stop_ = false;
   for (int i = 0; i < thread_size; ++i) {
-    pthread_create(&tid, NULL, ThreadFuncWithStop, &args);
+    pthread_create(&tid, nullptr, ThreadFuncWithStop, &args);
     thread_list.push_back(tid);
   }
   int count = 50000;
@@ -145,12 +143,12 @@ TEST_F(StatReporterTest, MultiThreadWithStopTest) {
       ServiceStat &service_stat = report_data.begin()->second;
       ASSERT_TRUE(service_stat.find("instance_0") != service_stat.end());
       InstanceStat &instance_stat = service_stat["instance_0"];
-      ASSERT_TRUE(instance_stat.service_key_ == NULL);
+      ASSERT_TRUE(instance_stat.service_key_ == nullptr);
     }
   }
   args.stop_ = true;
   for (std::size_t i = 0; i < thread_list.size(); ++i) {
-    pthread_join(thread_list[i], NULL);
+    pthread_join(thread_list[i], nullptr);
   }
 }
 

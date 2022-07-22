@@ -31,37 +31,33 @@ int main(int argc, char** argv) {
   // 该方法检查当前路径下是否有polaris.yaml文件
   // 如果有则加载该文件配置中的配置项覆盖默认配置，没有则使用默认配置
   polaris::ConsumerApi* consumer = polaris::ConsumerApi::CreateWithDefaultFile();
-  if (consumer == NULL) {
+  if (consumer == nullptr) {
     std::cout << "create consumer api failed" << std::endl;
     return -1;
   }
 
   polaris::GetInstancesRequest request(service_key);
-  polaris::InstancesResponse* response = NULL;
+  polaris::InstancesResponse* response = nullptr;
 
   // 调用接口
   timespec ts;
   clock_gettime(CLOCK_REALTIME, &ts);
-  uint64_t begin          = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+  uint64_t begin = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
   polaris::ReturnCode ret = consumer->GetAllInstances(request, response);
   clock_gettime(CLOCK_REALTIME, &ts);
   uint64_t end = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
   if (ret == polaris::kReturnOk) {
     std::vector<polaris::Instance>& instances = response->GetInstances();
-    std::cout << "get all " << instances.size() << " instances, use time:" << end - begin << "us"
-              << std::endl;
+    std::cout << "get all " << instances.size() << " instances, use time:" << end - begin << "us" << std::endl;
     for (std::size_t i = 0; i < instances.size(); ++i) {
-      std::cout << instances[i].GetHost() << ":" << instances[i].GetPort()
-                << ", weight:" << instances[i].GetWeight() << ", "
-                << (instances[i].isHealthy() ? "healthy" : "unhealthy") << ", "
-                << (instances[i].isIsolate() ? "isolate" : "unisolate")
-                << ", region:" << instances[i].GetRegion() << ", zone:" << instances[i].GetZone()
-                << ", campus:" << instances[i].GetCampus() << std::endl;
+      std::cout << instances[i].GetHost() << ":" << instances[i].GetPort() << ", weight:" << instances[i].GetWeight()
+                << ", " << (instances[i].isHealthy() ? "healthy" : "unhealthy") << ", "
+                << (instances[i].isIsolate() ? "isolate" : "unisolate") << ", region:" << instances[i].GetRegion()
+                << ", zone:" << instances[i].GetZone() << ", campus:" << instances[i].GetCampus() << std::endl;
     }
     delete response;
   } else {
-    std::cout << "get all instances for service with error:"
-              << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+    std::cout << "get all instances for service with error:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
   }
 
   delete consumer;

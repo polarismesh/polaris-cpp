@@ -23,7 +23,7 @@
 namespace polaris {
 
 class CommonTest : public IntegrationBase {
-protected:
+ protected:
   virtual void SetUp() {}
 
   virtual void TearDown() {}

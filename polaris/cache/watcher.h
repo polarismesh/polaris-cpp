@@ -14,38 +14,32 @@
 #ifndef POLARIS_CPP_POLARIS_CACHE_WATCHER_H_
 #define POLARIS_CPP_POLARIS_CACHE_WATCHER_H_
 
+#include "api/consumer_api.h"
 #include "polaris/model.h"
 #include "reactor/task.h"
 #include "utils/ref_count.h"
 
 namespace polaris {
 
-class InstancesFutureImpl;
-class ServiceCacheNotify;
-struct ServiceKey;
-
 /// @brief 抽象缓存监听接口，用于监听本地缓存的变化
 class Watcher {
-public:
+ public:
   virtual ~Watcher() {}
 
   virtual void Notify() = 0;
 };
 
 enum WaitDataType {  // 等待服务数据类型
-  kWaitDataNone          = 0,
-  kWaitDataDstInstances  = 1,
+  kWaitDataNone = 0,
+  kWaitDataDstInstances = 1,
   kWaitDataDstRuleRouter = 1 << 1,
   kWaitDataSrcRuleRouter = 1 << 2
 };
 
-class InstancesFutureImpl;
-class ServiceCacheNotify;
-
 /// @brief 一定时间内监听本地缓存是否加载
 class TimeoutWatcher : public RefCount {
-public:
-  TimeoutWatcher(InstancesFutureImpl* future_impl, ServiceCacheNotify* service_cache_notify);
+ public:
+  TimeoutWatcher(InstancesFuture::Impl* future_impl, ServiceCacheNotify* service_cache_notify);
 
   virtual ~TimeoutWatcher();
 
@@ -57,9 +51,9 @@ public:
 
   static void ServiceCacheTimeout(TimeoutWatcher* timeout_watcher);
 
-private:
+ private:
   friend class CacheManager;
-  InstancesFutureImpl* future_impl_;
+  InstancesFuture::Impl* future_impl_;
   ServiceCacheNotify* service_cache_notify_;
   int wait_data_flag;
   TimingTaskIter timeout_task_iter_;

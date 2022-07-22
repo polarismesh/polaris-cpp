@@ -19,17 +19,24 @@
 #include <vector>
 
 #include "model/match_string.h"
-#include "polaris/model.h"
+#include "model/model_impl.h"
 #include "polaris/noncopyable.h"
 #include "v1/routing.pb.h"
 
 namespace polaris {
 
-class RuleRouterSet;
+// 实例分组数据
+struct RuleRouterSet {
+  uint32_t weight_;
+  std::vector<Instance*> healthy_;
+  std::vector<Instance*> unhealthy_;
+  SubSetInfo subset;  // subset
+  bool isolated_;     //是否被隔离
+};
 
 // 请求目标实例匹配规则
 class RouteRuleDestination {
-public:
+ public:
   RouteRuleDestination() : weight_(0), isolate_(false) {}
 
   bool InitFromPb(const v1::Destination& destination);
@@ -38,11 +45,13 @@ public:
 
   bool MatchService(const ServiceKey& service_key) const;
 
-  std::map<std::string, RuleRouterSet*> CalculateSet(
-      const std::vector<Instance*>& instances, const std::set<Instance*>& unhealthy_set,
-      const std::map<std::string, std::string>& parameters) const;
+  std::map<std::string, RuleRouterSet*> CalculateSet(const std::vector<Instance*>& instances,
+                                                     const std::set<Instance*>& unhealthy_set,
+                                                     const std::map<std::string, std::string>& parameters) const;
 
   bool HasTransfer() const { return !transfer_service_.empty(); }
+
+  const std::map<std::string, MatchString>& GetMetaData() const { return metadata_; }
 
   const std::string& TransferService() const { return transfer_service_; }
 
@@ -50,7 +59,7 @@ public:
 
   bool IsIsolate() const { return isolate_; }
 
-private:
+ private:
   ServiceKey service_key_;
   std::map<std::string, MatchString> metadata_;
 

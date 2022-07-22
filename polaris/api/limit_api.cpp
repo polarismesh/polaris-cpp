@@ -17,7 +17,7 @@
 #include <stdint.h>
 #include <string>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "logger.h"
 #include "monitor/api_stat.h"
 #include "polaris/config.h"
@@ -25,15 +25,16 @@
 #include "polaris/limit.h"
 #include "quota/quota_manager.h"
 #include "quota/quota_model.h"
+#include "utils/fork.h"
 
 namespace polaris {
 
 LimitApi::LimitApi(LimitApiImpl* impl) { impl_ = impl; }
 
 LimitApi::~LimitApi() {
-  if (impl_ != NULL) {
+  if (impl_ != nullptr) {
     delete impl_;
-    impl_ = NULL;
+    impl_ = nullptr;
   }
 }
 
@@ -43,15 +44,15 @@ LimitApi* LimitApi::Create(Context* context) {
 }
 
 LimitApi* LimitApi::Create(Context* context, std::string& err_msg) {
-  if (context == NULL) {
+  if (context == nullptr) {
     err_msg = "create limit api failed because context is null";
     POLARIS_LOG(LOG_ERROR, "%s", err_msg.c_str());
-    return NULL;
+    return nullptr;
   }
   if (context->GetContextMode() != kLimitContext && context->GetContextMode() != kShareContext) {
     err_msg = "create limit api failed because context isn't init with limit mode";
     POLARIS_LOG(LOG_ERROR, "%s", err_msg.c_str());
-    return NULL;
+    return nullptr;
   }
   return new LimitApi(new LimitApiImpl(context));
 }
@@ -62,24 +63,24 @@ LimitApi* LimitApi::CreateFromConfig(Config* config) {
 }
 
 LimitApi* LimitApi::CreateFromConfig(Config* config, std::string& err_msg) {
-  if (config == NULL) {
+  if (config == nullptr) {
     err_msg = "create limit api failed because parameter config is null";
     POLARIS_LOG(LOG_ERROR, "%s", err_msg.c_str());
-    return NULL;
+    return nullptr;
   }
   Context* context = Context::Create(config, kLimitContext);
-  if (context == NULL) {
+  if (context == nullptr) {
     err_msg = "create limit api failed because context create failed";
     POLARIS_LOG(LOG_ERROR, "%s", err_msg.c_str());
-    return NULL;
+    return nullptr;
   }
   return LimitApi::Create(context, err_msg);
 }
 
 static LimitApi* CreateWithConfig(Config* config, std::string& err_msg) {
-  if (config == NULL) {
+  if (config == nullptr) {
     POLARIS_LOG(LOG_ERROR, "init config with error: %s", err_msg.c_str());
-    return NULL;
+    return nullptr;
   }
   LimitApi* limit_api = LimitApi::CreateFromConfig(config, err_msg);
   delete config;
@@ -116,31 +117,34 @@ LimitApi* LimitApi::CreateWithDefaultFile(std::string& err_msg) {
 LimitApiImpl::LimitApiImpl(Context* context) { context_ = context; }
 
 LimitApiImpl::~LimitApiImpl() {
-  if (context_ != NULL && context_->GetContextMode() == kLimitContext) {
+  if (context_ != nullptr && context_->GetContextMode() == kLimitContext) {
     delete context_;
   }
-  context_ = NULL;
+  context_ = nullptr;
 }
 
 ReturnCode LimitApi::GetQuota(const QuotaRequest& quota_request, QuotaResponse*& quota_response) {
-  ApiStat api_stat(impl_->context_, kApiStatLimitGetQuota);
-  QuotaRequestAccessor request(quota_request);
+  ContextImpl* context_impl = impl_->context_->GetContextImpl();
+  ApiStat api_stat(context_impl, kApiStatLimitGetQuota);
+  QuotaRequest::Impl& request = quota_request.GetImpl();
   ReturnCode ret_code = impl_->CheckRequest(request);
   if (ret_code != kReturnOk) {
     RECORD_THEN_RETURN(ret_code);
   }
 
-  QuotaManager* quota_manager = impl_->context_->GetContextImpl()->GetQuotaManager();
+  POLARIS_FORK_CHECK()
+
+  QuotaManager* quota_manager = context_impl->GetQuotaManager();
   QuotaInfo quota_info;
-  if ((ret_code = quota_manager->PrepareQuotaInfo(quota_request, &quota_info)) == kReturnOk) {
+  if ((ret_code = quota_manager->PrepareQuotaInfo(request, &quota_info)) == kReturnOk) {
     // 调用配额管理对象分配配额
-    ret_code = quota_manager->GetQuotaResponse(quota_request, quota_info, quota_response);
+    ret_code = quota_manager->GetQuotaResponse(request, quota_info, quota_response);
   }
   RECORD_THEN_RETURN(ret_code);
 }
 
 ReturnCode LimitApi::GetQuota(const QuotaRequest& quota_request, QuotaResultCode& quota_result) {
-  QuotaResponse* quota_response = NULL;
+  QuotaResponse* quota_response = nullptr;
   ReturnCode ret_code;
   if ((ret_code = GetQuota(quota_request, quota_response)) == kReturnOk) {
     quota_result = quota_response->GetResultCode();
@@ -151,43 +155,25 @@ ReturnCode LimitApi::GetQuota(const QuotaRequest& quota_request, QuotaResultCode
 
 ReturnCode LimitApi::GetQuota(const QuotaRequest& quota_request, QuotaResultCode& quota_result,
                               QuotaResultInfo& quota_info) {
-  QuotaResponse* quota_response = NULL;
+  QuotaResponse* quota_response = nullptr;
   ReturnCode ret_code;
   if ((ret_code = GetQuota(quota_request, quota_response)) == kReturnOk) {
     quota_result = quota_response->GetResultCode();
-    quota_info   = quota_response->GetQuotaResultInfo();
+    quota_info = quota_response->GetQuotaResultInfo();
     delete quota_response;
   }
   return ret_code;
 }
 
-ReturnCode LimitApi::GetQuota(const QuotaRequest& quota_request, QuotaResultCode& quota_result,
-                              uint64_t& wait_time) {
-  QuotaResponse* quota_response = NULL;
+ReturnCode LimitApi::GetQuota(const QuotaRequest& quota_request, QuotaResultCode& quota_result, uint64_t& wait_time) {
+  QuotaResponse* quota_response = nullptr;
   ReturnCode ret_code;
   if ((ret_code = GetQuota(quota_request, quota_response)) == kReturnOk) {
     quota_result = quota_response->GetResultCode();
-    wait_time    = quota_response->GetWaitTime();
+    wait_time = quota_response->GetWaitTime();
     delete quota_response;
   }
   return ret_code;
-}
-
-ReturnCode LimitApi::UpdateCallResult(const LimitCallResult& call_result) {
-  ApiStat api_stat(impl_->context_, kApiStatLimitUpdateCallResult);
-  LimitCallResultAccessor request(call_result);
-  if (request.GetService().namespace_.empty()) {  // 检查请求参数
-    POLARIS_LOG(LOG_ERROR, "%s request with empty service namespace", __func__);
-    RECORD_THEN_RETURN(kReturnInvalidArgument);
-  }
-  if (request.GetService().name_.empty()) {
-    POLARIS_LOG(LOG_ERROR, "%s request with empty service name", __func__);
-    RECORD_THEN_RETURN(kReturnInvalidArgument);
-  }
-  // 更新使用结果
-  ReturnCode ret_code =
-      impl_->context_->GetContextImpl()->GetQuotaManager()->UpdateCallResult(call_result);
-  RECORD_THEN_RETURN(ret_code);
 }
 
 ReturnCode LimitApi::FetchRule(const ServiceKey& service_key, std::string& json_rule) {
@@ -195,22 +181,24 @@ ReturnCode LimitApi::FetchRule(const ServiceKey& service_key, std::string& json_
   return FetchRule(service_key, kDefaultTimeout, json_rule);
 }
 
-ReturnCode LimitApi::FetchRule(const ServiceKey& service_key, uint64_t timeout,
-                               std::string& json_rule) {
+ReturnCode LimitApi::FetchRule(const ServiceKey& service_key, uint64_t timeout, std::string& json_rule) {
   QuotaRequest quota_request;
   quota_request.SetServiceNamespace(service_key.namespace_);
   quota_request.SetServiceName(service_key.name_);
-  QuotaRequestAccessor request(quota_request);
+  QuotaRequest::Impl& request = quota_request.GetImpl();
   ReturnCode ret_code = impl_->CheckRequest(request);
   if (ret_code != kReturnOk) {
     return kReturnInvalidArgument;
   }
+  ContextImpl* context_impl = impl_->context_->GetContextImpl();
+  POLARIS_FORK_CHECK()
+
   quota_request.SetTimeout(timeout);
   QuotaInfo quota_info;
-  QuotaManager* quota_manager = impl_->context_->GetContextImpl()->GetQuotaManager();
-  if ((ret_code = quota_manager->PrepareQuotaInfo(quota_request, &quota_info)) == kReturnOk) {
-    ServiceData* service_data = quota_info.GetSericeRateLimitRule()->GetServiceDataWithRef();
-    json_rule                 = service_data->ToJsonString();
+  QuotaManager* quota_manager = context_impl->GetQuotaManager();
+  if ((ret_code = quota_manager->PrepareQuotaInfo(request, &quota_info)) == kReturnOk) {
+    ServiceData* service_data = quota_info.GetServiceRateLimitRule()->GetServiceDataWithRef();
+    json_rule = service_data->ToJsonString();
     service_data->DecrementRef();
   }
   return ret_code;
@@ -222,50 +210,56 @@ ReturnCode LimitApi::FetchRuleLabelKeys(const ServiceKey& service_key, uint64_t 
   quota_request.SetServiceNamespace(service_key.namespace_);
   quota_request.SetServiceName(service_key.name_);
 
-  QuotaRequestAccessor request(quota_request);
+  QuotaRequest::Impl& request = quota_request.GetImpl();
   ReturnCode ret_code = impl_->CheckRequest(request);
   if (ret_code != kReturnOk) {
     return kReturnInvalidArgument;
   }
+  ContextImpl* context_impl = impl_->context_->GetContextImpl();
+  POLARIS_FORK_CHECK()
+
   quota_request.SetTimeout(timeout);
   QuotaInfo quota_info;
-  QuotaManager* quota_manager = impl_->context_->GetContextImpl()->GetQuotaManager();
-  if ((ret_code = quota_manager->PrepareQuotaInfo(quota_request, &quota_info)) == kReturnOk) {
-    ServiceRateLimitRule* limit_rule = quota_info.GetSericeRateLimitRule();
-    label_keys                       = &limit_rule->GetLabelKeys();
+  QuotaManager* quota_manager = context_impl->GetQuotaManager();
+  if ((ret_code = quota_manager->PrepareQuotaInfo(request, &quota_info)) == kReturnOk) {
+    ServiceRateLimitRule* limit_rule = quota_info.GetServiceRateLimitRule();
+    label_keys = &limit_rule->GetLabelKeys();
   }
   return ret_code;
 }
 
 ReturnCode LimitApi::InitQuotaWindow(const QuotaRequest& quota_request) {
-  QuotaRequestAccessor request(quota_request);
+  QuotaRequest::Impl& request = quota_request.GetImpl();
   ReturnCode ret_code = impl_->CheckRequest(request);
   if (ret_code != kReturnOk) {
     return kReturnInvalidArgument;
   }
 
-  QuotaManager* quota_manager = impl_->context_->GetContextImpl()->GetQuotaManager();
+  ContextImpl* context_impl = impl_->context_->GetContextImpl();
+  POLARIS_FORK_CHECK()
+
+  QuotaManager* quota_manager = context_impl->GetQuotaManager();
   QuotaInfo quota_info;
-  if ((ret_code = quota_manager->PrepareQuotaInfo(quota_request, &quota_info)) == kReturnOk) {
-    ret_code = quota_manager->InitWindow(quota_request, quota_info);
+  if ((ret_code = quota_manager->PrepareQuotaInfo(request, &quota_info)) == kReturnOk) {
+    ret_code = quota_manager->InitWindow(request, quota_info);
   }
   return ret_code;
 }
 
-ReturnCode LimitApiImpl::CheckRequest(QuotaRequestAccessor& request) {
-  if (request.GetService().namespace_.empty()) {  // 检查请求参数
+ReturnCode LimitApiImpl::CheckRequest(QuotaRequest::Impl& request) {
+  if (request.service_key_.namespace_.empty()) {  // 检查请求参数
     POLARIS_LOG(LOG_ERROR, "%s request with empty service namespace", __func__);
     return kReturnInvalidArgument;
   }
-  if (request.GetService().name_.empty()) {
+  if (request.service_key_.name_.empty()) {
     POLARIS_LOG(LOG_ERROR, "%s request with empty service name", __func__);
     return kReturnInvalidArgument;
   }
 
   ContextImpl* context_impl = context_->GetContextImpl();
   // 设置默认参数
-  if (!request.HasTimeout()) {
-    request.SetTimeout(context_impl->GetApiDefaultTimeout());
+  if (!request.timeout_.HasValue()) {
+    request.timeout_ = context_impl->GetApiDefaultTimeout();
   }
   return kReturnOk;
 }

@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     return -1;
   }
   polaris::ServiceKey service_key = {argv[1], argv[2]};
-  int interval                    = argc >= 4 ? atoi(argv[3]) : 1000;
+  int interval = argc >= 4 ? atoi(argv[3]) : 1000;
 
   // 本示例展示使用北极星SDK进行服务发现的基本步骤
 
@@ -42,29 +42,29 @@ int main(int argc, char** argv) {
   // 如果有则加载该文件配置中的配置项覆盖默认配置，如果没有则使用默认配置
   // 注意：其他创建方法参考头文件"polaris/consumer.h"中ConsumerApi::CreateXXX系列方法注释
   std::string err_msg, content =
-                "global:\n"
-                "  serverConnector:\n"
-                "consumer:\n"
-                "  healthCheck:\n"
-                "    when: always\n"
-                "    interval: 1s\n"
-                "    chain:\n"
-                "    - http\n"
-                "    plugin:\n"
-                "      http:\n"
-                "        path: /health\n"
-                "  circuitBreaker:\n"
-                "    enable: true\n"
-                "    checkPeriod: 1s";
+                           "global:\n"
+                           "  serverConnector:\n"
+                           "consumer:\n"
+                           "  healthCheck:\n"
+                           "    when: always\n"
+                           "    interval: 1s\n"
+                           "    chain:\n"
+                           "    - http\n"
+                           "    plugin:\n"
+                           "      http:\n"
+                           "        path: /health\n"
+                           "  circuitBreaker:\n"
+                           "    enable: true\n"
+                           "    checkPeriod: 1s";
   polaris::Config* config = polaris::Config::CreateFromString(content, err_msg);
   polaris::Context* context = polaris::Context::Create(config);
-  delete config;  // 创建完成后即可释放config对象
-  if (context == NULL) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
-      abort();
+  delete config;             // 创建完成后即可释放config对象
+  if (context == nullptr) {  // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
+    abort();
   }
   // 再以共享模式Context创建ConsumerApi，用户自己维护Context的生命周期，该context还可以用于创建ProviderApi
   polaris::ConsumerApi* consumer = polaris::ConsumerApi::Create(context);
-  if (consumer == NULL) {
+  if (consumer == nullptr) {
     std::cout << "create consumer api failed" << std::endl;
     return -1;
   }
@@ -88,8 +88,7 @@ int main(int argc, char** argv) {
 
     // 【第三步】RPC调用前调用北极星接口获取一个被调服务实例，会执行服务路由和负载均衡
     if ((ret = consumer->GetOneInstance(request, instance)) != polaris::kReturnOk) {
-      std::cout << "get instance for service with error:" << polaris::ReturnCodeToMsg(ret).c_str()
-                << std::endl;
+      std::cout << "get instance for service with error:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
       sleep(1);
       continue;
     }

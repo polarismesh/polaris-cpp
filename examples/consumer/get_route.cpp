@@ -26,6 +26,36 @@ void SignalHandler(int signum) {
   signal_received = true;
 }
 
+/// @brief 单例consumer api对象
+///
+/// 一般情况下整个进程使用一个consumer api对象即可
+/// 如果需要多个consumer，直接调用ConsumerApi::CreateXXX 系列接口创建
+/// @note 该单例模式只在c++ 11以上是线程安全的
+class SingletonConsumer {
+ public:
+  /// @brief 获取单例consumer api对象，
+  ///
+  /// @note 该方法只在c++ 11及以上才线程安全
+  /// @return ConsumerApi*
+  static polaris::ConsumerApi& GetApi() {
+    static SingletonConsumer consumer_api;
+    return *consumer_api.consumer_;
+  }
+
+ private:
+  SingletonConsumer() : consumer_(nullptr) {
+    // 创建线程安全的Consumer对象
+    // 该方法检查当前程序【运行路径】下是否有polaris.yaml文件
+    // 如果有则加载该文件配置中的配置项覆盖默认配置，如果没有则使用默认配置
+    // 注意：其他创建方法参考头文件"polaris/consumer.h"中ConsumerApi::CreateXXX系列方法注释
+    consumer_ = polaris::ConsumerApi::CreateWithDefaultFile();
+  }
+
+  ~SingletonConsumer() { delete consumer_; }
+
+  polaris::ConsumerApi* consumer_;
+};
+
 int main(int argc, char** argv) {
   signal(SIGINT, SignalHandler);  // 注册ctrl+c事件回调，触发进程退出
   if (argc < 3) {
@@ -33,28 +63,16 @@ int main(int argc, char** argv) {
     return -1;
   }
   polaris::ServiceKey service_key = {argv[1], argv[2]};
-  int interval                    = argc >= 4 ? atoi(argv[3]) : 1000;
+  int interval = argc >= 4 ? atoi(argv[3]) : 1000;
 
   // 本示例展示使用北极星SDK进行服务发现的基本步骤
 
-  // 第一步：创建线程安全的Consumer对象
-  // 该方法检查当前程序【运行路径】下是否有polaris.yaml文件
-  // 如果有则加载该文件配置中的配置项覆盖默认配置，如果没有则使用默认配置
-  // 注意：其他创建方法参考头文件"polaris/consumer.h"中ConsumerApi::CreateXXX系列方法注释
-  polaris::ConsumerApi* consumer = polaris::ConsumerApi::CreateWithDefaultFile();
-  if (consumer == NULL) {
-    std::cout << "create consumer api failed, see log (default ~/polaris/log/polaris.log)"
-              << std::endl;
-    return -1;
-  }
-
-  // 【第二步】可选，预拉取服务数据。如果访问的被调服务是已知的，建议加上这个步骤
+  //  可选，预拉取服务数据。如果访问的被调服务是已知的，建议加上这个步骤
   polaris::GetOneInstanceRequest request(service_key);
   polaris::Instance instance;
   polaris::ReturnCode ret;
-  if ((ret = consumer->InitService(request)) != polaris::kReturnOk) {
+  if ((ret = SingletonConsumer::GetApi().InitService(request)) != polaris::kReturnOk) {
     std::cout << "init service with error:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
-    delete consumer;
     return -1;
   }
 
@@ -65,10 +83,9 @@ int main(int argc, char** argv) {
     clock_gettime(CLOCK_REALTIME, &ts);
     begin = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 
-    // 【第三步】RPC调用前调用北极星接口获取一个被调服务实例，会执行服务路由和负载均衡
-    if ((ret = consumer->GetOneInstance(request, instance)) != polaris::kReturnOk) {
-      std::cout << "get instance for service with error:" << polaris::ReturnCodeToMsg(ret).c_str()
-                << std::endl;
+    // 一、RPC调用前：调用北极星接口获取一个被调服务实例，会执行服务路由和负载均衡
+    if ((ret = SingletonConsumer::GetApi().GetOneInstance(request, instance)) != polaris::kReturnOk) {
+      std::cout << "get instance for service with error:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
       sleep(1);
       continue;
     }
@@ -78,7 +95,7 @@ int main(int argc, char** argv) {
     std::cout << "get instance, ip:" << instance.GetHost() << ", port:" << instance.GetPort()
               << ", use time:" << end - begin << "us" << std::endl;
 
-    // 【第四步】使用获取到的服务实例，进行RPC，并获取RPC调用结果返回值和耗时
+    // 二、RPC调用时：使用获取到的服务实例，进行RPC，并获取RPC调用结果返回值和耗时
     int rpc_result = 0;
     clock_gettime(CLOCK_REALTIME, &ts);
     begin = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
@@ -86,7 +103,7 @@ int main(int argc, char** argv) {
     clock_gettime(CLOCK_REALTIME, &ts);
     end = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 
-    // 【第五步】上报使用该被调服务实例进行RPC调用结果
+    // 三、RPC调用后：上报使用该被调服务实例进行RPC调用结果
     // 注意：本调用没有网络操作，只将结果写入本地内存
     // 如果RPC是异步的，则异步RPC结束后进行上报即可
     polaris::ServiceCallResult result;
@@ -100,7 +117,7 @@ int main(int argc, char** argv) {
     } else {  // rpc调用出错，例如网络错误，超时等上报给北极星用于剔除故障节点
       result.SetRetStatus(polaris::kCallRetError);
     }
-    if ((ret = consumer->UpdateServiceCallResult(result)) != polaris::kReturnOk) {
+    if ((ret = SingletonConsumer::GetApi().UpdateServiceCallResult(result)) != polaris::kReturnOk) {
       std::cout << "update call result for instance with error:" << ret
                 << " msg:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
     }
@@ -108,6 +125,5 @@ int main(int argc, char** argv) {
     usleep(interval * 1000);
   }
 
-  delete consumer;
   return 0;
 }

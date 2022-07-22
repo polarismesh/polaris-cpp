@@ -14,57 +14,40 @@
 #ifndef POLARIS_CPP_POLARIS_SYNC_COND_VAR_H_
 #define POLARIS_CPP_POLARIS_SYNC_COND_VAR_H_
 
-#include <pthread.h>
 #include <stdint.h>
 
-#include "polaris/noncopyable.h"
-#include "sync/mutex.h"
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 
-struct timespec;
+#include "polaris/noncopyable.h"
 
 namespace polaris {
 namespace sync {
 
-// 封装pthread的条件变量
-class CondVar : Noncopyable {
-public:
-  CondVar();
-
-  ~CondVar();
-
-  int Wait(Mutex& mutex, timespec& ts);  // 超时等待
-
-  void Signal();  // 通知
-
-  void Broadcast();  // 广播
-
-private:
-  pthread_cond_t cond_;
-};
-
 // 使用Mutex和CondVar封装一个Notify
 class CondVarNotify : Noncopyable {
-public:
+ public:
   CondVarNotify();
 
   ~CondVarNotify();
 
-  bool Wait(uint64_t timeout);
+  bool WaitFor(uint64_t timeout);
 
-  bool Wait(timespec& ts);
+  bool WaitUntil(const std::chrono::steady_clock::time_point& time_point);
 
   void Notify();  // 唤醒一个等待线程
 
   void NotifyAll();  // 唤醒所有等待的线程
 
-  Mutex& GetMutex() { return mutex_; }
+  std::mutex& GetMutex() { return mutex_; }
 
   bool IsNotified() const { return notified_; }
 
-private:
+ private:
   bool notified_;
-  Mutex mutex_;
-  CondVar cond_;
+  std::mutex mutex_;
+  std::condition_variable cond_;
 };
 
 }  // namespace sync

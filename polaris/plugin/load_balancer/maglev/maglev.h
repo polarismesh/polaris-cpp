@@ -28,7 +28,7 @@ class Instance;
 class ServiceInstances;
 
 class MaglevLoadBalancer : public LoadBalancer {
-public:
+ public:
   MaglevLoadBalancer();
 
   virtual ~MaglevLoadBalancer();
@@ -37,10 +37,9 @@ public:
 
   virtual LoadBalanceType GetLoadBalanceType() { return kLoadBalanceTypeMaglevHash; }
 
-  virtual ReturnCode ChooseInstance(ServiceInstances* instances, const Criteria& criteria,
-                                    Instance*& next);
+  virtual ReturnCode ChooseInstance(ServiceInstances* service_instances, const Criteria& criteria, Instance*& next);
 
-private:
+ private:
   Context* context_;
   Hash64Func hash_func_;
   uint32_t table_size_;

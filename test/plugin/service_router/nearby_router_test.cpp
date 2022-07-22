@@ -23,17 +23,16 @@
 #include <string>
 
 #include "mock/fake_server_response.h"
+#include "model/instance.h"
 #include "model/model_impl.h"
 #include "test_context.h"
-#include "utils/string_utils.h"
 
 namespace polaris {
 
-static bool InitNearbyRouterConfig(NearbyRouterConfig &nearby_router_config,
-                                   const std::string &content) {
+static bool InitNearbyRouterConfig(NearbyRouterConfig &nearby_router_config, const std::string &content) {
   std::string err_msg;
   Config *config = Config::CreateFromString(content, err_msg);
-  EXPECT_TRUE(config != NULL && err_msg.empty());
+  EXPECT_TRUE(config != nullptr && err_msg.empty());
   bool result = nearby_router_config.Init(config);
   delete config;
   return result;
@@ -45,7 +44,7 @@ class NearbyRouterConfigTest : public ::testing::Test {
 
   virtual void TearDown() {}
 
-protected:
+ protected:
   NearbyRouterConfig nearby_config_;
   std::string content_;
 };
@@ -100,7 +99,7 @@ TEST_F(NearbyRouterConfigTest, InitFailed) {
 
 // 就近路由cluster测试
 class NearbyRouterClusterTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() { CreateInstances(instances_); }
   virtual void TearDown() {
     for (std::size_t i = 0; i < instances_.size(); i++) {
@@ -122,18 +121,23 @@ protected:
 // campus  南山  南山  南山  宝安  宝安  宝安  南山  南山  南山  朝阳
 void NearbyRouterClusterTest::CreateInstances(std::vector<Instance *> &instances) {
   for (int i = 0; i < 10; i++) {
-    std::string instance_id = "instance_" + StringUtils::TypeToStr<int>(i);
-    Instance *instance      = new Instance(instance_id, "host", 8000, 100);
-    InstanceSetter setter(*instance);
+    v1::Instance instance_pb;
+    instance_pb.mutable_id()->set_value("instance_" + std::to_string(i));
+    instance_pb.mutable_host()->set_value("host");
+    instance_pb.mutable_port()->set_value(8000);
+    instance_pb.mutable_weight()->set_value(100);
+    v1::Location *location = instance_pb.mutable_location();
     if (i < 9) {
-      setter.SetRegion("华南");
-      setter.SetZone(i < 6 ? "深圳" : "广州");
-      setter.SetCampus(i < 3 || i > 5 ? "南山" : "宝安");
+      location->mutable_region()->set_value("华南");
+      location->mutable_zone()->set_value(i < 6 ? "深圳" : "广州");
+      location->mutable_campus()->set_value(i < 3 || i > 5 ? "南山" : "宝安");
     } else {
-      setter.SetRegion("华北");
-      setter.SetZone("北京");
-      setter.SetCampus("朝阳");
+      location->mutable_region()->set_value("华北");
+      location->mutable_zone()->set_value("北京");
+      location->mutable_campus()->set_value("朝阳");
     }
+    Instance *instance = new Instance();
+    instance->GetImpl().InitFromPb(instance_pb);
     instances.push_back(instance);
   }
 }
@@ -182,7 +186,7 @@ TEST_F(NearbyRouterClusterTest, CalculateLocation) {
   unhealthy_set_.insert(instances_[0]);
   int match_level;
   for (int i = 0; i < 2; ++i) {
-    Location location   = {"华南", "深圳", ""};
+    Location location = {"华南", "深圳", ""};
     std::string content = "matchLevel: campus";
     if (i > 0) content += "\nunhealthyPercentToDegrade: 15";
     ASSERT_TRUE(InitNearbyRouterConfig(nearby_router_config_, content));
@@ -234,7 +238,7 @@ TEST_F(NearbyRouterClusterTest, CalculateLocation) {
   // 全部匹配
   for (int i = 10; i <= 40; i += 10) {
     std::string content = "matchLevel: campus\nmaxMatchLevel: region\nunhealthyPercentToDegrade: ";
-    content += StringUtils::TypeToStr(i);  // 不健康比例: 10, 20, 30, 40
+    content += std::to_string(i);  // 不健康比例: 10, 20, 30, 40
     ASSERT_TRUE(InitNearbyRouterConfig(nearby_router_config_, content));
     NearbyRouterCluster instances_set(nearby_router_config_);
     instances_set.CalculateSet(location, instances_, unhealthy_set_);
@@ -257,55 +261,53 @@ TEST_F(NearbyRouterClusterTest, CalculateLocation) {
 
 // 就近路由测试
 class NearbyServiceRouterTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
-    service_      = NULL;
-    service_data_ = NULL;
+    service_ = nullptr;
+    service_data_ = nullptr;
     std::string err_msg;
-    Config *config  = Config::CreateFromString("matchLevel: campus", err_msg);
-    context_        = TestContext::CreateContext();
+    Config *config = Config::CreateFromString("matchLevel: campus", err_msg);
+    context_ = TestContext::CreateContext();
     service_router_ = new NearbyServiceRouter();
     ASSERT_EQ(service_router_->Init(config, context_), kReturnOk);
     delete config;
   }
 
   virtual void TearDown() {
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
-    if (service_router_ != NULL) {
+    if (service_router_ != nullptr) {
       delete service_router_;
-      service_router_ = NULL;
+      service_router_ = nullptr;
     }
-    if (service_data_ != NULL) {
+    if (service_data_ != nullptr) {
       service_data_->DecrementRef();
-      service_data_ = NULL;
+      service_data_ = nullptr;
     }
-    if (service_ != NULL) {
+    if (service_ != nullptr) {
       delete service_;
-      service_ = NULL;
+      service_ = nullptr;
     }
   }
 
   static void AddServiceInstance(const std::string &instance_id, const std::string &host, int port,
-                                 const std::string &region, const std::string &zone,
-                                 const std::string &campus, v1::DiscoverResponse &response);
+                                 const std::string &region, const std::string &zone, const std::string &campus,
+                                 v1::DiscoverResponse &response);
 
   std::vector<Instance *> DoRoute(v1::DiscoverResponse &response, const std::string &nearby);
 
-protected:
+ protected:
   Context *context_;
   ServiceRouter *service_router_;
   Service *service_;
   ServiceData *service_data_;
 };
 
-void NearbyServiceRouterTest::AddServiceInstance(const std::string &instance_id,
-                                                 const std::string &host, int port,
+void NearbyServiceRouterTest::AddServiceInstance(const std::string &instance_id, const std::string &host, int port,
                                                  const std::string &region, const std::string &zone,
-                                                 const std::string &campus,
-                                                 v1::DiscoverResponse &response) {
+                                                 const std::string &campus, v1::DiscoverResponse &response) {
   v1::Instance *instance = response.add_instances();
   instance->mutable_id()->set_value(instance_id);
   instance->mutable_host()->set_value(host);
@@ -316,26 +318,24 @@ void NearbyServiceRouterTest::AddServiceInstance(const std::string &instance_id,
   instance->mutable_location()->mutable_campus()->set_value(campus);
 }
 
-std::vector<Instance *> NearbyServiceRouterTest::DoRoute(v1::DiscoverResponse &response,
-                                                         const std::string &nearby) {
+std::vector<Instance *> NearbyServiceRouterTest::DoRoute(v1::DiscoverResponse &response, const std::string &nearby) {
   ServiceKey service_key = {"test_service_namespace", "test_service_name"};
-  RouteInfo route_info(service_key, NULL);
+  RouteInfo route_info(service_key, nullptr);
   response.set_type(v1::DiscoverResponse::INSTANCE);
   FakeServer::InstancesResponse(response, service_key);
   if (!nearby.empty()) {
     (*(response.mutable_service()->mutable_metadata()))["internal-enable-nearby"] = nearby;
   }
-  service_      = new Service(service_key, 0);
+  service_ = new Service(service_key, 0);
   service_data_ = ServiceData::CreateFromPb(&response, kDataInitFromDisk);
   service_->UpdateData(service_data_);
-  service_data_->IncrementRef();
   route_info.SetServiceInstances(new ServiceInstances(service_data_));
 
   RouteResult route_result;
   EXPECT_EQ(service_router_->DoRoute(route_info, &route_result), kReturnOk);
 
-  ServiceInstances *service_instances = route_result.GetServiceInstances();
-  EXPECT_TRUE(service_instances != NULL);
+  ServiceInstances *service_instances = route_info.GetServiceInstances();
+  EXPECT_TRUE(service_instances != nullptr);
   InstancesSet *instances_set = service_instances->GetAvailableInstances();
   return instances_set->GetInstances();
 }

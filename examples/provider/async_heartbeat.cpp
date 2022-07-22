@@ -27,33 +27,31 @@ void SignalHandler(int signum) {
 }
 
 class HeartbeatCallback : public polaris::ProviderCallback {
-public:
+ public:
   HeartbeatCallback(std::string host, int port) : host_(host), port_(port) {}
 
   ~HeartbeatCallback() {}
 
   virtual void Response(polaris::ReturnCode code, const std::string& message) {
-    std::cout << "async heartbeat for " << host_ << ":" << port_
-              << " code:" << polaris::ReturnCodeToMsg(code).c_str() << " message:" << message
-              << std::endl;
+    std::cout << "async heartbeat for " << host_ << ":" << port_ << " code:" << polaris::ReturnCodeToMsg(code).c_str()
+              << " message:" << message << std::endl;
   }
 
-private:
+ private:
   std::string host_;
   int port_;
 };
 
 int main(int argc, char** argv) {
   if (argc < 6) {
-    std::cout << "usage: " << argv[0] << " service_namespace service_name service_token host port"
-              << std::endl;
+    std::cout << "usage: " << argv[0] << " service_namespace service_name service_token host port" << std::endl;
     return -1;
   }
   std::string service_namespace = argv[1];
-  std::string service_name      = argv[2];
-  std::string service_token     = argv[3];
-  std::string host              = argv[4];
-  int port                      = atoi(argv[5]);
+  std::string service_name = argv[2];
+  std::string service_token = argv[3];
+  std::string host = argv[4];
+  int port = atoi(argv[5]);
 
   // 注册信号
   signal(SIGINT, SignalHandler);
@@ -63,15 +61,14 @@ int main(int argc, char** argv) {
 
   // 创建Provider API
   polaris::ProviderApi* provider = polaris::ProviderApi::CreateWithDefaultFile();
-  if (provider == NULL) {
+  if (provider == nullptr) {
     std::cout << "create provider api failed" << std::endl;
     return -1;
   }
 
   sleep(2);
   // 等待服务启动成功后再去注册服务
-  polaris::InstanceRegisterRequest register_req(service_namespace, service_name, service_token,
-                                                host, port);
+  polaris::InstanceRegisterRequest register_req(service_namespace, service_name, service_token, host, port);
   register_req.SetHealthCheckFlag(true);
   register_req.SetHealthCheckType(polaris::kHeartbeatHealthCheck);
   register_req.SetTtl(5);  // 5s 未上报心跳就超时
@@ -81,8 +78,8 @@ int main(int argc, char** argv) {
   // 调用注册接口
   ret = provider->Register(register_req, instance_id);
   if (ret != polaris::kReturnOk && ret != polaris::kReturnExistedResource) {
-    std::cout << "register instance with error code:" << ret
-              << " msg:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+    std::cout << "register instance with error code:" << ret << " msg:" << polaris::ReturnCodeToMsg(ret).c_str()
+              << std::endl;
     abort();
   }
   std::cout << "register instance return id:" << instance_id << std::endl;
@@ -94,10 +91,10 @@ int main(int argc, char** argv) {
   heartbeat_req.SetTimeout(1000);
   while (!signal_received) {
     HeartbeatCallback* callback = new HeartbeatCallback(host, port);
-    ret                         = provider->AsyncHeartbeat(heartbeat_req, callback);
+    ret = provider->AsyncHeartbeat(heartbeat_req, callback);
     if (ret != polaris::kReturnOk) {
-      std::cout << "async heartbeat with error code:" << ret
-                << " msg:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+      std::cout << "async heartbeat with error code:" << ret << " msg:" << polaris::ReturnCodeToMsg(ret).c_str()
+                << std::endl;
       sleep(1);
       continue;
     }
@@ -110,8 +107,8 @@ int main(int argc, char** argv) {
   if (ret == polaris::kReturnOk) {
     std::cout << "deregister instance success" << std::endl;
   } else {
-    std::cout << "instance deregister with error code:" << ret
-              << " msg:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+    std::cout << "instance deregister with error code:" << ret << " msg:" << polaris::ReturnCodeToMsg(ret).c_str()
+              << std::endl;
   }
 
   delete provider;

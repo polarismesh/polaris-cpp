@@ -18,15 +18,15 @@
 namespace polaris {
 
 #ifndef VERSION
-#define VERSION "0.9.0"
+#  define VERSION "0.13.4"
 #endif  // !VERSION
 
 #ifndef REVISION
-#define REVISION "NO_REVISION"
+#  define REVISION "NO_REVISION"
 #endif  // !REVISION
 
-const char* g_sdk_type         = "polaris-cpp";
-const char* g_sdk_version      = VERSION;
+const char* g_sdk_type = "polaris-cpp";
+const char* g_sdk_version = VERSION;
 const char* g_sdk_version_info = "polaris version:" VERSION "_" REVISION "_" __DATE__ " " __TIME__;
 
 std::string GetVersion() { return g_sdk_version; }

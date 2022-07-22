@@ -36,8 +36,8 @@
 
 namespace polaris {
 
-int HttpClient::DoRequest(const std::string& method, const std::string& path,
-                          const std::string& body, int, std::string& response) {
+int HttpClient::DoRequest(const std::string& method, const std::string& path, const std::string& body, int,
+                          std::string& response) {
   std::string host;
   int port;
   Environment::GetConsoleServer(host, port);
@@ -48,7 +48,7 @@ int HttpClient::DoRequest(const std::string& method, const std::string& path,
   }
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
-  addr.sin_port   = htons(port);
+  addr.sin_port = htons(port);
   if (inet_aton(host.c_str(), &addr.sin_addr) <= 0) {
     ERROR("inet_aton host %s with error: %d", host.c_str(), errno);
   }
@@ -102,14 +102,14 @@ bool HttpClient::ToResponse(const std::string& data, int& code, std::string& bod
   std::size_t p0 = data.find("\r\n\r\n");
   if (p0 != std::string::npos) {
     p0 += 4;
-    size_t p1  = data.find("Content-Length:") + 15;
-    size_t p2  = data.find("\r\n", p1);
+    size_t p1 = data.find("Content-Length:") + 15;
+    size_t p2 = data.find("\r\n", p1);
     int length = atoi(data.substr(p1, p2 - p1).data());
     if (data.size() >= p0 + length) {
       size_t p1 = data.find(" ");
       size_t p2 = data.find(" ", ++p1);
-      code      = atoi(data.substr(p1, p2 - p1).data());
-      body      = data.substr(p0, length);
+      code = atoi(data.substr(p1, p2 - p1).data());
+      body = data.substr(p0, length);
       return true;
     }
   }

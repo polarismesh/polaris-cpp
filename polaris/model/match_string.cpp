@@ -18,10 +18,10 @@
 namespace polaris {
 
 bool MatchString::Init(const v1::MatchString& match_string) {
-  type_       = match_string.type();
+  type_ = match_string.type();
   value_type_ = match_string.value_type();
-  data_       = match_string.value().value();
-  regex_.Reset();
+  data_ = match_string.value().value();
+  regex_.reset();
   if (type_ == v1::MatchString::REGEX) {
     return InitRegex(match_string.value().value());
   }
@@ -29,12 +29,11 @@ bool MatchString::Init(const v1::MatchString& match_string) {
 }
 
 bool MatchString::InitRegex(const std::string& regex) {
-  regex_.Reset(new re2::RE2(regex, RE2::Quiet));
+  regex_.reset(new re2::RE2(regex, RE2::Quiet));
   if (regex_->ok()) {
     return true;
   } else {  // 编译出错输出日志
-    POLARIS_LOG(LOG_ERROR, "regex string [%s] compile error: %s", regex_->pattern().c_str(),
-                regex_->error().c_str());
+    POLARIS_LOG(LOG_ERROR, "regex string [%s] compile error: %s", regex_->pattern().c_str(), regex_->error().c_str());
     return false;
   }
 }
@@ -55,7 +54,7 @@ bool MatchString::Match(const std::string& value) const {
   if (type_ == v1::MatchString::EXACT) {
     return data_ == value;
   }
-  if (regex_.NotNull()) {
+  if (regex_ != nullptr) {
     return re2::RE2::PartialMatch(value.c_str(), *regex_);
   }
   return false;
@@ -71,9 +70,9 @@ bool MatchString::MatchParameter(const std::string& parameter, const std::string
   return false;
 }
 
-const std::string& MatchString::Wildcard() {
-  static const std::string kWildcard = "*";
-  return kWildcard;
+const std::string& MatchString::WildcardOrValue(const std::string& value) {
+  static std::string empty_string;
+  return value != "*" ? value : empty_string;
 }
 
 bool MatchString::MapMatch(const std::map<std::string, MatchString>& rule_metadata,
@@ -84,8 +83,7 @@ bool MatchString::MapMatch(const std::map<std::string, MatchString>& rule_metada
   std::map<std::string, std::string>::const_iterator meta_it;
   for (std::map<std::string, MatchString>::const_iterator rule_it = rule_metadata.begin();
        rule_it != rule_metadata.end(); ++rule_it) {
-    if ((meta_it = metadata.find(rule_it->first)) == metadata.end() ||
-        !rule_it->second.Match(meta_it->second)) {
+    if ((meta_it = metadata.find(rule_it->first)) == metadata.end() || !rule_it->second.Match(meta_it->second)) {
       return false;
     }
   }
@@ -93,8 +91,7 @@ bool MatchString::MapMatch(const std::map<std::string, MatchString>& rule_metada
 }
 
 bool MatchString::MapMatch(const std::map<std::string, MatchString>& rule_metadata,
-                           const std::map<std::string, std::string>& metadata,
-                           std::string& parameters) {
+                           const std::map<std::string, std::string>& metadata, std::string& parameters) {
   if (rule_metadata.size() > metadata.size()) {
     return false;
   }
@@ -108,7 +105,7 @@ bool MatchString::MapMatch(const std::map<std::string, MatchString>& rule_metada
     }
     if (rule_it->second.IsParameter()) {
       parameters = separator + meta_it->second;
-      separator  = ",";
+      separator = ",";
     } else {
       if (!rule_it->second.Match(meta_it->second)) {
         return false;
@@ -132,8 +129,7 @@ bool MatchString::MapMatch(const std::map<std::string, MatchString>& rule_metada
     }
     if (rule_it->second.IsParameter()) {
       std::map<std::string, std::string>::const_iterator param_it = parameters.find(rule_it->first);
-      if (param_it == parameters.end() ||
-          !rule_it->second.MatchParameter(param_it->second, meta_it->second)) {
+      if (param_it == parameters.end() || !rule_it->second.MatchParameter(param_it->second, meta_it->second)) {
         return false;
       }
     } else {

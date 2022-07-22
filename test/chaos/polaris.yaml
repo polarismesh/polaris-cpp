@@ -1,0 +1,13 @@
+#描述:全局配置
+global:
+  system:
+    #服务发现集群
+    discoverCluster:
+      namespace: Polaris
+      service: polaris.discover.cpp.chaos
+    #健康检查集群
+    healthCheckCluster:
+      namespace: Polaris
+      service: polaris.healthcheck.cpp.chaos
+  serverConnector:
+    serverSwitchInterval: 60s

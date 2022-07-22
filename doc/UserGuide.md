@@ -55,7 +55,7 @@ SDK提供了多个接口封装上述过程以便创建ProviderApi以适用不同
     // 这个方法默认加载当前目录下的`polaris.yaml`配置文件初始化Context来创建ProviderApi。
     // 如果该配置文件不存在，则使用默认配置；否则，加载该文件的配置项覆盖相关默认配置。
     polaris::ProviderApi* provider_api = polaris::ProviderApi::CreateWithDefaultFile();
-    if (provider_api == NULL) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
+    if (provider_api == nullptr) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
         abort();
     }
     // 使用provider_api
@@ -68,18 +68,18 @@ SDK提供了多个接口封装上述过程以便创建ProviderApi以适用不同
     ```c++
     // 先创建Config
     polaris::Config* config = polaris::Config::CreateWithDefaultFile();
-    if (config == NULL) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
+    if (config == nullptr) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
         abort();
     }
     // 先创建Context
     polaris::Context* context = polaris::Context::Create(config);
     delete config;  // 创建完成后即可释放config对象
-    if (context == NULL) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
+    if (context == nullptr) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
         abort();
     }
     // 再以共享模式Context创建ProviderApi，用户自己维护Context的生命周期，该context还可以用于创建ConsumerApi
     polaris::ProviderApi* provider_api = polaris::ProviderApi::Create(context);
-    if (provider_api == NULL) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
+    if (provider_api == nullptr) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
         abort();
     }
 
@@ -159,7 +159,7 @@ SDK提供了多个接口封装上述过程以便创建ConsumerApi以适用不同
     // 这个方法默认加载当前目录下的`polaris.yaml`配置文件初始化Context来创建ConsumerApi。
     // 如果该配置文件不存在，则使用默认配置；否则，加载该文件的配置项覆盖相关默认配置。
     polaris::ConsumerApi* consumer_api = polaris::ConsumerApi::CreateWithDefaultFile();
-    if (consumer_api == NULL) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
+    if (consumer_api == nullptr) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
         abort();
     }
     // 使用consumer_api
@@ -172,18 +172,18 @@ SDK提供了多个接口封装上述过程以便创建ConsumerApi以适用不同
     ```c++
     // 先创建Config
     polaris::Config* config = polaris::Config::CreateWithDefaultFile();
-    if (config == NULL) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
+    if (config == nullptr) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
         abort();
     }
     // 先创建Context
     polaris::Context* context = polaris::Context::Create(config);
     delete config;  // 创建完成后即可释放config对象
-    if (context == NULL) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
+    if (context == nullptr) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
         abort();
     }
     // 再以共享模式Context创建ConsumerApi，用户自己维护Context的生命周期，该context还可以用于创建ProviderApi
     polaris::ConsumerApi* consumer_api = polaris::ConsumerApi::Create(context);
-    if (consumer_api == NULL) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
+    if (consumer_api == nullptr) { // 创建错误，创建失败原因可查看日志~/polaris/log/polaris.log
         abort();
     }
 

@@ -17,7 +17,6 @@
 #include "cache/cache_manager.h"
 #include "engine/circuit_breaker_executor.h"
 #include "engine/health_check_executor.h"
-#include "engine/main_executor.h"
 #include "monitor/monitor_reporter.h"
 #include "polaris/defs.h"
 
@@ -26,7 +25,7 @@ namespace polaris {
 class Context;
 
 class Engine {
-public:
+ public:
   explicit Engine(Context* context);
 
   ~Engine();
@@ -41,9 +40,8 @@ public:
 
   CircuitBreakerExecutor* GetCircuitBreakerExecutor() { return &circuit_breaker_executor_; }
 
-private:
+ private:
   Context* context_;
-  MainExecutor main_executor_;
   CacheManager cache_manager_;
   MonitorReporter monitor_reporter_;
   CircuitBreakerExecutor circuit_breaker_executor_;

@@ -20,14 +20,15 @@
 #include <gtest/gtest.h>
 #include <v1/ratelimit.pb.h>
 
+#include <memory>
+
 #include "quota/adjuster/climb_config.h"
 #include "quota/model/rate_limit_rule.h"
-#include "utils/scoped_ptr.h"
 
 namespace polaris {
 
 class ClimbHealthMetricTest : public ::testing::Test {
-protected:
+ protected:
   void SetUp() {
     v1::ClimbConfig climb_config;
     v1::ClimbConfig::TriggerPolicy::ErrorRate::SpecialConfig* special_config =
@@ -37,30 +38,30 @@ protected:
     special_config->mutable_errorrate()->set_value(50);
     trigger_policy_.InitPolicy(climb_config.policy());
     throttling_.InitClimbThrottling(climb_config.throttling());
-    health_climb_.Set(new HealthMetricClimb(trigger_policy_, throttling_));
+    health_climb_.reset(new HealthMetricClimb(trigger_policy_, throttling_));
   }
 
   void TearDown() {}
 
   void InitLimitAmount(std::vector<RateLimitAmount>& limit_amounts);
 
-protected:
+ protected:
   ClimbTriggerPolicy trigger_policy_;
   ClimbThrottling throttling_;
-  ScopedPtr<HealthMetricClimb> health_climb_;
+  std::unique_ptr<HealthMetricClimb> health_climb_;
   v1::MetricResponse response_;
   std::vector<RateLimitAmount> limit_amounts_;
 };
 
 void ClimbHealthMetricTest::InitLimitAmount(std::vector<RateLimitAmount>& limit_amounts) {
   RateLimitAmount rate_limit_amount;
-  rate_limit_amount.max_amount_     = 70;
+  rate_limit_amount.max_amount_ = 70;
   rate_limit_amount.valid_duration_ = 1000;
-  rate_limit_amount.precision_      = 100;
+  rate_limit_amount.precision_ = 100;
 
   rate_limit_amount.start_amount_ = 70;
-  rate_limit_amount.end_amount_   = 100;
-  rate_limit_amount.min_amount_   = 10;
+  rate_limit_amount.end_amount_ = 100;
+  rate_limit_amount.min_amount_ = 10;
   limit_amounts.push_back(rate_limit_amount);
 }
 
@@ -84,7 +85,7 @@ TEST_F(ClimbHealthMetricTest, NoNeedAdjust) {
 
 TEST_F(ClimbHealthMetricTest, NeedAdjust) {
   InitLimitAmount(limit_amounts_);
-  v1::MetricResponse::MetricSum* metric_sum   = response_.add_summaries();
+  v1::MetricResponse::MetricSum* metric_sum = response_.add_summaries();
   v1::MetricResponse::MetricSum::Value* value = metric_sum->add_values();
   for (int i = 0; i < 3; ++i) {  // 三种类型：慢调用数 错误数 特殊错误数
     int64_t total_count = i == 0 ? 5 : trigger_policy_.error_rate_.request_volume_threshold_ + 1;

@@ -22,7 +22,6 @@
 #include <string>
 #include <vector>
 
-#include "polaris/accessors.h"
 #include "polaris/config.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
@@ -55,9 +54,9 @@ typedef void (*InstancePreUpdateHandler)(const InstancesData* oldInsts, Instance
 
 /// @brief 路由插件事件类型
 enum PluginEventType {
-  kPluginEvtInstancePreUpdate      = 100,  // 实例数据更新前
-  kPluginEvtInstancePostUpdate     = 101,  // 实例数据更新后
-  kPluginEvtServiceRoutePreUpdate  = 200,  // 服务路由数据更新前
+  kPluginEvtInstancePreUpdate = 100,       // 实例数据更新前
+  kPluginEvtInstancePostUpdate = 101,      // 实例数据更新后
+  kPluginEvtServiceRoutePreUpdate = 200,   // 服务路由数据更新前
   kPluginEvtServiceRoutePostUpdate = 201,  // 服务路由数据更新后
 };
 
@@ -66,7 +65,7 @@ class InstancesData;
 
 /// @brief 扩展点接口
 class Plugin {
-public:
+ public:
   virtual ~Plugin() {}
 
   /// @brief 初始化插件
@@ -81,102 +80,6 @@ typedef Plugin* (*PluginFactory)();
 
 /// @brief 注册插件
 ReturnCode RegisterPlugin(std::string name, PluginType plugin_type, PluginFactory plugin_factory);
-
-/// @brief 事件处理回调接口
-class ServiceEventHandler {
-public:
-  /// @brief 析构函数
-  virtual ~ServiceEventHandler() {}
-
-  /// @brief 事件处理逻辑
-  ///
-  /// @param type 事件监听类型
-  /// @param service_key 需要监听的服务
-  /// @param data 事件的数据，如果是NULL表示未找到该服务数据
-  virtual void OnEventUpdate(const ServiceKey& service_key, ServiceDataType data_type,
-                             void* data) = 0;
-
-  /// @brief 同步成功事件回调
-  virtual void OnEventSync(const ServiceKey& service_key, ServiceDataType data_type) = 0;
-};
-
-class InstanceRegisterRequest;
-class InstanceDeregisterRequest;
-class InstanceHeartbeatRequest;
-class ProviderCallback;
-
-/// @brief 扩展点接口：对接Server/Agent的代理，封装了网络通信逻辑
-///
-/// 接口分为两部分：
-///     1. 服务事件监听、反监听，用于定时同步服务实例和服务路由
-///     2. 服务注册、反注册、心跳上报、Client上报
-class ServerConnector : public Plugin {
-public:
-  /// @brief 析构函数
-  virtual ~ServerConnector() {}
-
-  /// @brief 通过配置进行初始化
-  virtual ReturnCode Init(Config* config, Context* context) = 0;
-
-  /// @brief 注册服务事件监听器
-  ///
-  /// @param type 事件类型，目前支持两种类型：服务实例和服务路由
-  /// @param service_key 要监听的服务
-  /// @param handler 事件处理回调
-  /// @return ReturnCode 调用返回码
-  virtual ReturnCode RegisterEventHandler(const ServiceKey& service_key, ServiceDataType data_type,
-                                          uint64_t sync_interval, ServiceEventHandler* handler) = 0;
-
-  /// @brief 反注册事件监听器
-  ///
-  /// @param type 事件类型
-  /// @param service_key 反监听的服务
-  /// @return ReturnCode 调用返回码
-  virtual ReturnCode DeregisterEventHandler(const ServiceKey& service_key,
-                                            ServiceDataType data_type) = 0;
-
-  /// @brief 实现具体的注册服务请求
-  ///
-  /// @param req 服务实例注册请求，已经被校验为合法
-  /// @param timeout_ms 超时时间(毫秒)
-  /// @param instance_id 注册成功后服务端返回的实例ID
-  /// @return int 调用返回码
-  virtual ReturnCode RegisterInstance(const InstanceRegisterRequest& req, uint64_t timeout_ms,
-                                      std::string& instance_id) = 0;
-
-  /// @brief 发送同步反注册服务
-  ///
-  /// @param req 反注册请求，已经被校验为合法
-  /// @param timeout_ms 超时时间(毫秒)
-  /// @return ReturnCode 调用返回码
-  virtual ReturnCode DeregisterInstance(const InstanceDeregisterRequest& req,
-                                        uint64_t timeout_ms) = 0;
-
-  /// @brief 发送心跳上报请求
-  ///
-  /// @param req 心跳请求，已经被校验为合法
-  /// @param timeout_ms 超时时间(毫秒)
-  /// @return ReturnCode 调用返回码
-  virtual ReturnCode InstanceHeartbeat(const InstanceHeartbeatRequest& req,
-                                       uint64_t timeout_ms) = 0;
-
-  /// @brief 异步发送心跳上报请求
-  ///
-  /// @param req 心跳请求，已经被校验为合法
-  /// @param timeout_ms 超时时间(毫秒)
-  /// @param callback 请求完成时结果回调，由SDK回调完成后释放
-  /// @return ReturnCode 调用返回码
-  virtual ReturnCode AsyncInstanceHeartbeat(const InstanceHeartbeatRequest& req,
-                                            uint64_t timeout_ms, ProviderCallback* callback) = 0;
-
-  /// @brief 发送Client上报请求
-  /// @param host client端的ip地址
-  /// @param timeout_ms 超时时间(毫秒)
-  /// @param location 上报成功后，返回的client端的location
-  /// @return ReturnCode 调用返回码
-  virtual ReturnCode ReportClient(const std::string& host, uint64_t timeout_ms,
-                                  Location& location) = 0;
-};
 
 enum CircuitBreakerStatus {
   kCircuitBreakerClose = 0,
@@ -204,14 +107,22 @@ struct CircuitBreakUnhealthySetsData {
   std::map<std::string, SetCircuitBreakerUnhealthyInfo> subset_unhealthy_infos;
 };
 
+enum DynamicWeightDataStatus {
+  kDynamicWeightNoInit = 0,
+  kDynamicWeightUpdating = 1,
+  kDynamicWeightInvalid = 2,
+};
+
 struct DynamicWeightData {
   uint64_t version;
+  DynamicWeightDataStatus status;
+  uint64_t sync_interval;
   std::map<std::string, uint32_t> dynamic_weights;
 };
 
 // 服务数据加载完成通知
 class DataNotify {
-public:
+ public:
   virtual ~DataNotify() {}
 
   // 通知服务数据加载完成
@@ -236,7 +147,7 @@ bool SetDataNotifyFactory(ConsumerApi* consumer, DataNotifyFactory factory);
 /// 对于InitFromDisk和NotInit状态的数据首次访问时，需要向ServerConnector注册Handler
 /// 并将状态转换为FirstAccessed，在ServerConnector中更新到数据后，将状态转换为IsSyncing
 class LocalRegistry : public Plugin {
-public:
+ public:
   /// @brief 析构函数
   virtual ~LocalRegistry() {}
 
@@ -249,7 +160,7 @@ public:
   ///
   /// @note 必须在函数内部删除并取消注册到ServerConnector的Handler
   /// 如果返回在外部删除，则可能删除过期后新的请求触发的handler
-  virtual void RemoveExpireServiceData(uint64_t current_time) = 0;
+  virtual void RemoveExpireServiceData() = 0;
 
   /// @brief 非阻塞获取服务缓存，只读缓存中的信息
   ///
@@ -268,25 +179,21 @@ public:
   /// @param service_namespace 服务命名空间
   /// @param notify 缓存加载完毕时回调通知对象
   /// @return ReturnCode 调用返回码
-  virtual ReturnCode LoadServiceDataWithNotify(const ServiceKey& service_key,
-                                               ServiceDataType data_type,
-                                               ServiceData*& service_data,
-                                               ServiceDataNotify*& notify) = 0;
+  virtual ReturnCode LoadServiceDataWithNotify(const ServiceKey& service_key, ServiceDataType data_type,
+                                               ServiceData*& service_data, ServiceDataNotify*& notify) = 0;
 
   virtual ReturnCode UpdateServiceData(const ServiceKey& service_key, ServiceDataType data_type,
                                        ServiceData* service_data) = 0;
 
-  virtual ReturnCode UpdateServiceSyncTime(const ServiceKey& service_key,
-                                           ServiceDataType data_type) = 0;
+  virtual ReturnCode UpdateServiceSyncTime(const ServiceKey& service_key, ServiceDataType data_type) = 0;
 
   virtual ReturnCode UpdateCircuitBreakerData(const ServiceKey& service_key,
                                               const CircuitBreakerData& circuit_breaker_data) = 0;
 
-  virtual ReturnCode UpdateSetCircuitBreakerData(
-      const ServiceKey& service_key, const CircuitBreakUnhealthySetsData& unhealthy_sets) = 0;
+  virtual ReturnCode UpdateSetCircuitBreakerData(const ServiceKey& service_key,
+                                                 const CircuitBreakUnhealthySetsData& unhealthy_sets) = 0;
 
-  virtual ReturnCode GetCircuitBreakerInstances(const ServiceKey& service_key,
-                                                ServiceData*& service_data,
+  virtual ReturnCode GetCircuitBreakerInstances(const ServiceKey& service_key, ServiceData*& service_data,
                                                 std::vector<Instance*>& open_instances) = 0;
 
   /// @brief 更新服务实例状态，properties存放的是状态值，当前支持2个key
@@ -299,6 +206,9 @@ public:
   virtual ReturnCode UpdateDynamicWeight(const ServiceKey& service_key,
                                          const DynamicWeightData& dynamic_weight_data) = 0;
 
+  /// @brief 检测清除掉过期的动态权重数据
+  virtual void CheckAndSetExpireDynamicWeightServiceData(const ServiceKey& service_key) = 0;
+
   // @brief 用于查看缓存中有多少个service的接口
   ///
   /// @param service_key_set 输出参数:用于存放ServiceKey信息
@@ -306,30 +216,9 @@ public:
   virtual ReturnCode GetAllServiceKey(std::set<ServiceKey>& service_key_set) = 0;
 };
 
-struct RouterStatData;
-/// @brief 扩展点接口：服务路由
-class ServiceRouter : public Plugin {
-public:
-  /// @brief 析构函数
-  virtual ~ServiceRouter() {}
-
-  /// @brief 通过配置进行初始化
-  virtual ReturnCode Init(Config* config, Context* context) = 0;
-
-  /// @brief 执行服务路由
-  ///
-  /// @param router_context 路由上限文，作为路由的输入
-  /// @param router_result 路由结果，作为路由的输出
-  /// @return ReturnCode
-  virtual ReturnCode DoRoute(RouteInfo& route_info, RouteResult* route_result) = 0;
-
-  /// @brief 收集路由统计数据
-  virtual RouterStatData* CollectStat() = 0;
-};
-
 /// @brief 扩展点接口：负载均衡
 class LoadBalancer : public Plugin {
-public:
+ public:
   /// @brief 析构函数
   virtual ~LoadBalancer() {}
 
@@ -343,87 +232,47 @@ public:
   ///
   /// @param service 过滤后的服务缓存信息
   /// @param criteria 负载均衡信息
-  /// @param instace 被选择的服务实例
+  /// @param instance 被选择的服务实例
   /// @return ReturnCode 调用返回码
-  virtual ReturnCode ChooseInstance(ServiceInstances* instances, const Criteria& criteria,
-                                    Instance*& instance) = 0;
+  virtual ReturnCode ChooseInstance(ServiceInstances* instances, const Criteria& criteria, Instance*& instance) = 0;
 };
 
-/// @brief
+/// @brief 调用统计结果上报
 struct InstanceGauge {
   InstanceGauge()
-      : call_ret_status(kCallRetOk), call_ret_code(0), call_daley(0), locality_aware_info(0) {}
-  std::string service_name;
-  std::string service_namespace;
+      : call_ret_status(kCallRetOk),
+        call_ret_code(0),
+        call_daley(0),
+        locality_aware_info(0),
+        source_service_key(nullptr),
+        subset_(nullptr),
+        labels_(nullptr) {}
+
+  ~InstanceGauge() {
+    if (source_service_key != nullptr) {
+      delete source_service_key;
+      source_service_key = nullptr;
+    }
+    if (subset_ != nullptr) {
+      delete subset_;
+      subset_ = nullptr;
+    }
+    if (labels_ != nullptr) {
+      delete labels_;
+      labels_ = nullptr;
+    }
+  }
+
+  ServiceKey service_key_;
   std::string instance_id;
   CallRetStatus call_ret_status;
   int call_ret_code;
   uint64_t call_daley;
   uint64_t locality_aware_info;
 
-  ServiceKey source_service_key;
-  std::map<std::string, std::string> subset_;
-  std::map<std::string, std::string> labels_;
-};
-
-class InstancesCircuitBreakerStatus {
-public:
-  virtual ~InstancesCircuitBreakerStatus() {}
-
-  virtual bool TranslateStatus(const std::string& instance_id, CircuitBreakerStatus from,
-                               CircuitBreakerStatus to) = 0;
-
-  virtual bool AutoHalfOpenEnable() = 0;
-};
-
-// 通用的CircuitBreakerStatus 抽象类
-class AbstractCircuitBreakerStatus {
-public:
-  virtual ~AbstractCircuitBreakerStatus() {}
-
-  virtual bool TranslateStatus(const std::string& id, CircuitBreakerStatus from,
-                               CircuitBreakerStatus to) = 0;
-
-  virtual bool AutoHalfOpenEnable() = 0;
-
-  virtual ReturnCode SetAfterHalfOpenRequestRate(float percent)  = 0;
-  virtual ReturnCode GetAfterHalfOpenRequestRate(float* percent) = 0;
-};
-
-/// @brief 扩展点接口：节点熔断
-class CircuitBreaker : public Plugin {
-public:
-  /// @brief 析构函数
-  virtual ~CircuitBreaker() {}
-
-  /// @brief 通过配置进行初始化
-  virtual ReturnCode Init(Config* config, Context* context) = 0;
-
-  virtual int RequestAfterHalfOpen() = 0;
-
-  virtual ReturnCode RealTimeCircuitBreak(const InstanceGauge& instance_gauge,
-                                          InstancesCircuitBreakerStatus* instances_status) = 0;
-  /// @brief 进行节点的熔断
-  ///
-  /// @param service 服务缓存
-  /// @param stat_info 服务统计信息
-  /// @param instances 返回被熔断的节点
-  /// @return ReturnCode 调用返回码
-  virtual ReturnCode TimingCircuitBreak(InstancesCircuitBreakerStatus* instances_status) = 0;
-};
-
-// @brief 扩展点接口：Set熔断
-class SetCircuitBreaker : public Plugin {
-public:
-  /// @brief 析构函数
-  virtual ~SetCircuitBreaker() {}
-
-  /// @brief 通过配置进行初始化
-  virtual ReturnCode Init(Config* config, Context* context) = 0;
-
-  virtual ReturnCode RealTimeCircuitBreak(const InstanceGauge& instance_gauge) = 0;
-
-  virtual ReturnCode TimingCircuitBreak() = 0;
+  ServiceKey* source_service_key;
+  std::map<std::string, std::string>* subset_;
+  std::map<std::string, std::string>* labels_;
 };
 
 /// @brief 探测结果
@@ -435,7 +284,7 @@ struct DetectResult {
 
 /// @brief 扩展点接口：主动健康探测策略
 class HealthChecker : public Plugin {
-public:
+ public:
   /// @brief 析构函数
   virtual ~HealthChecker() {}
 
@@ -449,28 +298,9 @@ public:
   virtual ReturnCode DetectInstance(Instance& instance, DetectResult& detect_result) = 0;
 };
 
-/// @brief 动态权重调整接口
-class WeightAdjuster : public Plugin {
-public:
-  /// @brief 析构函数
-  virtual ~WeightAdjuster() {}
-
-  /// @brief 通过配置进行初始化
-  virtual ReturnCode Init(Config* config, Context* context) = 0;
-
-  virtual ReturnCode RealTimeAdjustDynamicWeight(const InstanceGauge& instance_gauge,
-                                                 bool& need_adjuster) = 0;
-  /// @brief 进行动态权重调整，返回调整后的动态权重
-  ///
-  /// @param service 服务信息
-  /// @param stat_info 服务统计信息
-  /// @return int 操作返回码
-  virtual ReturnCode AdjustDynamicWeight(Service* service, const InstanceGauge& instance_gauge) = 0;
-};
-
 /// @brief 扩展点接口：上报统计结果
 class StatReporter : public Plugin {
-public:
+ public:
   /// @brief 析构函数
   virtual ~StatReporter() {}
 
@@ -493,7 +323,7 @@ enum AlertLevel {
 
 /// @brief 扩展点接口：上报告警信息
 class AlertReporter : public Plugin {
-public:
+ public:
   /// @brief 析构函数
   virtual ~AlertReporter() {}
 
@@ -510,7 +340,7 @@ public:
 
 ///@brief 扩展点接口：收集北极星SDK调用服务器结果
 class ServerMetric : public Plugin {
-public:
+ public:
   virtual ~ServerMetric() {}
 
   /// @brief 通过配置进行初始化
@@ -523,8 +353,8 @@ public:
   /// @param ret_code 返回码
   /// @param ret_status 是否成功
   /// @param daley 延迟
-  virtual void MetricReport(const ServiceKey& service_key, const Instance& instance,
-                            ReturnCode ret_code, CallRetStatus ret_status, uint64_t daley) = 0;
+  virtual void MetricReport(const ServiceKey& service_key, const Instance& instance, ReturnCode ret_code,
+                            CallRetStatus ret_status, uint64_t daley) = 0;
 };
 
 }  // namespace polaris

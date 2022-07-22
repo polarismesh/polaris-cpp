@@ -31,7 +31,6 @@
 #include "quota/rate_limit_window.h"
 #include "reactor/reactor.h"
 #include "reactor/task.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 namespace v1 {
@@ -42,19 +41,21 @@ namespace polaris {
 
 class LimitCallResult;
 
-ClimbAdjuster::ClimbAdjuster(Reactor& reactor, MetricConnector* connector,
-                             RemoteAwareBucket* remote_bucket)
-    : QuotaAdjuster(reactor, connector, remote_bucket), is_deleted_(false), local_time_diff_(0),
-      call_metric_data_(NULL), health_metric_climb_(NULL) {}
+ClimbAdjuster::ClimbAdjuster(Reactor& reactor, MetricConnector* connector, RemoteAwareBucket* remote_bucket)
+    : QuotaAdjuster(reactor, connector, remote_bucket),
+      is_deleted_(false),
+      local_time_diff_(0),
+      call_metric_data_(nullptr),
+      health_metric_climb_(nullptr) {}
 
 ClimbAdjuster::~ClimbAdjuster() {
-  if (call_metric_data_ != NULL) {
+  if (call_metric_data_ != nullptr) {
     delete call_metric_data_;
-    call_metric_data_ = NULL;
+    call_metric_data_ = nullptr;
   }
-  if (health_metric_climb_ != NULL) {
+  if (health_metric_climb_ != nullptr) {
     delete health_metric_climb_;
-    health_metric_climb_ = NULL;
+    health_metric_climb_ = nullptr;
   }
 }
 
@@ -74,19 +75,17 @@ ReturnCode ClimbAdjuster::Init(RateLimitRule* rule) {
   trigger_policy_.InitPolicy(climb_config.policy());
   throttling_.InitClimbThrottling(climb_config.throttling());
 
-  call_metric_data_    = new CallMetricData(metric_config_, trigger_policy_);
+  call_metric_data_ = new CallMetricData(metric_config_, trigger_policy_);
   health_metric_climb_ = new HealthMetricClimb(trigger_policy_, throttling_);
-  limit_amounts_       = rule->GetRateLimitAmount();  // 当前配额
+  limit_amounts_ = rule->GetRateLimitAmount();  // 当前配额
 
   // 设置定时任务
   reactor_.SubmitTask(new FuncRefTask<ClimbAdjuster>(SetupTimingTask, this));
   return kReturnOk;
 }
 
-void ClimbAdjuster::RecordResult(const LimitCallResult& call_result) {
-  LimitCallResultAccessor request(call_result);
-  call_metric_data_->Record(request.GetCallResultType(), request.GetResponseTime(),
-                            request.GetResponseCode());
+void ClimbAdjuster::RecordResult(const LimitCallResult::Impl& request) {
+  call_metric_data_->Record(request.result_type_, request.response_time_, request.response_code_);
 }
 
 void ClimbAdjuster::MakeDeleted() {
@@ -100,11 +99,11 @@ void ClimbAdjuster::CollectRecord(v1::RateLimitRecord& rate_limit_record) {
 
 void ClimbAdjuster::SetupTimingTask(ClimbAdjuster* adjuster) {
   if (!adjuster->is_deleted_) {
-    adjuster->reactor_.AddTimingTask(new TimingFuncRefTask<ClimbAdjuster>(
-        TimingReport, adjuster, adjuster->metric_config_.report_interval_));
+    adjuster->reactor_.AddTimingTask(
+        new TimingFuncRefTask<ClimbAdjuster>(TimingReport, adjuster, adjuster->metric_config_.report_interval_));
 
-    adjuster->reactor_.AddTimingTask(new TimingFuncRefTask<ClimbAdjuster>(
-        TimingAdjust, adjuster, adjuster->throttling_.judge_duration_));
+    adjuster->reactor_.AddTimingTask(
+        new TimingFuncRefTask<ClimbAdjuster>(TimingAdjust, adjuster, adjuster->throttling_.judge_duration_));
   }
 }
 
@@ -116,7 +115,7 @@ void ClimbAdjuster::SendInitRequest() {
   init_request->add_dimensions()->set_type(v1::ErrorCount);
   v1::MetricDimension* dimension = init_request->add_dimensions();
   dimension->set_type(v1::ReqCountByDelay);
-  dimension->set_value(StringUtils::TypeToStr(trigger_policy_.slow_rate_.max_rt_));
+  dimension->set_value(std::to_string(trigger_policy_.slow_rate_.max_rt_));
   v1::MetricInitRequest::MetricWindow* metric_window = init_request->add_windows();
   metric_window->set_duration(metric_config_.window_size_);
   metric_window->set_precision(metric_config_.precision_);
@@ -140,12 +139,10 @@ void ClimbAdjuster::TimingReport(ClimbAdjuster* adjuster) {
       cached_request.mutable_timestamp()->set_value(adjuster->GetServerTime());
     }
     report_request->CopyFrom(cached_request);
-    adjuster->connector_->Report(report_request, 1000,
-                                 new MetricResponseCallback(adjuster, kMetricRpcTypeReport));
+    adjuster->connector_->Report(report_request, 1000, new MetricResponseCallback(adjuster, kMetricRpcTypeReport));
   } else {  // 还未初始化
     adjuster->SendInitRequest();
-    adjuster->reactor_.AddTimingTask(
-        new TimingFuncTask<ClimbAdjuster>(TimingReport, adjuster, 2000));  // 2s后立即重试
+    adjuster->reactor_.AddTimingTask(new TimingFuncTask<ClimbAdjuster>(TimingReport, adjuster, 2000));  // 2s后立即重试
   }
 }
 
@@ -162,7 +159,7 @@ void ClimbAdjuster::TimingAdjust(ClimbAdjuster* adjuster) {
     query_request->add_dimensions()->set_type(v1::ErrorCount);  // 错误调用数
     v1::MetricDimension* dimension = query_request->add_dimensions();
     dimension->set_type(v1::ReqCountByDelay);  // 慢调用数
-    dimension->set_value(StringUtils::TypeToStr(adjuster->trigger_policy_.slow_rate_.max_rt_));
+    dimension->set_value(std::to_string(adjuster->trigger_policy_.slow_rate_.max_rt_));
     for (ErrorSpecialPolicies::iterator it = adjuster->trigger_policy_.error_specials_.begin();
          it != adjuster->trigger_policy_.error_specials_.end(); ++it) {
       dimension = query_request->add_dimensions();
@@ -175,13 +172,11 @@ void ClimbAdjuster::TimingAdjust(ClimbAdjuster* adjuster) {
                                 new MetricResponseCallback(adjuster, kMetricRpcTypeQuery));
   } else {  // 还未初始化
     adjuster->SendInitRequest();
-    adjuster->reactor_.AddTimingTask(
-        new TimingFuncTask<ClimbAdjuster>(TimingAdjust, adjuster, 2000));  // 2秒后重试
+    adjuster->reactor_.AddTimingTask(new TimingFuncTask<ClimbAdjuster>(TimingAdjust, adjuster, 2000));  // 2秒后重试
   }
 }
 
-void ClimbAdjuster::InitCallback(ReturnCode ret_code, v1::MetricResponse* response,
-                                 uint64_t elapsed_time) {
+void ClimbAdjuster::InitCallback(ReturnCode ret_code, v1::MetricResponse* response, uint64_t elapsed_time) {
   if (ret_code == kReturnOk && response->code().value() == v1::ExecuteSuccess) {
     POLARIS_LOG(LOG_DEBUG, "init metric request succ %" PRId64 "", response->timestamp().value());
     UpdateLocalTIme(response->timestamp().value(), elapsed_time);
@@ -195,8 +190,7 @@ void ClimbAdjuster::InitCallback(ReturnCode ret_code, v1::MetricResponse* respon
   }
 }
 
-void ClimbAdjuster::ReportCallback(ReturnCode ret_code, v1::MetricResponse* response,
-                                   uint64_t elapsed_time) {
+void ClimbAdjuster::ReportCallback(ReturnCode ret_code, v1::MetricResponse* response, uint64_t elapsed_time) {
   uint64_t interval = 1000;
   if (ret_code != kReturnOk) {
     POLARIS_LOG(LOG_ERROR, "report metric request with error:%d", ret_code);
@@ -234,19 +228,18 @@ void ClimbAdjuster::QueryCallback(ReturnCode ret_code, v1::MetricResponse* respo
 
 void ClimbAdjuster::UpdateLocalTIme(int64_t service_time, uint64_t elapsed_time) {
   local_time_diff_ =
-      static_cast<int64_t>((Time::GetCurrentTimeMs() - elapsed_time / 2) * Time::kMillionBase) -
-      service_time;
+      static_cast<int64_t>((Time::GetSystemTimeMs() - elapsed_time / 2) * Time::kMillionBase) - service_time;
 }
 
 int64_t ClimbAdjuster::GetServerTime() {
-  return static_cast<int64_t>(Time::GetCurrentTimeMs() * Time::kMillionBase) - local_time_diff_;
+  return static_cast<int64_t>(Time::GetSystemTimeMs() * Time::kMillionBase) - local_time_diff_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 MetricResponseCallback::MetricResponseCallback(ClimbAdjuster* adjuster, MetricRpcType rpc_type)
     : adjuster_(adjuster), rpc_type_(rpc_type) {
   adjuster_->IncrementRef();
-  begin_time_ = Time::GetCurrentTimeMs();
+  begin_time_ = Time::GetCoarseSteadyTimeMs();
 }
 
 MetricResponseCallback::~MetricResponseCallback() { adjuster_->DecrementRef(); }
@@ -254,9 +247,9 @@ MetricResponseCallback::~MetricResponseCallback() { adjuster_->DecrementRef(); }
 void MetricResponseCallback::OnSuccess(v1::MetricResponse* response) {
   if (!adjuster_->IsDeleted()) {
     if (rpc_type_ == kMetricRpcTypeInit) {
-      adjuster_->InitCallback(kReturnOk, response, Time::GetCurrentTimeMs() - begin_time_);
+      adjuster_->InitCallback(kReturnOk, response, Time::GetCoarseSteadyTimeMs() - begin_time_);
     } else if (rpc_type_ == kMetricRpcTypeReport) {
-      adjuster_->ReportCallback(kReturnOk, response, Time::GetCurrentTimeMs() - begin_time_);
+      adjuster_->ReportCallback(kReturnOk, response, Time::GetCoarseSteadyTimeMs() - begin_time_);
     } else {
       adjuster_->QueryCallback(kReturnOk, response);
     }
@@ -267,11 +260,11 @@ void MetricResponseCallback::OnSuccess(v1::MetricResponse* response) {
 void MetricResponseCallback::OnError(ReturnCode ret_code) {
   if (!adjuster_->IsDeleted()) {
     if (rpc_type_ == kMetricRpcTypeInit) {
-      adjuster_->InitCallback(ret_code, NULL, Time::GetCurrentTimeMs() - begin_time_);
+      adjuster_->InitCallback(ret_code, nullptr, Time::GetCoarseSteadyTimeMs() - begin_time_);
     } else if (rpc_type_ == kMetricRpcTypeReport) {
-      adjuster_->ReportCallback(ret_code, NULL, Time::GetCurrentTimeMs() - begin_time_);
+      adjuster_->ReportCallback(ret_code, nullptr, Time::GetCoarseSteadyTimeMs() - begin_time_);
     } else {
-      adjuster_->QueryCallback(ret_code, NULL);
+      adjuster_->QueryCallback(ret_code, nullptr);
     }
   }
 }

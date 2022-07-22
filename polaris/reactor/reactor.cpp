@@ -26,23 +26,31 @@
 #include "reactor/event.h"
 #include "reactor/notify.h"
 #include "utils/time_clock.h"
+#include "utils/netclient.h"
 
 namespace polaris {
 
-static const int kEpollEventSize           = 1024;
+static const int kEpollEventSize = 1024;
 static const uint64_t kEpollTimeoutDefault = 10;
 
-Reactor::Reactor() {
-  epoll_fd_     = epoll_create(kEpollEventSize);
+// 当前线程执行的reactor
+static __thread Reactor* g_thread_local_reactor = nullptr;
+
+Reactor& ThreadLocalReactor() {
+  POLARIS_ASSERT(g_thread_local_reactor != nullptr);  // 只能在执行线程中获取
+  return *g_thread_local_reactor;
+}
+
+Reactor::Reactor() : executor_tid_(0), stop_received_(false) {
+  epoll_fd_ = epoll_create(kEpollEventSize);
+  NetClient::SetCloExec(epoll_fd_);
   epoll_events_ = new epoll_event[kEpollEventSize];
   POLARIS_ASSERT(epoll_fd_ >= 0 && "reactor create epoll failed!");
-  status_       = kReactorInit;
-  executor_tid_ = 0;
   AddEventHandler(&notifier_);
 }
 
 Reactor::~Reactor() {
-  POLARIS_ASSERT(status_ != kReactorRun);
+  POLARIS_ASSERT(stop_received_);
   RemoveEventHandler(notifier_.GetFd());
 
   // 这里必须先删除timeout，因为有些定时任务会用于检查请求超时
@@ -50,8 +58,8 @@ Reactor::~Reactor() {
   for (TimingTaskIter it = timing_tasks_.begin(); it != timing_tasks_.end(); ++it) {
     delete it->second;
   }
-  for (std::size_t i = 0; i < pending_tasks_.size(); ++i) {
-    delete pending_tasks_[i];
+  for (std::list<Task*>::iterator it = pending_tasks_.begin(); it != pending_tasks_.end(); ++it) {
+    delete *it;
   }
 
   // EventBase对象外部删除
@@ -65,7 +73,7 @@ bool Reactor::AddEventHandler(EventBase* event_handler) {
   int fd = event_handler->GetFd();
   epoll_event epoll_event;
   epoll_event.data.ptr = reinterpret_cast<void*>(event_handler);
-  epoll_event.events   = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLERR | EPOLLRDHUP;
+  epoll_event.events = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLERR | EPOLLRDHUP;
   if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &epoll_event) < 0) {
     POLARIS_LOG(LOG_ERROR, "epoll add fd:%d with errno:%d", fd, errno);
     close(fd);
@@ -86,41 +94,45 @@ void Reactor::RemoveEventHandler(int fd) {
 
 TimingTaskIter Reactor::AddTimingTask(TimingTask* timing_task) {
   POLARIS_ASSERT(executor_tid_ == 0 || executor_tid_ == pthread_self());
-  uint64_t expiration = Time::GetCurrentTimeMs() + timing_task->GetInterval();
+  uint64_t expiration = Time::GetCoarseSteadyTimeMs() + timing_task->GetInterval();
   return timing_tasks_.insert(std::make_pair(expiration, timing_task));
 }
 
-void Reactor::CancelTimingTask(TimingTaskIter iter) {
+void Reactor::CancelTimingTask(TimingTaskIter& iter) {
   POLARIS_ASSERT(executor_tid_ == 0 || executor_tid_ == pthread_self());
-  if (status_ == kReactorRun) {  // 只在运行的情况下取消任务
+  if (stop_received_ == false) {  // 只在运行的情况下取消任务
     delete iter->second;
     timing_tasks_.erase(iter);
   }
+  iter = timing_tasks_.end();
 }
 
 void Reactor::SubmitTask(Task* task) {
-  sync::MutexGuard mutex_guard(queue_mutex_);
+  const std::lock_guard<std::mutex> mutex_guard(queue_mutex_);
   pending_tasks_.push_back(task);
 }
 
 void Reactor::Stop() {
-  status_ = kReactorStop;
+  if (stop_received_) {
+    return;
+  }
+  stop_received_ = true;
   notifier_.Notify();
 }
 
 void Reactor::RunPendingTask() {
-  std::vector<Task*> pending_tasks;
+  std::list<Task*> pending_tasks;
   do {
-    sync::MutexGuard mutex_guard(queue_mutex_);
+    const std::lock_guard<std::mutex> mutex_guard(queue_mutex_);
     pending_tasks.swap(pending_tasks_);
   } while (false);
 
-  for (std::size_t i = 0; i < pending_tasks.size(); ++i) {
-    Task*& task = pending_tasks[i];
-    task->Run();
-    delete task;
+  int task_count = 0;
+  for (std::list<Task*>::iterator it = pending_tasks.begin(); it != pending_tasks.end(); ++it) {
+    (*it)->Run();
+    delete (*it);
 
-    if (i % 100 == 0) {
+    if (task_count++ % 100 == 0) {
       RunEpollTask(0);
     }
   }
@@ -129,7 +141,7 @@ void Reactor::RunPendingTask() {
 void Reactor::RunTimingTask() {
   while (!timing_tasks_.empty()) {
     TimingTaskIter it = timing_tasks_.begin();
-    if (it->first > Time::GetCurrentTimeMs()) {
+    if (it->first > Time::GetCoarseSteadyTimeMs()) {
       return;  // 剩余任务都没有到执行时间
     }
 
@@ -151,8 +163,8 @@ uint64_t Reactor::CalculateEpollWaitTime() {
     return kEpollTimeoutDefault;
   }
   // 查找最新需要执行的任务时间来决定epoll等待的时间
-  uint64_t expire_time  = timing_tasks_.begin()->first;
-  uint64_t current_time = Time::GetCurrentTimeMs();
+  uint64_t expire_time = timing_tasks_.begin()->first;
+  uint64_t current_time = Time::GetCoarseSteadyTimeMs();
   if (expire_time > current_time) {
     uint64_t diff = expire_time - current_time;
     return diff < kEpollTimeoutDefault ? diff : kEpollTimeoutDefault;
@@ -176,32 +188,33 @@ void Reactor::RunEpollTask(uint64_t timeout) {
   }
 }
 
-void Reactor::Run(bool once) {
-  if (once) {  // 测试代码会重复调用本函数，直接进入Run状态
-    status_ = kReactorRun;
-  } else if (!status_.Cas(kReactorInit, kReactorRun)) {
-    return;
-  }
+void Reactor::Run() {
   executor_tid_ = pthread_self();
+
+  // 设置当前线程的reactor
+  g_thread_local_reactor = this;
 
   // 屏蔽线程的pipe broken singal
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
   sigaddset(&signal_mask, SIGPIPE);
-  int rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
+  int rc = pthread_sigmask(SIG_BLOCK, &signal_mask, nullptr);
   POLARIS_ASSERT(rc == 0)
 
-  while (status_ == kReactorRun) {
+  do {
     RunPendingTask();
 
     RunEpollTask(CalculateEpollWaitTime());
 
     RunTimingTask();
-    if (once) {
-      break;
-    }
-  }
+  } while (!stop_received_);
+
   executor_tid_ = 0;
+}
+
+void Reactor::RunOnce() {
+  stop_received_ = true;
+  Run();
 }
 
 }  // namespace polaris

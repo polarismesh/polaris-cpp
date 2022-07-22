@@ -22,7 +22,6 @@
 #include "integration/common/integration_base.h"
 #include "logger.h"
 #include "polaris/consumer.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
@@ -34,8 +33,7 @@ struct InstanceInfo {
 };
 
 struct RouteRuleInfo {
-  RouteRuleInfo(const std::string& token, const std::string& service)
-      : service_token_(token), service_(service) {}
+  RouteRuleInfo(const std::string& token, const std::string& service) : service_token_(token), service_(service) {}
   std::string service_token_;
   std::string service_;
 };
@@ -43,8 +41,7 @@ struct RouteRuleInfo {
 struct BreakerInfo {
   BreakerInfo(const std::string& cbid, const std::string& cbversion, const std::string& cbtoken,
               const std::string& token, const std::string& service, const std::string& cbname)
-      : cbid_(cbid), cbversion_(cbversion), cbtoken_(cbtoken), token_(token), service_(service),
-        cbname_(cbname) {}
+      : cbid_(cbid), cbversion_(cbversion), cbtoken_(cbtoken), token_(token), service_(service), cbname_(cbname) {}
   std::string cbid_;
   std::string cbversion_;
   std::string cbtoken_;
@@ -54,11 +51,9 @@ struct BreakerInfo {
 };
 
 class SubsetRouteTest : public IntegrationBase {
-protected:
+ protected:
   virtual void SetUp() {
-    IntegrationBase::SetUp();
-
-    std::string content =
+    config_string_ =
         "global:\n"
         "  serverConnector:\n"
         "    addresses: [" +
@@ -74,12 +69,14 @@ protected:
         "\n  circuitBreaker:\n"
         "    setCircuitBreaker:\n"
         "      enable: true\n";
-    ASSERT_TRUE((consumer_api_ = polaris::ConsumerApi::CreateFromString(content)) != NULL);
+    IntegrationBase::SetUp();
+
+    ASSERT_TRUE((consumer_api_ = polaris::ConsumerApi::CreateFromString(config_string_)) != nullptr);
 
     //先创建2个服务，TmpA --> TmpB
     //测试都是假定流量从A到B，B创建带标签的实例，A的出规则创建subset路由规则
-    serviceA_ = "cpp.subset_route_test.a" + StringUtils::TypeToStr(Time::GetCurrentTimeMs());
-    serviceB_ = "cpp.subset_route_test.b" + StringUtils::TypeToStr(Time::GetCurrentTimeMs());
+    serviceA_ = "cpp.subset_route_test.a" + std::to_string(Time::GetSystemTimeMs());
+    serviceB_ = "cpp.subset_route_test.b" + std::to_string(Time::GetSystemTimeMs());
     v1::Service sa, sb;
     sa.mutable_name()->set_value(serviceA_);
     sb.mutable_name()->set_value(serviceB_);
@@ -93,20 +90,17 @@ protected:
 
   virtual void TearDown() {
     //删除实例
-    for (std::vector<InstanceInfo>::iterator it = created_ins.begin(); it != created_ins.end();
-         it++) {
+    for (std::vector<InstanceInfo>::iterator it = created_ins.begin(); it != created_ins.end(); it++) {
       DeletePolarisServiceInstance((*it).service_token_, (*it).id_);
     }
     //删除路由
-    for (std::vector<RouteRuleInfo>::iterator it = created_routes.begin();
-         it != created_routes.end(); it++) {
+    for (std::vector<RouteRuleInfo>::iterator it = created_routes.begin(); it != created_routes.end(); it++) {
       DeletePolarisServiceRouteRule((*it).service_token_, (*it).service_, "Test");
     }
     //删除熔断
-    for (std::vector<BreakerInfo>::iterator it = created_breakers.begin();
-         it != created_breakers.end(); it++) {
-      DeletePolarisSetBreakerRule((*it).cbname_, (*it).cbversion_, (*it).cbtoken_, "Test",
-                                  (*it).token_, (*it).service_, "Test");
+    for (std::vector<BreakerInfo>::iterator it = created_breakers.begin(); it != created_breakers.end(); it++) {
+      DeletePolarisSetBreakerRule((*it).cbname_, (*it).cbversion_, (*it).cbtoken_, "Test", (*it).token_, (*it).service_,
+                                  "Test");
     }
     //删除
     DeleteService(serviceA_, "Test", tokenA_);
@@ -115,8 +109,8 @@ protected:
     IntegrationBase::TearDown();
   }
 
-  void AddOneInstance(std::map<std::string, std::string>& meta, const std::string& service,
-                      const std::string& token, const std::string& host, int port, bool isolate) {
+  void AddOneInstance(std::map<std::string, std::string>& meta, const std::string& service, const std::string& token,
+                      const std::string& host, int port, bool isolate) {
     std::string id;
     AddPolarisServiceInstance(service, "Test", token, host, port, meta, isolate, id);
     InstanceInfo ins(token, id);
@@ -127,8 +121,7 @@ protected:
     }
   }
 
-  void AddOneRouteRule(const std::string& path, const std::string& service,
-                       const std::string& token) {
+  void AddOneRouteRule(const std::string& path, const std::string& service, const std::string& token) {
     //路由规则
     v1::Routing route;
     ParseMessageFromJsonFile(path, &route);
@@ -139,8 +132,8 @@ protected:
     created_routes.push_back(route_info);
   }
 
-  void AddOneBreaker(const std::string& cbversion, const std::string& path,
-                     const std::string& service, const std::string& token) {
+  void AddOneBreaker(const std::string& cbversion, const std::string& path, const std::string& service,
+                     const std::string& token) {
     v1::CircuitBreaker cb;
     std::string cbtoken;
     std::string cbid;
@@ -148,7 +141,7 @@ protected:
     cb.mutable_service()->set_value(service);
     cb.mutable_namespace_()->set_value("Test");
 
-    uint32_t time_now = time(NULL);
+    uint32_t time_now = time(nullptr);
     std::ostringstream oss;
     oss << time_now;
     std::string cbname = cb.name().value() + oss.str();
@@ -158,16 +151,15 @@ protected:
     created_breakers.push_back(breaker);
   }
 
-  void DoGetInstance(int total, std::map<std::string, int>& count,
-                     polaris::GetOneInstanceRequest& request) {
+  void DoGetInstance(int total, std::map<std::string, int>& count, polaris::GetOneInstanceRequest& request) {
     polaris::ReturnCode ret;
-    polaris::InstancesResponse* response = NULL;
+    polaris::InstancesResponse* response = nullptr;
     //发起流量
 
     for (int i = 0; i < total; i++) {
       ret = consumer_api_->GetOneInstance(request, response);
       if (ret == polaris::kReturnOk) {
-        const std::map<std::string, std::string>& subset             = response->GetSubset();
+        const std::map<std::string, std::string>& subset = response->GetSubset();
         std::map<std::string, std::string>::const_iterator subset_it = subset.find("set");
         ASSERT_TRUE(subset_it != subset.end());
         count["set:" + subset_it->second]++;
@@ -181,8 +173,7 @@ protected:
   }
 
   void MakeBreaker(const std::string& dest_service, const std::string& ins,
-                   const std::map<std::string, std::string>& subset,
-                   const std::map<std::string, std::string>& labels,
+                   const std::map<std::string, std::string>& subset, const std::map<std::string, std::string>& labels,
                    polaris::ServiceKey& service_key, int total, float threshold, int waite,
                    polaris::GetOneInstanceRequest& request) {
     //制造熔断、保持、恢复
@@ -202,7 +193,7 @@ protected:
     int split = total * threshold + 1;
     for (int i = 0; i < 15; i++) {
       //均匀上报
-      int count     = 0;
+      int count = 0;
       int err_count = split;
       int suc_count = total - split;
       while (count++ < total) {
@@ -222,7 +213,7 @@ protected:
     }
     //测试状态变化
     //一般来说，对于common_breaker这个配置，14秒熔断和保持，39秒恢复开始
-    polaris::InstancesResponse* response = NULL;
+    polaris::InstancesResponse* response = nullptr;
     for (int j = 10; j < waite; j++) {
       consumer_api_->GetOneInstance(request, response);
       delete response;
@@ -230,7 +221,7 @@ protected:
     }
   }
 
-public:
+ public:
   static void AssertPercent(int total, float percent, float err_rate, int count) {
     // err_rate 0.8%, 0.008
     int dif = total * err_rate;
@@ -240,7 +231,7 @@ public:
         << total << " " << percent << " " << err_rate << " " << count << " " << dif;
   }
 
-protected:
+ protected:
   std::string tokenA_;
   std::string tokenB_;
   std::string serviceA_;
@@ -283,8 +274,8 @@ TEST_F(SubsetRouteTest, TestSubsetWeight) {
   std::map<std::string, int> count;
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "2";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "2";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -326,8 +317,8 @@ TEST_F(SubsetRouteTest, TestSubsetIsolate) {
   std::map<std::string, int> count;
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "5";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "5";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -370,8 +361,8 @@ TEST_F(SubsetRouteTest, TestSubsetBreaker) {
   std::map<std::string, int> count;
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "2";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "2";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -419,8 +410,7 @@ TEST_F(SubsetRouteTest, TestSubsetBreakerRecover) {
   // AddOneInstance(meta, serviceB_, tokenB_, "127.0.0.1", 50032, false);
 
   //路由规则
-  AddOneRouteRule("test/integration/route/json_config/two_diffrent_weight_route_rule", serviceA_,
-                  tokenA_);
+  AddOneRouteRule("test/integration/route/json_config/two_diffrent_weight_route_rule", serviceA_, tokenA_);
   std::cout << "add route done!\n";
   //添加熔断规则, 目前只有被调规则, B是被调
   AddOneBreaker("v4", "test/integration/route/json_config/common_breaker", serviceB_, tokenB_);
@@ -432,8 +422,8 @@ TEST_F(SubsetRouteTest, TestSubsetBreakerRecover) {
   std::map<std::string, int> count;
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "2";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "2";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -481,8 +471,7 @@ TEST_F(SubsetRouteTest, TestBreakerAndPreserved) {
   AddOneInstance(meta, serviceB_, tokenB_, "127.0.0.1", 50032, false);
 
   //路由规则
-  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_,
-                  tokenA_);
+  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_, tokenA_);
   std::cout << "add route done!\n";
   //添加熔断规则, 目前只有被调规则, B是被调
   AddOneBreaker("v4", "test/integration/route/json_config/common_breaker", serviceB_, tokenB_);
@@ -494,8 +483,8 @@ TEST_F(SubsetRouteTest, TestBreakerAndPreserved) {
   std::map<std::string, int> count;
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "2";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "2";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -541,8 +530,7 @@ TEST_F(SubsetRouteTest, TestBreakerAndPreserved2) {
   AddOneInstance(meta, serviceB_, tokenB_, "127.0.0.1", 50022, false);
 
   //路由规则
-  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_,
-                  tokenA_);
+  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_, tokenA_);
   std::cout << "add route done!\n";
   //添加熔断规则, 目前只有被调规则, B是被调
   AddOneBreaker("v4", "test/integration/route/json_config/common_breaker", serviceB_, tokenB_);
@@ -554,8 +542,8 @@ TEST_F(SubsetRouteTest, TestBreakerAndPreserved2) {
   std::map<std::string, int> count;
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "2";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "2";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -603,8 +591,7 @@ TEST_F(SubsetRouteTest, TestIsolateAndPreserved) {
   // AddOneInstance(meta, serviceB_, tokenB_, "127.0.0.1", 50032, false);
 
   //路由规则
-  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_,
-                  tokenA_);
+  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_, tokenA_);
   std::cout << "add route done!\n";
   //添加熔断规则, 目前只有被调规则, B是被调
   AddOneBreaker("v4", "test/integration/route/json_config/common_breaker", serviceB_, tokenB_);
@@ -616,8 +603,8 @@ TEST_F(SubsetRouteTest, TestIsolateAndPreserved) {
   std::map<std::string, int> count;
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "5";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "5";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -661,8 +648,7 @@ TEST_F(SubsetRouteTest, TestWeightAndPreserved) {
   AddOneInstance(meta, serviceB_, tokenB_, "127.0.0.1", 50032, false);
 
   //路由规则
-  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_,
-                  tokenA_);
+  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_, tokenA_);
   std::cout << "add route done!\n";
   //添加熔断规则, 目前只有被调规则, B是被调
   AddOneBreaker("v4", "test/integration/route/json_config/common_breaker", serviceB_, tokenB_);
@@ -674,8 +660,8 @@ TEST_F(SubsetRouteTest, TestWeightAndPreserved) {
   std::map<std::string, int> count;
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "3";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "3";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -723,8 +709,7 @@ TEST_F(SubsetRouteTest, TestSetBreakAndBakup) {
   AddOneInstance(meta, serviceB_, tokenB_, "127.0.0.1", 50032, false);
 
   //路由规则
-  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_,
-                  tokenA_);
+  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_, tokenA_);
   std::cout << "add route done!\n";
   //添加熔断规则, 目前只有被调规则, B是被调
   AddOneBreaker("v4", "test/integration/route/json_config/set_level_breaker", serviceB_, tokenB_);
@@ -736,8 +721,8 @@ TEST_F(SubsetRouteTest, TestSetBreakAndBakup) {
   std::map<std::string, int> count;
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "2";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "2";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -783,12 +768,10 @@ TEST_F(SubsetRouteTest, TestSetBreakAndBakup2) {
   AddOneInstance(meta, serviceB_, tokenB_, "127.0.0.1", 50032, false);
 
   //路由规则
-  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_,
-                  tokenA_);
+  AddOneRouteRule("test/integration/route/json_config/break_preserv_route_rule", serviceA_, tokenA_);
   std::cout << "add route done!\n";
   //添加熔断规则, 目前只有被调规则, B是被调
-  AddOneBreaker("v4", "test/integration/route/json_config/common_labels_breaker", serviceB_,
-                tokenB_);
+  AddOneBreaker("v4", "test/integration/route/json_config/common_labels_breaker", serviceB_, tokenB_);
   std::cout << "add breaker done!\n";
 
   //开始测试权重
@@ -797,8 +780,8 @@ TEST_F(SubsetRouteTest, TestSetBreakAndBakup2) {
   std::map<std::string, int> count;
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
-  sinfo.metadata_["num"]        = "2";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "2";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -870,8 +853,8 @@ TEST_F(SubsetRouteTest, TestSetRegMatch) {
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
   //使用路由规则的正则规则
-  sinfo.metadata_["num"]        = "reg";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "reg";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -928,8 +911,8 @@ TEST_F(SubsetRouteTest, TestSetRegMatch2) {
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
   //使用路由规则的正则规则
-  sinfo.metadata_["num"]        = "reg2";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "reg2";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -985,8 +968,8 @@ TEST_F(SubsetRouteTest, TestRuleUpdate) {
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
   //使用路由规则的正则规则
-  sinfo.metadata_["num"]        = "reg2";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "reg2";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -1044,8 +1027,8 @@ TEST_F(SubsetRouteTest, TestRegMatch3) {
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
   //使用路由规则的正则规则
-  sinfo.metadata_["num"]        = "reg3";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "reg3";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);
@@ -1099,8 +1082,8 @@ TEST_F(SubsetRouteTest, TestRegMatch4) {
   polaris::ServiceKey service_key = {"Test", serviceB_};
   polaris::ServiceInfo sinfo;
   //使用路由规则的正则规则
-  sinfo.metadata_["num"]        = "reg3";
-  sinfo.service_key_.name_      = serviceA_;
+  sinfo.metadata_["num"] = "reg3";
+  sinfo.service_key_.name_ = serviceA_;
   sinfo.service_key_.namespace_ = "Test";
 
   polaris::GetOneInstanceRequest request(service_key);

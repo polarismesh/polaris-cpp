@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <pthread.h>
+#include <atomic>
 
 #include "mock/fake_server_response.h"
 #include "polaris/model.h"
@@ -27,17 +28,17 @@
 namespace polaris {
 
 class ServiceRecordTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() { service_record_ = new ServiceRecord(); }
 
   virtual void TearDown() {
-    if (service_record_ != NULL) {
+    if (service_record_ != nullptr) {
       delete service_record_;
-      service_record_ = NULL;
+      service_record_ = nullptr;
     }
   }
 
-protected:
+ protected:
   ServiceRecord *service_record_;
   std::vector<pthread_t> thread_list_;
 
@@ -45,8 +46,9 @@ protected:
 };
 
 struct ThreadArgs {
+  explicit ThreadArgs(ServiceRecord *service_record) : service_record_(service_record), stop_(false) {}
   ServiceRecord *service_record_;
-  bool stop_;
+  std::atomic<bool> stop_;
 };
 
 void *ServiceRecordTest::UpdateService(void *args) {
@@ -55,18 +57,18 @@ void *ServiceRecordTest::UpdateService(void *args) {
   ServiceKey service_key = {"cpp_test", "cpp_test_service"};
   FakeServer::CreateServiceInstances(response, service_key, 100);
   ServiceData *service_data = ServiceData::CreateFromPb(&response, kDataIsSyncing);
-  while (!thread_args->stop_) {
+  while (!thread_args->stop_.load()) {
     thread_args->service_record_->ServiceDataUpdate(service_data);
   }
   service_data->DecrementRef();
-  return NULL;
+  return nullptr;
 }
 
 TEST_F(ServiceRecordTest, MultiThreadUpdate) {
   pthread_t tid;
-  ThreadArgs args = {service_record_, false};
+  ThreadArgs args(service_record_);
   for (int i = 0; i < 4; ++i) {
-    pthread_create(&tid, NULL, UpdateService, &args);
+    pthread_create(&tid, nullptr, UpdateService, &args);
     thread_list_.push_back(tid);
   }
   for (int i = 0; i < 10;) {
@@ -78,9 +80,9 @@ TEST_F(ServiceRecordTest, MultiThreadUpdate) {
       ++i;
     }
   }
-  args.stop_ = true;
+  args.stop_.store(true);
   for (std::size_t i = 0; i < thread_list_.size(); ++i) {
-    pthread_join(thread_list_[i], NULL);
+    pthread_join(thread_list_[i], nullptr);
   }
   thread_list_.clear();
 }

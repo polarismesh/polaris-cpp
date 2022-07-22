@@ -1,363 +1,365 @@
-#配置模板，不要直接使用
-#不传配置文件或传空的配置文件，SDK会使用默认配置初始化，根据需要传入配置覆盖默认配置项
-#描述:全局配置
+# 配置模板，不要直接使用，只需要配置需要修改的值，未配置的部分会使用默认值
+# 不传配置文件或传空的配置文件，SDK会使用默认配置初始化，根据需要传入配置覆盖默认配置项
+# 描述:全局配置
 global:
   #描述系统相关配置
   system:
-    #服务发现集群
+    # 服务发现集群
     discoverCluster:
       namespace: Polaris
       service: polaris.discover
-      #可选：服务刷新间隔
+      # 可选：服务刷新间隔
       refreshInterval: 10m
-    #健康检查集群
+    # 健康检查集群
     healthCheckCluster:
       namespace: Polaris
       service: polaris.healthcheck
-      #可选：服务刷新间隔
+      # 可选：服务刷新间隔
       refreshInterval: 10m
-    #监控上报集群
+    # 监控上报集群
     monitorCluster:
       namespace: Polaris
       service: polaris.monitor
-      #可选：服务刷新间隔
+      # 可选：服务刷新间隔
       refreshInterval: 10m
-    # 限流统计集群
+    # 指标统计集群
     metricCluster:
       namespace: Polaris 
       service: polaris.metric
       refreshInterval: 10m
-  #描述:对外API相关配置
+    # 描述：系统变量，类似于环境变量，用于路由
+    # 类型：map
+    # 默认值：{}
+    #variables: {}
+  # 描述:对外API相关配置
   api:
-    #描述:SDK绑定的网卡地址，
-    #类型:string
+    # 描述:SDK绑定的网卡地址，
+    # 类型:string
     bindIf: eth1
-    #描述:SDK绑定的IP地址，
-    #类型:string
-    #特殊说明：假如不传，则SDK通过bindIf的网卡名取地址，假如bindIf为空，则通过tcp连接的localAddress来获取地址
+    # 描述:SDK绑定的IP地址，
+    # 类型:string
+    # 特殊说明：假如不传，则SDK通过bindIf的网卡名取地址，假如bindIf为空，则通过tcp连接的localAddress来获取地址
     bindIP: 192.168.1.2
-    #描述:api超时时间
-    #类型:string
-    #格式：^\d+(ms|s|m|h)$
-    #范围:[1ms:...]
-    #默认值:1s
+    # 描述:api超时时间
+    # 类型:string
+    # 格式：^\d+(ms|s|m|h)$
+    # 范围:[1ms:...]
+    # 默认值:1s
     timeout: 1s
-    #描述:API因为网络原因调用失败后的重试次数
-    #类型:int
-    #范围:[0:...]
-    #默认值: 3
-    maxRetryTimes: 3
-    #描述:重试间隔
-    #类型:string
-    #格式:^\d+(ms|s|m|h)$
-    #范围:[1s:...]
-    #默认值:1s
-    retryInterval: 1s
-    #描述:SDK的离线地域信息，假如server没有返回正确的地域信息，则使用离线地域信息
+    # 描述:API因为网络原因调用失败后的重试次数
+    # 类型:int
+    # 范围:[0:...]
+    # 默认值: 5
+    maxRetryTimes: 5
+    # 描述:重试间隔
+    # 类型:string
+    # 格式:^\d+(ms|s|m|h)$
+    # 范围:[1ms:...]
+    # 默认值:100ms
+    retryInterval: 100ms
+    # 描述:SDK的离线地域信息，假如server没有返回正确的地域信息，则使用离线地域信息
     #location:
-      #描述:大区
-      #类型:string
-      #region: south-china
-      #描述:区域
-      #类型:string
-      #zone: shenzhen
-      #描述:园区
-      #类型:string
-      #campus: longgang
-  #描述:对接polaris server的相关配置
+      # 描述:大区
+      # 类型:string
+      #region: 华南
+      # 描述:区域
+      # 类型:string
+      #zone: 深圳
+      # 描述:园区
+      # 类型:string
+      #campus: 坪山IDC
+      # 描述：是否从CMDB中更新位置信息
+      # 类型：bool
+      # 默认值：true
+      #enableUpdate: true
+  # 描述:对接polaris discover server的相关配置
   serverConnector:
-    #描述:server列表，由于SDK在运行过程中可以通过接口定时拉取最新server列表，因此这里填的是初始的地址
-    #类型:list
-    #默认值:代理模式，默认为127.0.0.1:8888（本地agent地址）;直连模式，无默认值
+    # 描述：SDK接入点，用于选择SDK内部提供的接入集群
+    # 类型：string
+    # 默认值：""，表示使用默认接入点
+    joinPoint: ""
+    # 描述: 埋点discover server列表。SDK在运行过程中会通过该地址拿到全量server列表，因此这里填的是初始的地址
+    # 类型: list
+    # 默认值: 非私有化环境不需要修改该配置，SDK内部埋了相关地址
     #addresses:
       #- 127.0.0.1:8081 # 埋点地址
-    #描述:访问server的连接协议，SDK会根据协议名称会加载对应的插件
-    #类型:string
-    #范围:已注册的连接器插件名
-    #默认值:grpc
+    # 描述: 访问server的连接协议，SDK会根据协议名称会加载对应的插件
+    # 类型: string
+    # 范围: 已注册的连接器插件名
+    # 默认值: grpc
     protocol: grpc
-    #描述:发起连接后的连接超时时间
-    #类型:string
-    #格式:^\d+(ms|s|m|h)$
-    #范围:[1ms:...] 
-    #默认值:200ms
+    # 描述: 建立连接的默认超时时间
+    # 类型: string
+    # 格式: ^\d+(ms|s|m|h)$
+    # 范围: [1ms: connectTimeoutMax) 
+    # 默认值: 200ms
     connectTimeout: 200ms
-    #描述:连接空闲时间，长连接模式下，当连接空闲超过一定时间后，SDK会主动释放连接
-    #类型:string
-    #格式:^\d+(ms|s|m|h)$
-    #范围:[1ms:...] 
-    #默认值:500ms
-    connectionIdleTimeout: 500ms
-    #描述:远程请求超时时间
-    #类型:string
-    #格式:^\d+(ms|s|m|h)$
-    #范围:[1ms:...]
-    #默认值:1s
+    # 描述：建立连接超时时间的最大值
+    # 类型: string
+    # 格式: ^\d+(ms|s|m|h)$
+    # 范围: [1ms: ...] 
+    connectTimeoutMax: 1000ms
+    # 描述: 请求超时时间
+    # 类型:string
+    # 格式:^\d+(ms|s|m|h)$
+    # 范围:[1ms:...]
+    # 默认值:1s
     messageTimeout: 1s
-    #描述:首次请求的任务队列长度，当用户发起首次服务访问请求时，SDK会对任务进行队列调度并连接server，当积压的任务数超过队列长度后，SDK会直接拒绝首次请求的发起。
-    #类型:int
-    #范围:[0:...] 
-    #默认值:1000
+    # 描述:首次请求的任务队列长度，当用户发起首次服务访问请求时，SDK会对任务进行队列调度并连接server，当积压的任务数超过队列长度后，SDK会直接拒绝首次请求的发起。
+    # 类型:int
+    # 范围:[0:...] 
+    # 默认值:1000
     requestQueueSize: 1000
-    #描述:server节点的切换周期，为了使得server的压力能够均衡，SDK会定期针对最新的节点列表进行重新计算自己当前应该连接的节点，假如和当前不一致，则进行切换
-    #类型:string
-    #格式:^\d+(ms|s|m|h)$
-    #范围:[1m:...]
-    #默认值:10m
+    # 描述:server节点的切换周期，为了使得server的压力能够均衡，SDK会定期针对最新的节点列表进行重新计算自己当前应该连接的节点，假如和当前不一致，则进行切换
+    # 类型:string
+    # 格式:^\d+(ms|s|m|h)$
+    # 范围:[1m:...]
+    # 默认值:10m
     serverSwitchInterval: 10m
-  #统计上报设置
+  # 统计上报设置
   statReporter:
-    #描述：是否将统计信息上报至monitor
-    #类型：bool
-    #默认值：true
-    enable: true
-    #描述：启用的统计上报插件类型
-    #类型：list
-    #范围：已经注册的统计上报插件的名字
-    #默认值：stat2Monitor(将信息上报至monitor服务)
-    chain:
-      - stat2Monitor
-    #描述：统计上报插件配置
-    plugin:
-      stat2Monitor:
-        #描述:每次上报多长一段时间的统计信息
-        #类型:string
-        #格式:^\d+(ms|s|m|h)$
-        #范围:[1m:...]
-        metricsReportWindow: 1m
-        #描述:将一段时间内的统计信息分为多少个基本单元收集
-        #类型:int
-        #范围:[1:...]
-        #默认值:12
-        metricsNumBuckets: 12
-#描述:主调端配置    
+    # 描述：插件名字
+    # 类型：string
+    # 默认值：default
+    name: default
+# 描述:主调端配置    
 consumer:
-  #描述:本地缓存相关配置
+  # 描述:本地缓存相关配置
   localCache:
-    #描述:缓存类型
-    #类型:string
-    #范围:已注册的本地缓存插件名
-    #默认值:inmemory（基于本机内存的缓存策略）
+    # 描述:缓存类型
+    # 类型:string
+    # 范围:已注册的本地缓存插件名
+    # 默认值:inmemory（基于本机内存的缓存策略）
     type: inmemory
-    #描述:服务定期刷新周期
-    #类型:string
-    #格式:^\d+(ms|s|m|h)$
-    #范围:[1s:...]
-    #默认值:2s
+    # 描述:服务定期刷新周期
+    # 类型:string
+    # 格式:^\d+(ms|s|m|h)$
+    # 范围:[1s:...]
+    # 默认值:2s
     serviceRefreshInterval: 2s
-    #描述:服务过期淘汰时间
-    #类型:string
-    #格式:^\d+(ms|s|m|h)$
-    #范围:[1m:...]
-    #默认值:24h
+    # 描述:服务过期淘汰时间
+    # 类型:string
+    # 格式:^\d+(ms|s|m|h)$
+    # 范围:[1m:...]
+    # 默认值:24h
     serviceExpireTime: 24h
-    #描述:服务缓存持久化目录，SDK在实例数据更新后，按照服务维度将数据持久化到磁盘
-    #类型:string
-    #格式:本机磁盘目录路径，支持$HOME变量
-    #默认值:$HOME/polaris/backup
+    # 描述:服务缓存持久化目录，SDK在实例数据更新后，按照服务维度将数据持久化到磁盘
+    # 类型:string
+    # 格式:本机磁盘目录路径，支持$HOME变量
+    # 默认值:$HOME/polaris/backup
     persistDir: $HOME/polaris/backup
-    #描述:缓存写盘失败的最大重试次数
-    #类型:int
-    #范围:[1:...]
-    #默认值:5
+    # 描述：多久时间内更新的磁盘缓存可直接当做内存缓存使用
+    # 类型：string
+    # 格式:^\d+(ms|s|m|h)$
+    # 默认值：60s
+    availableTime: 60s
+    # 描述：首次发现拉取远程数据失败后，直接将磁盘缓存升级为内存缓存
+    # 类型：string
+    # 格式:^\d+(ms|s|m|h)$
+    # 默认值：2s
+    upgradeWaitTime: 2s
+    # 描述:缓存写盘失败的最大重试次数
+    # 类型:int
+    # 范围:[1:...]
+    # 默认值:5
     persistMaxWriteRetry: 5
-    #描述:缓存从磁盘读取失败的最大重试次数
-    #类型:int
-    #范围:[1:...]
-    #默认值:1
-    persistMaxReadRetry: 1
-    #描述:缓存读写磁盘的重试间隔
-    #类型:string
-    #格式:^\d+(ms|s|m|h)$
-    #范围:[1ms:...] 
-    #默认值:1s
+    # 描述:缓存读写磁盘的重试间隔
+    # 类型:string
+    # 格式:^\d+(ms|s|m|h)$
+    # 范围:[1ms:...] 
+    # 默认值:1s
     persistRetryInterval: 1s
-  #描述:节点熔断相关配置
+  # 描述:节点熔断相关配置
   circuitBreaker:
-    #描述:是否启用节点熔断功能
-    #类型:bool
-    #默认值:true
+    # 描述:是否启用节点熔断功能
+    # 类型:bool
+    # 默认值:true
     enable: true
-    #描述:实例定时熔断检测周期
-    #类型:string
-    #格式:^\d+(ms|s|m|h)$
-    #范围:[100ms:...] 
-    #默认值:500ms
-    checkPeriod: 500ms
-    #描述:熔断策略，SDK会根据策略名称加载对应的熔断器插件
-    #类型:list
-    #范围:已注册的熔断器插件名
+    # 描述:实例定时熔断检测周期
+    # 类型:string
+    # 格式:^\d+(ms|s|m|h)$
+    # 范围:[100ms:...] 
+    # 默认值:1000ms
+    checkPeriod: 1000ms
+    # 描述:熔断策略，SDK会根据策略名称加载对应的熔断器插件
+    # 类型:list
+    # 范围:已注册的熔断器插件名
     #默认值：基于周期连续错误数熔断（errorCount）、以及基于周期错误率的熔断策略（errorRate）
     chain:
     - errorCount
     - errorRate
-    #描述:熔断插件配置
+    # 描述:熔断插件配置
     plugin:
-      #描述:基于周期连续错误数熔断策略配置
-      errCount:
-        #描述:触发连续错误熔断的阈值
-        #类型:int
-        #范围:[1:...]
-        #默认值:10
+      # 描述:基于周期连续错误数熔断策略配置
+      errorCount:
+        # 描述:触发连续错误熔断的阈值
+        # 类型:int
+        # 范围:[1:...]
+        # 默认值:10
         continuousErrorThreshold: 10
-        #描述:连续失败的统计周期
-        #类型:string
-        #格式:^\d+(ms|s|m|h)$
-        #范围:[10ms:...] 
-        #默认值:1m
-        metricStatTimeWindow: 1m
-        #描述:熔断器半开后最大允许的请求数
-        #类型:int
-        #范围:[3:...]
-        #默认值:3
-        requestCountAfterHalfOpen: 3
-        #描述:熔断器打开后，多久后转换为半开状态
-        #类型:string
-        #格式:^\d+(ms|s|m|h)$
-        #范围:[1s:...] 
-        #默认值:3s
-        sleepWindow: 5s
-        #描述:熔断器半开到关闭所必须的最少成功请求数
-        #类型:int
-        #范围:[1:requestCountAfterHalfOpen]
-        #默认值:2
-        successCountAfterHalfOpen: 2
-      #描述:基于周期错误率的熔断策略配置
-      errRate:
-        #描述:触发错误率熔断的最低请求阈值
-        #类型:int
-        #范围:(0:...]
-        #默认值:10       
+        # 描述:熔断器打开后，屏蔽流量多久后转换为半开状态
+        # 类型:string
+        # 格式:^\d+(ms|s|m|h)$
+        # 范围:[1s:...] 
+        # 默认值: 30s
+        sleepWindow: 30s
+        # 描述:熔断器半开后最大允许的请求数
+        # 类型:int
+        # 范围:[3:...]
+        # 默认值:10
+        requestCountAfterHalfOpen: 10
+        # 描述:熔断器半开到关闭所必须的最少成功请求数
+        # 类型:int
+        # 范围:[1:requestCountAfterHalfOpen]
+        # 默认值:8
+        successCountAfterHalfOpen: 8
+      # 描述:基于周期错误率的熔断策略配置
+      errorRate:
+        # 描述:触发错误率熔断的最低请求阈值
+        # 类型:int
+        # 范围:(0:...]
+        # 默认值:10       
         requestVolumeThreshold: 10
-        #描述:触发错误率熔断的阈值
-        #类型:double
-        #范围:(0:1]
-        #默认值:0.5
+        # 描述:触发错误率熔断的阈值
+        # 类型:double
+        # 范围:(0:1]
+        # 默认值:0.5
         errorRateThreshold: 0.5
-        #描述:错误率熔断的统计周期
-        #类型:string
-        #格式:^\d+(ms|s|m|h)$
-        #范围:[1s:...]
-        #默认值:1m
-        metricStatTimeWindow: 1m
-        #描述:错误率熔断的最小统计单元数量
-        #类型:int
-        #范围:[1:...]
-        #默认值:12
+        # 描述:错误率熔断的统计周期
+        # 类型:string
+        # 格式:^\d+(ms|s|m|h)$
+        # 范围:[1s:...]
+        # 默认值: 60s
+        metricStatTimeWindow: 60s
+        # 描述:错误率熔断的最小统计单元数量
+        # 类型:int
+        # 范围:[1:...]
+        # 默认值:12
         metricNumBuckets: 12
-        #描述:熔断器半开后最大允许的请求数
-        #类型:int
-        #范围:[3:...]
-        #默认值:3
-        requestCountAfterHalfOpen: 3
-        #描述:熔断器打开后，多久后转换为半开状态
-        #类型:string
-        #格式:^\d+(ms|s|m|h)$
-        #范围:[1s:...] 
-        #默认值:3s
-        sleepWindow: 5s
-        #描述:熔断器半开到关闭所必须的最少成功请求数
-        #类型:int
-        #范围:[1:requestCountAfterHalfOpen]
-        #默认值:2
-        successCountAfterHalfOpen: 2
-    #描述: set(集群)熔断相关配置
+        # 描述:熔断器半开后最大允许的请求数
+        # 类型:int
+        # 范围:[3:...]
+        # 默认值:10
+        requestCountAfterHalfOpen: 10
+        # 描述:熔断器打开后，多久后转换为半开状态
+        # 类型:string
+        # 格式:^\d+(ms|s|m|h)$
+        # 范围:[1s:...] 
+        # 默认值:30s
+        sleepWindow: 30s
+        # 描述:熔断器半开到关闭所必须的最少成功请求数
+        # 类型:int
+        # 范围:[1:requestCountAfterHalfOpen]
+        # 默认值:8
+        successCountAfterHalfOpen: 8
+    # 描述: set(集群)熔断相关配置
     setCircuitBreaker:
       enable: false
-  #描述:故障探测相关配置 
+  # 描述: 网络探测相关配置 
   healthCheck:
-    #描述:是否启用故障探测功能
-    #类型:bool
-    #默认值:true
-    enable: true
-    #描述:定时故障探测周期
-    #类型:string
-    #格式:^\d+(ms|s|m|h)$
-    #范围:[1s:...] 
-    #默认值:10s
-    checkPeriod: 10s
-    #描述:故障探测策略，SDK会根据策略名称加载对应的探测器插件
-    #类型:list
-    #范围:已注册的探测器插件名
-    #默认值：基于tcp协议的探测器
+    # 描述: 探测时机，支持如下配置值，默认值为never
+    # 类型: string
+    # 格式: [never | on_recover | always]
+    # s说明: never表示不开启主调健康探测；on_recover表示只对被熔断的节点开启健康探测，探测正常将节点从熔断转换到半开；always表示一直开启健康探测
+    # 默认值: never
+    when: never
+    # 描述:定时故障探测周期
+    # 类型:string
+    # 格式:^\d+(ms|s|m|h)$
+    # 范围:[1s:...] 
+    # 默认值:10s
+    interval: 10s
+    # 描述:故障探测策略，SDK会根据策略名称加载对应的探测器插件
+    # 类型:list
+    # 范围:已注册的探测器插件名
+    # 默认值：基于tcp协议的探测器
     chain:
     - tcp
-    #描述:故障探测插件配置
+    # 描述:故障探测插件配置
     plugin:
-      #描述:基于TCP的故障探测策略
+      # 描述:基于TCP的故障探测策略
       tcp:
-        #描述:探测超时时间
-        #类型:string
-        #格式:^\d+(ms|s|m|h)$
-        #范围:[10ms:100ms] 
-        #默认值:100ms
-        timeout: 100ms
-        #描述:探测失败重试次数
-        #类型:int
-        #范围:[0:...]
-    	  #默认值:0
-        retry: 0
-        #描述:tcp发送的探测包，可选字段，假如不配置，则默认只做连接探测
-        #类型:string
-        #格式:^0x[1-9A-Fa-f]+$
+        # 描述:探测超时时间
+        # 类型:string
+        # 格式:^\d+(ms|s|m|h)$
+        # 范围:[10ms:1000ms] 
+        # 默认值:500ms
+        timeout: 500ms
+        # 描述:探测失败重试次数
+        # 类型:int
+        # 范围:[0:...]
+    	  # 默认值:2
+        retry: 2
+        # 描述:tcp发送的探测包，可选字段，假如不配置，则默认只做连接探测
+        # 类型:string
+        # 格式:^0x[1-9A-Fa-f]+$
         send: 0xEEEEEEEE
-        #描述:期望接收的TCP回复包，可选字段，假如不配置，则默认只做连接或发包探测
-        #类型:string
-        #格式:^0x[1-9A-Fa-f]+$
+        # 描述:期望接收的TCP回复包，可选字段，假如不配置，则默认只做连接或发包探测
+        # 类型:string
+        # 格式:^0x[1-9A-Fa-f]+$
         receive: 0xFFFFFFF
-      #描述:基于TCP的故障探测策略
+      # 描述:基于TCP的故障探测策略
       udp:
-        #描述:探测超时时间
-        #类型:string
-        #格式:^\d+(ms|s|m|h)$
-        #范围:[10ms:100ms] 
-        #默认值:100ms
+        # 描述:探测超时时间
+        # 类型:string
+        # 格式:^\d+(ms|s|m|h)$
+        # 范围:[10ms:100ms] 
+        # 默认值:100ms
         timeout: 100ms
-        #描述:探测失败重试次数
-        #类型:int
-    	  #范围:[0:...]
-    	  #默认值:0
-        retry: 0
-        #描述:udp发送的探测包，必选字段，假如不配置，则不启动UDP探测
-        #类型:string
-        #格式:^0x[1-9A-Fa-f]+$
+        # 描述:探测失败重试次数
+        # 类型:int
+    	  # 范围:[0:...]
+    	  # 默认值:0
+        retry: 3
+        # 描述:udp发送的探测包，必选字段，假如不配置，则不启动UDP探测
+        # 类型:string
+        # 格式:^0x[1-9A-Fa-f]+$
         send: 0xEEEEEEEE
-        #描述:期望接收的UDP回复包，必选字段，假如不配置，则不启动UDP探测
-        #类型:string
-        #格式:^0x[1-9A-Fa-f]+$
+        # 描述:期望接收的UDP回复包，必选字段，假如不配置，则不启动UDP探测
+        # 类型:string
+        # 格式:^0x[1-9A-Fa-f]+$
         receive: 0xFFFFFFF
       http:
-        #描述:探测超时时间
-        #类型:string
-        #格式:^\d+(ms|s|m|h)$
-        #范围:[10ms:100ms] 
-        #默认值:100ms
+        # 描述:探测超时时间
+        # 类型:string
+        # 格式:^\d+(ms|s|m|h)$
+        # 范围:[10ms:100ms] 
+        # 默认值:100ms
         timeout: 100ms
-        #描述:http探测路径，必选字段，假如不配置，则不启用http探测
-        #类型:string
-    	  #范围:^/.+$
+        # 描述:http探测路径，必选字段，假如不配置，则不启用http探测
+        # 类型:string
+    	  # 范围:^/.+$
         path: /ping
-  #描述:负载均衡相关配置      
+        # 描述:探测失败重试次数
+        # 类型:int
+    	  # 范围:[0:...]
+    	  # 默认值:0
+        retry: 3
+  # 描述:负载均衡相关配置      
   loadBalancer:
-    #描述:负载均衡类型
-    #范围:已注册的负载均衡插件名
-    #默认值：权重随机负载均衡
+    # 描述:负载均衡类型
+    # 范围:已注册的负载均衡插件名
+    # 默认值：权重随机负载均衡
     type: weightedRandom
-  #描述:服务路由相关配置  
+  # 描述:服务路由相关配置  
   serviceRouter:
+    # 描述:是否启用节点熔断功能
+    # 类型:bool
+    # 默认值:true
+    enable: true
     # 服务路由链
     chain:
       # 基于主调和被调服务规则的路由策略(默认的路由策略)
       - ruleBasedRouter
       # 就近路由策略
       - nearbyBasedRouter
-    #描述：服务路由插件的配置
+    # 描述：服务路由插件的配置
     plugin:
       nearbyBasedRouter:
-        #描述:就近路由的最小匹配级别
-        #类型:string
-        #范围:region(大区)、zone(区域)、campus(园区)
-        #默认值:zone
+        # 描述:就近路由的最小匹配级别
+        # 类型:string
+        # 范围:region(大区)、zone(区域)、campus(园区)
+        # 默认值:zone
         matchLevel: zone
         # 就近路由最大的匹配级别
         maxMatchLevel: none
@@ -368,13 +370,47 @@ consumer:
         unhealthyPercentToDegrade: 100
         # 允许全死全活
         enableRecoverAll: true
+  # 描述：服务级别配置
+  # 服务级配置可支持配置serviceRouter、loadBalancer、circuitBreaker、healthCheck四种配置
+  # 针对上述4种配置，如果配置了服务级别配置，则使用服务级配置。如果未配置服务级别配置，则使用全局配置，全局未配置则使用默认配置
+  # 特别注意：针对上述4种配置下的子配置项，如果不配置则使用默认配置，不降级到全局配置
+  service:
+    - name: service_name  # 服务名
+      namespace: Test     # 服务所属命名空间
+      serviceRouter:      # 服务级路由配置
+        plugin:
+          nearbyBasedRouter:
+            matchLevel: campus
+    - name: service_name2 # 服务名
+      namespace: Test     # 服务所属命名空间
+      loadBalancer:       # 服务级负载均衡配置
+        type: ringHash
+        vnodeCount: 1024
+        hashFunc: murmur3
+      weightAdjuster:
+        name: slowStart  # 慢启动策略，目前只支持一致性ringHash算法使用
+        window: 60s      # 慢启动窗口大小，表示多久慢启动持续时间
+        stepSize: 10s    # 调整间隔，表示多久调整一次
+        aggression: 1.0  # 表示增长系数，默认1.0表示线性增长
+        minWeightPercent: 0.1  # 初始权重百分比
+# 描述：限流相关配置
 rateLimiter:
-  # global：默认值，该模式表示会使用分布式限流，必须填写rateLimitCluster。
-  # local：表示只会使用本地限流，不会使用分布式限流，可不填rateLimitCluster
-  mode: local
-  # global模式必填，分布式限流时用于发现限流服务器
+  # 分布式限流时用于发现限流服务器，当规则中未配置限流集群时使用该配置
+  # [deprecated] 该配置用于兼容旧版本，建议在规则中配置限流集群
   rateLimitCluster:
     # 限流服务器集群所在命名空间
     namespace: Polaris
     # 限流服务器集群名字
     service: poalris.metirc.xxx.yyy
+  # 描述：批量上报间隔
+  # 类型: string
+  # 格式: ^\d+(ms|s|m|h)$
+  # 范围: [1s:...]
+  # 默认值: 40ms
+  batchInterval: 40ms
+# 描述：动态权重相关配置
+dynamic_weight:
+  # 描述：是否开启动态权重
+  # 类型：bool
+  # 默认值：false
+  isOpenDynamicWeight: false

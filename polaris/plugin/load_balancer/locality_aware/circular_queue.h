@@ -23,16 +23,16 @@ namespace polaris {
 // 循环队列CircularQueue，不负责元素的释放
 template <typename T>
 class CircularQueue {
-public:
+ public:
   explicit CircularQueue(size_t queue_size) {
     items_ = new T[queue_size];
-    cap_   = queue_size;
+    cap_ = queue_size;
     count_ = 0;
     start_ = 0;
   }
 
   ~CircularQueue() {
-    if (items_ != NULL) {
+    if (items_ != nullptr) {
       delete[] items_;
     }
   }
@@ -41,7 +41,7 @@ public:
   bool Push(const T& item) {
     if (count_ < cap_) {
       T* iter = (items_ + Mod(start_ + count_, cap_));
-      *iter   = item;
+      *iter = item;
       ++count_;
       return true;
     }
@@ -53,11 +53,11 @@ public:
   void ElimPush(const T& item) {
     if (count_ < cap_) {
       T* iter = (items_ + Mod(start_ + count_, cap_));
-      *iter   = item;
+      *iter = item;
       ++count_;
     } else {
       items_[start_] = item;
-      start_         = Mod(start_ + 1, cap_);
+      start_ = Mod(start_ + 1, cap_);
     }
   }
 
@@ -78,10 +78,10 @@ public:
   }
 
   // 返回容器首部的指针，容器为空时返回NULL
-  T* Top() { return count_ ? (items_ + start_) : NULL; }
+  T* Top() { return count_ ? (items_ + start_) : nullptr; }
 
   // 返回容器尾部的指针，容器为空时返回NULL
-  T* Bottom() { return count_ ? (items_ + Mod(start_ + count_ - 1, cap_)) : NULL; }
+  T* Bottom() { return count_ ? (items_ + Mod(start_ + count_ - 1, cap_)) : nullptr; }
 
   // 返回元素数量
   uint32_t Size() { return count_; }
@@ -93,7 +93,7 @@ public:
 
   bool Full() const { return cap_ == count_; }
 
-private:
+ private:
   static uint32_t Mod(uint32_t off, uint32_t cap) {
     while (off >= cap) {
       off -= cap;
@@ -101,7 +101,7 @@ private:
     return off;
   }
 
-private:
+ private:
   uint32_t count_;
   uint32_t cap_;
   uint32_t start_;

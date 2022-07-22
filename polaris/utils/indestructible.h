@@ -17,7 +17,7 @@
 #include <stddef.h>
 #include <cstdlib>
 #if __cplusplus >= 201103L
-#include <type_traits>
+#  include <type_traits>
 #endif
 
 #include "polaris/noncopyable.h"
@@ -34,7 +34,7 @@ struct IndestructibleStorage {
 // 用于保存永不释放的全局对象
 template <class T>
 class Indestructible : public Noncopyable {
-public:
+ public:
   Indestructible() { new (&this->storage_) T(); }
 
   // 只支持一个参数的析构构造函数，多个参数则使用结构体传入
@@ -47,7 +47,7 @@ public:
 
   const T* Get() const { return reinterpret_cast<const T*>(&storage_); }
 
-private:
+ private:
 #if __cplusplus >= 201103L
   typename std::aligned_storage<sizeof(T), alignof(T)>::type storage_;
 #else

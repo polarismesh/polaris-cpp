@@ -25,9 +25,9 @@ namespace polaris {
 Config::Config(ConfigImpl* impl) { impl_ = impl; }
 
 Config::~Config() {
-  if (impl_ != NULL) {
+  if (impl_ != nullptr) {
     delete impl_;
-    impl_ = NULL;
+    impl_ = nullptr;
   }
 }
 
@@ -35,7 +35,7 @@ Config::~Config() {
 Config* Config::CreateFromFile(const std::string& config_file, std::string& err_msg) {
   if (!FileUtils::FileExists(config_file)) {
     err_msg = "create config with file " + config_file + " not exists";
-    return NULL;
+    return nullptr;
   }
   ConfigImpl* impl = new ConfigImpl();
   try {
@@ -43,9 +43,9 @@ Config* Config::CreateFromFile(const std::string& config_file, std::string& err_
     YAML_0_3::Parser parser(fin);
     parser.GetNextDocument(*impl->data_);
   } catch (const YAML_0_3::Exception& e) {
-    err_msg = "create config with config file[ " + config_file + "] error:" + e.msg;
+    err_msg = "create config with config file[ " + config_file + "] error:" + e.what();
     delete impl;
-    return NULL;
+    return nullptr;
   }
   return new Config(impl);
 }
@@ -58,9 +58,9 @@ Config* Config::CreateFromString(const std::string& content, std::string& err_ms
     YAML_0_3::Parser parser(strstream);
     parser.GetNextDocument(*impl->data_);
   } catch (const YAML_0_3::Exception& e) {
-    err_msg = "create config with content[" + content + "] error:" + e.msg;
+    err_msg = "create config with content[" + content + "] error:" + e.what();
     delete impl;
-    return NULL;
+    return nullptr;
   }
   return new Config(impl);
 }

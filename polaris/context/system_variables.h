@@ -15,15 +15,15 @@
 #define POLARIS_CPP_POLARIS_CONTEXT_SYSTEM_VARIABLES_H_
 
 #include <map>
+#include <memory>
 #include <string>
 
 #include "polaris/noncopyable.h"
-#include "utils/scoped_ptr.h"
 
 namespace polaris {
 
 class SystemVariables : Noncopyable {
-public:
+ public:
   // 使用配置中传入的环境变量初始化
   void InitFromConfig(const std::map<std::string, std::string>& variables);
 
@@ -31,9 +31,9 @@ public:
   // 配置中不存在时，会降级从系统环境变量里读取
   bool GetVariable(const std::string& variable, std::string& value) const;
 
-private:
+ private:
   // 通过配置传入的环境变量
-  ScopedPtr<std::map<std::string, std::string> > config_variables_;
+  std::unique_ptr<std::map<std::string, std::string> > config_variables_;
 };
 
 }  // namespace polaris

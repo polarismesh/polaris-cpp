@@ -19,7 +19,7 @@
 namespace polaris {
 
 class RefCount {
-public:
+ public:
   RefCount() { ref_count_ = 1; }
 
   void IncrementRef() { ref_count_++; }
@@ -30,29 +30,54 @@ public:
     }
   }
 
-protected:
+ protected:
   virtual ~RefCount() {}
 
   int ref_count_;
 };
 
 class AtomicRefCount {
-public:
-  AtomicRefCount() { ref_count_ = 1; }
+ public:
+  AtomicRefCount() : ref_count_(1) {}
 
-  void IncrementRef() { ATOMIC_INC(&ref_count_); }
+  void IncrementRef() { ref_count_.fetch_add(1, std::memory_order_relaxed); }
 
   void DecrementRef() {
-    int pre_count = ATOMIC_DEC(&ref_count_);
+    int pre_count = ref_count_.fetch_sub(1, std::memory_order_acq_rel);
     if (pre_count == 1) {
       delete this;
     }
   }
 
-protected:
+ protected:
   virtual ~AtomicRefCount() {}
 
-  volatile int ref_count_;
+  std::atomic<int> ref_count_;
+};
+
+/// @brief 引用计数基类，用于只需要使用RefPtr的类型
+template <class T>
+class RefBase {
+ public:
+  inline RefBase() : ref_count_(0) {}
+
+  inline void IncRef() { ref_count_++; }
+
+  inline void DecRef() {
+    int32_t ref_before = ref_count_--;
+    if (ref_before == 1) {
+      delete static_cast<const T *>(this);
+    }
+  }
+
+  //! DEBUGGING ONLY
+  int32_t GetRefCount() const { return ref_count_; }
+
+ protected:
+  inline ~RefBase() {}
+
+ private:
+  std::atomic<int32_t> ref_count_;
 };
 
 }  // namespace polaris

@@ -14,20 +14,20 @@
 #include "notify.h"
 
 #ifdef HAVE_EVENTFD
-#include <sys/eventfd.h>
+#  include <sys/eventfd.h>
 #endif
 
-#include <fcntl.h>
 #include <unistd.h>
 
 #include "logger.h"
 #include "reactor/event.h"
+#include "utils/netclient.h"
 
 namespace polaris {
 
 Notifier::Notifier() : EventBase(0) {
 #ifdef HAVE_EVENTFD
-  fd_ = eventfd(0, EFD_NONBLOCK);
+  fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
 #else
   Init();
 #endif
@@ -46,23 +46,16 @@ Notifier::~Notifier() {
 #endif
 }
 
-void SetFdNonblocking(int fd) {
-  int oldflags = fcntl(fd, F_GETFL, 0);
-  POLARIS_ASSERT(oldflags >= 0);
-  oldflags |= O_NONBLOCK;
-
-  int rc = fcntl(fd, F_SETFL, oldflags);
-  POLARIS_ASSERT(rc == 0);
-}
-
 void Notifier::Init() {
 #ifndef HAVE_EVENTFD
   int pipefd[2];
   int r = pipe(pipefd);
   POLARIS_ASSERT(r == 0);
-  SetFdNonblocking(pipefd[0]);
-  SetFdNonblocking(pipefd[1]);
-  fd_  = pipefd[0];
+  POLARIS_ASSERT(NetClient::SetNonBlock(pipefd[0]) == 0);
+  POLARIS_ASSERT(NetClient::SetNonBlock(pipefd[1]) == 0);
+  NetClient::SetCloExec(pipefd[0]);
+  NetClient::SetCloExec(pipefd[1]);
+  fd_ = pipefd[0];
   fd2_ = pipefd[1];
 #endif
 }

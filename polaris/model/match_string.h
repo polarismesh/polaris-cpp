@@ -14,19 +14,18 @@
 #ifndef POLARIS_CPP_POLARIS_MODEL_MATCH_STRING_H_
 #define POLARIS_CPP_POLARIS_MODEL_MATCH_STRING_H_
 
-#include <re2/re2.h>
-
 #include <map>
+#include <memory>
 #include <string>
 
 #include "context/system_variables.h"
-#include "utils/shared_ptr.h"
+#include "re2/re2.h"
 #include "v1/model.pb.h"
 
 namespace polaris {
 
 class MatchString {
-public:
+ public:
   MatchString() : type_(v1::MatchString::EXACT), value_type_(v1::MatchString::TEXT) {}
 
   bool Init(const v1::MatchString& match_string);
@@ -38,9 +37,7 @@ public:
 
   bool MatchParameter(const std::string& parameter, const std::string& value) const;
 
-  bool IsExactText() const {
-    return value_type_ == v1::MatchString::TEXT && type_ == v1::MatchString::EXACT;
-  }
+  bool IsExactText() const { return value_type_ == v1::MatchString::TEXT && type_ == v1::MatchString::EXACT; }
 
   bool IsRegex() const { return type_ == v1::MatchString::REGEX; }
 
@@ -50,7 +47,8 @@ public:
 
   const std::string& GetString() const { return data_; }
 
-  static const std::string& Wildcard();
+  // 判断是否为通配符，如果为通配符则返回空字符串，否则返回真实字符串
+  static const std::string& WildcardOrValue(const std::string& value);
 
   // 规则元数据匹配
   static bool MapMatch(const std::map<std::string, MatchString>& rule_metadata,
@@ -65,14 +63,14 @@ public:
                        const std::map<std::string, std::string>& metadata,
                        const std::map<std::string, std::string>& parameters);
 
-private:
+ private:
   bool InitRegex(const std::string& regex);
 
-private:
+ private:
   v1::MatchString::MatchStringType type_;  // 匹配类型
   v1::MatchString::ValueType value_type_;  // 值类型
   std::string data_;
-  SharedPtr<re2::RE2> regex_;
+  std::shared_ptr<re2::RE2> regex_;
 };
 
 }  // namespace polaris

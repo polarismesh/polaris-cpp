@@ -20,10 +20,9 @@
 
 namespace polaris {
 
-MetricKeyWrapper::MetricKeyWrapper() : owned_(false), metric_key_(NULL) {}
+MetricKeyWrapper::MetricKeyWrapper() : owned_(false), metric_key_(nullptr) {}
 
-MetricKeyWrapper::MetricKeyWrapper(v1::MetricKey* metric_key)
-    : owned_(false), metric_key_(metric_key) {}
+MetricKeyWrapper::MetricKeyWrapper(v1::MetricKey* metric_key) : owned_(false), metric_key_(metric_key) {}
 
 MetricKeyWrapper::MetricKeyWrapper(const v1::MetricKey& metric_key) : owned_(true) {
   metric_key_ = new v1::MetricKey();
@@ -39,8 +38,8 @@ MetricKeyWrapper::~MetricKeyWrapper() {
   if (owned_) {
     delete metric_key_;
   }
-  owned_      = false;
-  metric_key_ = NULL;
+  owned_ = false;
+  metric_key_ = nullptr;
 }
 
 bool MetricKeyWrapper::operator<(const MetricKeyWrapper& other) const {
@@ -72,7 +71,7 @@ const MetricKeyWrapper& MetricKeyWrapper::operator=(const MetricKeyWrapper& othe
   if (owned_) {
     metric_key_->Clear();
   } else {
-    owned_      = true;
+    owned_ = true;
     metric_key_ = new v1::MetricKey();
   }
   metric_key_->CopyFrom(*other.metric_key_);

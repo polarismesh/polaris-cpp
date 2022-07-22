@@ -24,14 +24,7 @@ namespace polaris {
 /// @brief 日志接口中使用的日志级别定义
 ///
 /// @note Trace和Debug级别会同时输出到stdout和文件，Info及以上级别只输出到文件
-enum LogLevel {
-  kTraceLogLevel = 0,
-  kDebugLogLevel,
-  kInfoLogLevel,
-  kWarnLogLevel,
-  kErrorLogLevel,
-  kFatalLogLevel
-};
+enum LogLevel { kTraceLogLevel = 0, kDebugLogLevel, kInfoLogLevel, kWarnLogLevel, kErrorLogLevel, kFatalLogLevel };
 
 /// @brief 日志级别相关宏定义
 #define POLARIS_TRACE __FILE__, __LINE__, kTraceLogLevel
@@ -45,7 +38,7 @@ enum LogLevel {
 ///
 /// SDK默认有日志实现，但仍然建议用户实现自己的业务接口
 class Logger {
-public:
+ public:
   virtual ~Logger() {}
 
   /// @brief 用于判断指定日志级别是否输出
@@ -62,6 +55,11 @@ public:
   /// 大于等于该日志级别的相关日志会输出
   /// @param log_level 目标日志级别
   virtual void SetLogLevel(LogLevel log_level) = 0;
+
+  /// @brief 设置日志文件大小/个数
+  ///
+  /// @param file_size 文件大小/个数
+  virtual void SetLogFile(int file_size, int file_no) = 0;
 
   /// @brief 设置日志输出目录
   ///

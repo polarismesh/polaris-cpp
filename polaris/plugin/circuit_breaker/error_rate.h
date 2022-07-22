@@ -14,54 +14,54 @@
 #ifndef POLARIS_CPP_POLARIS_PLUGIN_CIRCUIT_BREAKER_ERROR_RATE_H_
 #define POLARIS_CPP_POLARIS_PLUGIN_CIRCUIT_BREAKER_ERROR_RATE_H_
 
-#include <pthread.h>
 #include <stdint.h>
 
-#include <map>
+#include <atomic>
 #include <string>
 
+#include "cache/rcu_unordered_map.h"
+#include "plugin/circuit_breaker/circuit_breaker.h"
 #include "polaris/defs.h"
-#include "polaris/plugin.h"
 
 namespace polaris {
 
 struct ErrorRateBucket {
   ErrorRateBucket() : total_count(0), error_count(0), bucket_time(0) {}
-  int total_count;
-  int error_count;
-  uint64_t bucket_time;
+  std::atomic<int> total_count;
+  std::atomic<int> error_count;
+  std::atomic<uint64_t> bucket_time;
 };
 
 struct ErrorRateStatus {
+  ErrorRateStatus()
+      : status(kCircuitBreakerClose), buckets(nullptr), last_update_time(0), total_count(0), error_count(0) {}
+  ~ErrorRateStatus() { delete[] buckets; }
+
   CircuitBreakerStatus status;
   ErrorRateBucket* buckets;
-  uint64_t last_update_time;
-  uint64_t last_access_time;
-  pthread_mutex_t lock;
+  std::atomic<uint64_t> last_update_time;
+  std::atomic<uint64_t> total_count;
+  std::atomic<uint64_t> error_count;
 
   void ClearBuckets(int buckets_num) {
     for (int i = 0; i < buckets_num; i++) {
-      pthread_mutex_lock(&lock);
-      buckets[i].bucket_time = 0;
-      pthread_mutex_unlock(&lock);
+      buckets[i].bucket_time.store(0, std::memory_order_relaxed);
     }
   }
 
   void BucketsCount(int buckets_num, uint64_t last_end_bucket_time, int& total_req, int& err_req) {
-    pthread_mutex_lock(&lock);
     for (int i = 0; i < buckets_num; i++) {
       // 跳过上一轮写入的数据
-      if (buckets[i].bucket_time > last_end_bucket_time) {
-        total_req += buckets[i].total_count;
-        err_req += buckets[i].error_count;
+      if (buckets[i].bucket_time.load(std::memory_order_relaxed) > last_end_bucket_time) {
+        total_req += buckets[i].total_count.load(std::memory_order_relaxed);
+        err_req += buckets[i].error_count.load(std::memory_order_relaxed);
       }
     }
-    pthread_mutex_unlock(&lock);
   }
 };
 
 class ErrorRateCircuitBreaker : public CircuitBreaker {
-public:
+ public:
   ErrorRateCircuitBreaker();
 
   ~ErrorRateCircuitBreaker();
@@ -70,16 +70,19 @@ public:
 
   virtual int RequestAfterHalfOpen() { return request_count_after_half_open_; }
 
+  virtual ReturnCode DetectToHalfOpen(const std::string& instance_id);
+
   virtual ReturnCode RealTimeCircuitBreak(const InstanceGauge& instance_gauge,
                                           InstancesCircuitBreakerStatus* instances_status);
 
   virtual ReturnCode TimingCircuitBreak(InstancesCircuitBreakerStatus* instances_status);
 
-  ErrorRateStatus& GetOrCreateErrorRateStatus(const std::string instance_id, uint64_t current_time);
+  virtual void CleanStatus(InstancesCircuitBreakerStatus* instances_status, InstanceExistChecker& exist_checker);
 
-  void CheckAndExpiredMetric(InstancesCircuitBreakerStatus* instances_status);
+  ErrorRateStatus* GetOrCreateErrorRateStatus(const std::string& instance_id);
 
-private:
+ private:
+  Context* context_;
   int request_volume_threshold_;  // 计算错误率至少需要多少请求
   float error_rate_threshold_;
   uint64_t metric_stat_time_window_;
@@ -90,8 +93,8 @@ private:
   int success_count_after_half_open_;  // 半开后请求成功多少次恢复
 
   uint64_t metric_expired_time_;
-  pthread_rwlock_t rwlock_;
-  std::map<std::string, ErrorRateStatus> error_rate_map_;
+
+  RcuUnorderedMap<std::string, ErrorRateStatus> error_rate_map_;
 };
 
 }  // namespace polaris

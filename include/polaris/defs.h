@@ -29,27 +29,27 @@ namespace polaris {
 
 /// @brief 接口返回错误码
 enum ReturnCode {
-  kReturnOk           = 0,     ///< 成功
-  kReturnUnknownError = 1000,  ///< 未知错误
-  kReturnInvalidArgument = 1001,  ///< 参数非法，客户端和服务端都会检查参数的正确性
-  kReturnInvalidConfig     = 1002,  ///< 配置不正确
-  kReturnPluginError       = 1003,  ///< 插件获取相关错误
-  kReturnTimeout           = 1004,  ///< 请求超时
-  kReturnInvalidState      = 1005,  ///< 程序状态非法错误
-  kReturnServerError       = 1006,  ///< 服务调用返回错误
-  kReturnNetworkFailed     = 1007,  ///< 网络调用错误
-  kReturnInstanceNotFound  = 1010,  ///< 服务实例不存在
-  kReturnInvalidRouteRule  = 1011,  ///< 路由规则非法
-  kReturnRouteRuleNotMatch = 1012,  ///< 路由规则匹配失败
-  kReturnServiceNotFound   = 1015,  ///< 服务不存在
-  kReturnExistedResource = 1200,  ///< 资源已存在，用于服务实例重复注册的返回码
-  kReturnUnauthorized    = 1201,  ///< 请求未授权，token错误
-  kReturnHealthyCheckDisable        = 1202,  ///< 服务端或实例健康检查未开启
-  kRetrunRateLimit                  = 1203,  ///< 请求被限频
-  kReturnNotInit                    = 1288,  ///< 资源未初始化
-  kReturnResourceNotFound           = 1289,  // 资源未找到
-  kReturnServerUnknownError         = 1299,  ///< 服务端返回客户端未知的错误
-  kReturnSystemServiceNotConfigured = 1300,  ///< 没有配置系统服务名字
+  kReturnOk = 0,                      ///< 成功
+  kReturnUnknownError = 1000,         ///< 未知错误
+  kReturnInvalidArgument = 1001,      ///< 参数非法，客户端和服务端都会检查参数的正确性
+  kReturnInvalidConfig = 1002,        ///< 配置不正确
+  kReturnPluginError = 1003,          ///< 插件获取相关错误
+  kReturnTimeout = 1004,              ///< 请求超时
+  kReturnInvalidState = 1005,         ///< 程序状态非法错误
+  kReturnServerError = 1006,          ///< 服务调用返回错误
+  kReturnNetworkFailed = 1007,        ///< 网络调用错误
+  kReturnInstanceNotFound = 1010,     ///< 服务实例不存在
+  kReturnInvalidRouteRule = 1011,     ///< 路由规则非法
+  kReturnRouteRuleNotMatch = 1012,    ///< 路由规则匹配失败
+  kReturnServiceNotFound = 1015,      ///< 服务不存在
+  kRetrunCallAfterFork = 1050,        ///< 在fork以后调用fork之前的对象接口
+  kReturnExistedResource = 1200,      ///< 资源已存在，用于服务实例重复注册的返回码
+  kReturnUnauthorized = 1201,         ///< 请求未授权，token错误
+  kReturnHealthyCheckDisable = 1202,  ///< 服务端或实例健康检查未开启
+  kRetrunRateLimit = 1203,            ///< 请求被限频
+  kReturnNotInit = 1288,              ///< 资源未初始化
+  kReturnResourceNotFound = 1289,     // 资源未找到
+  kReturnServerUnknownError = 1299,   ///< 服务端返回客户端未知的错误
 };
 
 /// @brief 返回码转换为字符串消息
@@ -80,21 +80,21 @@ struct ServiceInfo {
 /// @note 添加负载均衡插件时必须添加一个类型,并定义该插件的 GetLoadBalanceType 方法返回该值
 typedef std::string LoadBalanceType;
 // 权重随机
-const static LoadBalanceType kLoadBalanceTypeWeightedRandom = "weightedRandom";
+static const LoadBalanceType kLoadBalanceTypeWeightedRandom = "weightedRandom";
 // 一致性hash负载均衡
-const static LoadBalanceType kLoadBalanceTypeRingHash = "ringHash";
+static const LoadBalanceType kLoadBalanceTypeRingHash = "ringHash";
 // 一致性Hash: maglev 算法
-const static LoadBalanceType kLoadBalanceTypeMaglevHash = "maglev";
+static const LoadBalanceType kLoadBalanceTypeMaglevHash = "maglev";
 // 兼容L5的一致性Hash
-const static LoadBalanceType kLoadBalanceTypeL5CstHash = "l5cst";
+static const LoadBalanceType kLoadBalanceTypeL5CstHash = "l5cst";
 // hash_key%总实例数 选择服务实例
-const static LoadBalanceType kLoadBalanceTypeSimpleHash = "simpleHash";
+static const LoadBalanceType kLoadBalanceTypeSimpleHash = "simpleHash";
 // 兼容brpc c_murmur的一致性哈希
-const static LoadBalanceType kLoadBalanceTypeCMurmurHash = "cMurmurHash";
+static const LoadBalanceType kLoadBalanceTypeCMurmurHash = "cMurmurHash";
 // 兼容brpc locality_aware的负载均衡
-const static LoadBalanceType kLoadBalanceTypeLocalityAware = "localityAware";
+static const LoadBalanceType kLoadBalanceTypeLocalityAware = "localityAware";
 // 使用全局配置的负载均衡算法
-const static LoadBalanceType kLoadBalanceTypeDefaultConfig = "default";
+static const LoadBalanceType kLoadBalanceTypeDefaultConfig = "default";
 
 /// @brief 元数据路由匹配失败时降级策略
 enum MetadataFailoverType {
@@ -125,13 +125,6 @@ enum CallRetStatus {
   kCallRetOk = 0,   ///< 服务实例正常
   kCallRetTimeout,  ///< 服务实例超时
   kCallRetError     ///< 服务实例错误
-};
-
-/// @brief 三级位置信息
-struct Location {
-  std::string region;
-  std::string zone;
-  std::string campus;
 };
 
 /// @brief 权重类型

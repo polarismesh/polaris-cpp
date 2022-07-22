@@ -17,10 +17,10 @@
 #include <stdint.h>
 
 #include <map>
+#include <mutex>
 #include <string>
 
 #include "polaris/defs.h"
-#include "sync/mutex.h"
 
 namespace polaris {
 
@@ -29,7 +29,7 @@ typedef uint64_t (*Hash64Func)(const void* key, const int32_t len, const uint32_
 
 /// @desc 哈希函数管理器
 class HashManager {
-public:
+ public:
   HashManager();
 
   ~HashManager();
@@ -40,8 +40,8 @@ public:
 
   static HashManager& Instance();
 
-private:
-  sync::Mutex lock_;
+ private:
+  std::mutex lock_;
   std::map<std::string, Hash64Func> mapHash64Func_;
 };
 

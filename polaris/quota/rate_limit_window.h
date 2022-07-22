@@ -17,18 +17,19 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <atomic>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <v1/request.pb.h>
 #include <v2/ratelimit_v2.pb.h>
 
-#include "grpc/client.h"
-#include "polaris/model.h"
+#include "network/grpc/client.h"
+#include "polaris/limit.h"
 #include "quota/model/rate_limit_rule.h"
 #include "reactor/task.h"
-#include "sync/atomic.h"
 #include "sync/cond_var.h"
 
 namespace polaris {
@@ -54,15 +55,15 @@ struct QuotaUsageInfo {
 };
 
 struct RemoteQuotaResult {
-  uint64_t curret_server_time_;  // 当前服务器时间
-  QuotaUsageInfo* local_usage_;  // 上报时获取的分配信息用于上报成功后扣除
-  QuotaUsageInfo remote_usage_;  // 远程配额汇总结果
+  uint64_t current_server_time_;  // 当前服务器时间
+  QuotaUsageInfo* local_usage_;   // 上报时获取的分配信息用于上报成功后扣除
+  QuotaUsageInfo remote_usage_;   // 远程配额汇总结果
 };
 
 struct LimitRecordCount {
-  uint32_t max_amount_;                  // 配额
-  sync::Atomic<uint32_t>* pass_count_;   // 通过次数
-  sync::Atomic<uint32_t>* limit_count_;  // 限流次数
+  uint32_t max_amount_;                 // 配额
+  std::atomic<uint32_t>* pass_count_;   // 通过次数
+  std::atomic<uint32_t>* limit_count_;  // 限流次数
 };
 
 struct LimitAllocateResult {
@@ -71,10 +72,15 @@ struct LimitAllocateResult {
   bool is_degrade_;
 };
 
+struct QuotaLeft {
+  uint32_t counter_key_;
+  int64_t left_;
+};
+
 // 远程配额分配令牌桶基类
 class QuotaResponse;
 class RemoteAwareBucket {
-public:
+ public:
   virtual ~RemoteAwareBucket() {}
 
   // 执行配额分配操作，返回配额分配结果，并返回是否需要立即上报和限流是违反的配额配置duration
@@ -95,12 +101,11 @@ public:
 };
 
 class RateLimitWindow : public ServiceBase {
-public:
-  RateLimitWindow(Reactor& reactor, MetricConnector* metric_connector,
-                  const RateLimitWindowKey& key);
+ public:
+  RateLimitWindow(Reactor& reactor, MetricConnector* metric_connector, const RateLimitWindowKey& key);
 
-  ReturnCode Init(ServiceData* service_rate_limit_data, RateLimitRule* rule,
-                  const std::string& metric_id, RateLimitConnector* connector);
+  ReturnCode Init(ServiceData* service_rate_limit_data, RateLimitRule* rule, const std::string& metric_id,
+                  RateLimitConnector* connector);
 
   ReturnCode WaitRemoteInit(uint64_t timeout);
 
@@ -114,13 +119,18 @@ public:
 
   // 初始化返回的应答回调
   void GetInitRequest(metric::v2::RateLimitInitRequest* request);
-  void OnInitResponse(const metric::v2::RateLimitInitResponse& response, int64_t time_diff);
+  void OnInitResponse(const google::protobuf::RepeatedPtrField<metric::v2::QuotaCounter>& counters, int64_t timestamp,
+                      int64_t time_diff);
 
   // 上报返回的应答回调
-  void GetReprotRequest(metric::v2::RateLimitReportRequest* request);
-  uint64_t OnReportResponse(const metric::v2::RateLimitReportResponse& response, int64_t time_diff);
+  void GetReportRequest(metric::v2::RateLimitReportRequest* request);
+  uint64_t OnReportResponse(const metric::v2::RateLimitReportResponse& response, int64_t time_diff, bool& speed_up);
+  uint64_t OnReportResponse(const std::vector<QuotaLeft>& quota_lefts, int64_t timestamp, int64_t time_diff,
+                            bool& speed_up);
 
   bool IsExpired();  // 是否过期
+
+  bool IsLimited() const { return is_limited_.load(std::memory_order_relaxed); }
 
   const RateLimitWindowKey& GetCacheKey() { return cache_key_; }
 
@@ -132,7 +142,7 @@ public:
 
   Reactor& GetReactor() { return reactor_; }
 
-  void UpdateCallResult(const LimitCallResult& call_result);
+  void UpdateCallResult(const LimitCallResult::Impl& request);
 
   MetricConnector* GetMetricConnector() { return metric_connector_; }
 
@@ -147,12 +157,14 @@ public:
   // 更新与metric server连接的ID，并清除旧server下发的counter key信息
   void UpdateConnection(const std::string& connection_id);
 
-private:
+  bool EnableBatch() const { return rule_->GetRateLimitReport().enable_batch_; }
+
+ private:
   virtual ~RateLimitWindow();
 
   void UpdateServiceTimeDiff(int64_t time_diff);
 
-private:
+ private:
   Reactor& reactor_;
   MetricConnector* metric_connector_;
   RateLimitRule* rule_;                   // 关联的限流规则
@@ -163,7 +175,7 @@ private:
   RemoteAwareBucket* allocating_bucket_;  // 执行流量分配的令牌桶
   QuotaBucket* traffic_shaping_bucket_;   // 流量整型算法桶
 
-  sync::Atomic<int64_t> time_diff_;
+  std::atomic<int64_t> time_diff_;
   sync::CondVarNotify init_notify_;
 
   uint64_t last_use_time_;
@@ -172,11 +184,12 @@ private:
 
   QuotaAdjuster* quota_adjuster_;
 
-  sync::Atomic<uint32_t> traffic_shaping_record_;
-  sync::Atomic<bool> is_degrade_;
+  std::atomic<uint32_t> traffic_shaping_record_;
+  std::atomic<bool> is_degrade_;
+  std::atomic<bool> is_limited_;
   std::map<uint64_t, LimitRecordCount> limit_record_count_;
 
-  QuotaUsageInfo* usage_info_;
+  std::unique_ptr<QuotaUsageInfo> usage_info_;
   std::string connection_id_;  // 同步时客户端使用的连接id
   std::map<uint32_t, uint32_t> counter_key_duration_;
   std::map<uint32_t, uint32_t> duration_counter_key_;

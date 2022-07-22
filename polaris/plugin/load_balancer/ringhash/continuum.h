@@ -20,10 +20,9 @@
 
 #include "model/model_impl.h"
 #include "plugin/load_balancer/hash/hash_manager.h"
+#include "polaris/instance.h"
 
 namespace polaris {
-
-class Instance;
 
 // 哈希环的节点
 struct ContinuumPoint {
@@ -37,31 +36,38 @@ struct ContinuumPoint {
   bool operator<(const uint64_t val) const { return this->hashVal < val; }
 };
 
+struct HashKeyIndex {
+  std::size_t instance_index_;
+  int vnode_index_;
+};
+
 // 一致性哈希环
 class ContinuumSelector : public Selector {
-public:
-  ContinuumSelector();
+ public:
+  explicit ContinuumSelector(Hash64Func hash_func);
 
   virtual ~ContinuumSelector();
 
   virtual int Select(const Criteria& criteria);
 
   // 构建哈希环
-  bool Setup(InstancesSet* instance_set, uint32_t vnode_cnt, Hash64Func hash_func);
+  void Setup(const std::vector<Instance*>& instances, const std::set<Instance*>& half_open_instances,
+             uint32_t vnode_cnt, int base_weight, bool dynamic_weight);
 
-  bool FastSetup(InstancesSet* instanceSet, uint32_t vnodeCnt, Hash64Func hashFunc);
-
-private:
-  uint32_t CalcTotalWeight(const std::vector<Instance*>& vctInstances);
-
-  uint32_t CalcMaxWeight(const std::vector<Instance*>& vctInstances);
+  void FastSetup(const std::vector<Instance*>& instances, const std::set<Instance*>& half_open_instances,
+                 uint32_t vnode_cnt, int base_weight, bool dynamic_weight);
 
   bool ReHash(int iteration, uint64_t& hash_value, std::map<uint64_t, std::string>& hash_value_key);
 
-private:
-  Hash64Func hashFunc_;               // 哈希函数
+  bool EmptyRing() const { return ring_.empty(); }
+
+  uint64_t CalculateHashValue(const Criteria& criteria) const;
+
+  ReturnCode SelectReplicate(const std::vector<Instance*>& instances, const Criteria& criteria, Instance*& next);
+
+ private:
+  Hash64Func hash_func_;              // 哈希函数
   std::vector<ContinuumPoint> ring_;  // 哈希环
-  uint32_t ringLen_;                  // 哈希环长度, 用于极端情况加速计算
 };
 
 }  // namespace polaris

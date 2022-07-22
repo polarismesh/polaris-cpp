@@ -35,6 +35,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <functional>
 #include <string>
 
 #include "logger.h"
@@ -42,20 +43,26 @@
 
 namespace polaris {
 
+typedef std::string (*NetServerRespFunc)(void);
+
 enum NetServerStatus { kNetServerInit, kNetServerStart, kNetServerError, kNetServerStop };
 
 struct NetServerParam {
-  NetServerParam() : port_(0), tid_(0) {}
+  NetServerParam() : port_(0), response_generator_(nullptr), tid_(0) {}
   NetServerParam(int port, const char *response, NetServerStatus status, pthread_t tid)
-      : port_(port), response_(response), status_(status), tid_(tid) {}
+      : port_(port), response_(response), response_generator_(nullptr), status_(status), tid_(tid) {}
+  NetServerParam(int port, NetServerRespFunc response_generator, NetServerStatus status, pthread_t tid)
+      : port_(port), response_generator_(response_generator), status_(status), tid_(tid) {}
+
   int port_;
   std::string response_;
+  NetServerRespFunc response_generator_;
   volatile NetServerStatus status_;
   pthread_t tid_;
 };
 
 class FakeNetServer {
-public:
+ public:
   static void *StartTcp(void *args);
 
   static void *StartUdp(void *args);
@@ -63,38 +70,37 @@ public:
 
 void *FakeNetServer::StartTcp(void *args) {
   NetServerParam &param = *static_cast<NetServerParam *>(args);
-  int socket_fd         = NetClient::CreateTcpSocket(false);
+  int socket_fd = NetClient::CreateTcpSocket(false);
   sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
-  addr.sin_family          = AF_INET;
-  addr.sin_addr.s_addr     = htonl(INADDR_ANY);
-  addr.sin_port            = htons(param.port_);
-  int reuse_flag           = 1;
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  addr.sin_port = htons(param.port_);
+  int reuse_flag = 1;
   socklen_t reuse_flag_len = sizeof(reuse_flag);
-  if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, static_cast<void *>(&reuse_flag),
-                 reuse_flag_len) < 0) {
+  if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, static_cast<void *>(&reuse_flag), reuse_flag_len) < 0) {
     POLARIS_LOG(LOG_ERROR, "[TCP] setsockopt SO_REUSEADDR failed, errno = %d", errno);
     param.status_ = kNetServerError;
-    return NULL;
+    return nullptr;
   }
   if (bind(socket_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) {
     POLARIS_LOG(LOG_ERROR, "[TCP] bind failed, errno = %d", errno);
     param.status_ = kNetServerError;
-    return NULL;
+    return nullptr;
   }
   if (listen(socket_fd, 512) < 0) {
     POLARIS_LOG(LOG_ERROR, "[TCP] listen failed, errno = %d", errno);
     param.status_ = kNetServerError;
-    return NULL;
+    return nullptr;
   }
-  POLARIS_LOG(LOG_INFO, "start local tcp server 0.0.0.0:%d", param.port_);
+  POLARIS_LOG(LOG_INFO, "[TCP] start local tcp server 0.0.0.0:%d", param.port_);
   param.status_ = kNetServerStart;
   while (param.status_ != kNetServerStop) {
     struct timeval tv = {0, 10000};  // 10ms
     fd_set read_fd_set;
     FD_ZERO(&read_fd_set);
     FD_SET(socket_fd, &read_fd_set);
-    if (select(socket_fd + 1, &read_fd_set, NULL, NULL, &tv) <= 0) {
+    if (select(socket_fd + 1, &read_fd_set, nullptr, nullptr, &tv) <= 0) {
       continue;
     }
     struct sockaddr_in client_addr;
@@ -106,44 +112,54 @@ void *FakeNetServer::StartTcp(void *args) {
     }
     POLARIS_LOG(LOG_INFO, "[TCP] accept connection from %s:%d", inet_ntoa(client_addr.sin_addr),
                 ntohs(client_addr.sin_port));
-    char buffer[512]   = {0};
+    char buffer[512] = {0};
     ssize_t read_bytes = recv(conn_fd, buffer, sizeof(buffer), 0);
     if (read_bytes < 0) {
-      POLARIS_LOG(LOG_ERROR, "[TCP] recv failed from %s:%d,  errno = %d",
-                  inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), errno);
+      POLARIS_LOG(LOG_ERROR, "[TCP] recv failed from %s:%d,  errno = %d", inet_ntoa(client_addr.sin_addr),
+                  ntohs(client_addr.sin_port), errno);
       close(conn_fd);
       continue;
     }
     POLARIS_LOG(LOG_INFO, "[TCP] recv from %s:%d, data = %s", inet_ntoa(client_addr.sin_addr),
                 ntohs(client_addr.sin_port), buffer);
-    usleep(10 * 1000);  // sleep 10ms
-    if (!param.response_.empty()) {
-      ssize_t send_bytes = send(conn_fd, param.response_.data(), param.response_.size(), 0);
+    usleep(40 * 1000);  // sleep 40ms
+
+    std::string response;
+    if (param.response_generator_ != nullptr) {
+      response = param.response_generator_();
+    } else {
+      response = param.response_;
+    }
+
+    if (!response.empty()) {
+      ssize_t send_bytes = send(conn_fd, response.data(), response.size(), 0);
       if (send_bytes < 0) {
-        POLARIS_LOG(LOG_ERROR, "[TCP] send failed to %s:%d,  errno = %d",
-                    inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), errno);
+        POLARIS_LOG(LOG_ERROR, "[TCP] send failed to %s:%d,  errno = %d", inet_ntoa(client_addr.sin_addr),
+                    ntohs(client_addr.sin_port), errno);
         close(conn_fd);
         continue;
       }
       POLARIS_LOG(LOG_INFO, "[TCP] send to %s:%d, data = %s", inet_ntoa(client_addr.sin_addr),
-                  ntohs(client_addr.sin_port), param.response_.c_str());
+                  ntohs(client_addr.sin_port), response.c_str());
     }
     close(conn_fd);
   }
-  return NULL;
+  POLARIS_LOG(LOG_INFO, "[TCP] stop local tcp server 0.0.0.0:%d", param.port_);
+  close(socket_fd);
+  return nullptr;
 }
 
 void *FakeNetServer::StartUdp(void *args) {
   NetServerParam &param = *static_cast<NetServerParam *>(args);
-  int socket_fd         = socket(AF_INET, SOCK_DGRAM, 0);
+  int socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
   sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
-  addr.sin_family      = AF_INET;
+  addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  addr.sin_port        = htons(param.port_);
+  addr.sin_port = htons(param.port_);
   if (bind(socket_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) {
     param.status_ = kNetServerError;
-    return NULL;
+    return nullptr;
   }
   struct timeval tv = {0, 10000};  // 10ms
   if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const void *)&tv, sizeof(tv)) < 0) {
@@ -154,28 +170,37 @@ void *FakeNetServer::StartUdp(void *args) {
   while (param.status_ != kNetServerStop) {
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
-    char buffer[512]          = {0};
-    ssize_t read_bytes        = recvfrom(socket_fd, buffer, sizeof(buffer), 0,
-                                  reinterpret_cast<sockaddr *>(&client_addr), &client_addr_len);
+    char buffer[512] = {0};
+    ssize_t read_bytes =
+        recvfrom(socket_fd, buffer, sizeof(buffer), 0, reinterpret_cast<sockaddr *>(&client_addr), &client_addr_len);
     if (read_bytes < 0) {
       continue;
     }
     POLARIS_LOG(LOG_INFO, "[UDP] recv from %s:%d, data = %s", inet_ntoa(client_addr.sin_addr),
                 ntohs(client_addr.sin_port), buffer);
-    usleep(10 * 1000);  // sleep 10ms
-    if (!param.response_.empty()) {
-      ssize_t send_bytes = sendto(socket_fd, param.response_.data(), param.response_.size(), 0,
+    usleep(40 * 1000);  // sleep 40ms
+
+    std::string response;
+    if (param.response_generator_ != nullptr) {
+      response = param.response_generator_();
+    } else {
+      response = param.response_;
+    }
+
+    if (!response.empty()) {
+      ssize_t send_bytes = sendto(socket_fd, response.data(), response.size(), 0,
                                   reinterpret_cast<sockaddr *>(&client_addr), client_addr_len);
       if (send_bytes < 0) {
-        POLARIS_LOG(LOG_ERROR, "[UDP] send failed to %s:%d,  errno = %d",
-                    inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), errno);
+        POLARIS_LOG(LOG_ERROR, "[UDP] send failed to %s:%d,  errno = %d", inet_ntoa(client_addr.sin_addr),
+                    ntohs(client_addr.sin_port), errno);
         continue;
       }
       POLARIS_LOG(LOG_INFO, "[UDP] send to %s:%d, data = %s", inet_ntoa(client_addr.sin_addr),
-                  ntohs(client_addr.sin_port), param.response_.c_str());
+                  ntohs(client_addr.sin_port), response.c_str());
     }
   }
-  return NULL;
+  close(socket_fd);
+  return nullptr;
 }
 
 }  // namespace polaris

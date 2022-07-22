@@ -28,7 +28,7 @@ namespace polaris {
 /// 服务实例注册成功后，其他服务调用服务发现接口能发现该服务实例，可能会立即向该服务实例发送请求。
 /// @note 所以必须在服务实例启动完成后才去进行服务注册。
 class InstanceRegisterRequest : Noncopyable {
-public:
+ public:
   /// @brief 构造服务实例注册请求对象
   ///
   /// @param service_namespace 服务名所属命名空间
@@ -99,16 +99,23 @@ public:
   /// @param flow_id 用于跟踪请求的流水号
   void SetFlowId(uint64_t flow_id);
 
+  /// @brief 设置节点的位置信息。可选，默认会从公司CMDB获取
+  ///
+  /// @param region 节点所在区域
+  /// @param zone 节点所在城市
+  /// @param campus 节点所在园区
+  void SetLocation(const std::string& region, const std::string& zone, const std::string& campus);
+
   class Impl;
   Impl& GetImpl() const;
 
-private:
+ private:
   Impl* impl_;
 };
 
 /// @brief 服务实例反注册请求
 class InstanceDeregisterRequest : Noncopyable {
-public:
+ public:
   /// @brief 构造服务实例反注册请求对象，使用服务实例ID表示服务实例
   ///
   /// @param service_token 服务token
@@ -147,13 +154,13 @@ public:
   class Impl;
   Impl& GetImpl() const;
 
-private:
+ private:
   Impl* impl_;
 };
 
 /// @brief 服务实例心跳上报请求
 class InstanceHeartbeatRequest : Noncopyable {
-public:
+ public:
   /// @brief 构造服务实例心跳上报请求对象，使用服务实例ID表示服务实例
   ///
   /// @param service_token 服务token
@@ -192,13 +199,13 @@ public:
   class Impl;
   Impl& GetImpl() const;
 
-private:
+ private:
   Impl* impl_;
 };
 
 /// @brief Provider异步接口回调函数
 class ProviderCallback {
-public:
+ public:
   virtual ~ProviderCallback() {}
 
   /// @brief 应答回调
@@ -218,7 +225,7 @@ class Config;
 /// @note 服务端接口必须在请求中传入服务token。服务token可在polaris 控制台上查看
 /// @note 该接口线程安全，整个进程创建一个即可
 class ProviderApi : Noncopyable {
-public:
+ public:
   ~ProviderApi();
 
   /// @brief 同步注册服务实例
@@ -256,7 +263,7 @@ public:
   /// @param req 服务实例心跳上报请求
   /// @param callback 请求回调
   /// @return ReturnCode 调用返回码
-  ///         kReturnOk 表示心跳上报成功
+  ///         kReturnOk 表示上报请求成功插入请求队列
   ReturnCode AsyncHeartbeat(const InstanceHeartbeatRequest& req, ProviderCallback* callback);
 
   /// @brief 通过Context创建Provider API对象

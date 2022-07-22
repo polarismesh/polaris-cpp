@@ -25,14 +25,10 @@
 namespace polaris {
 
 class StringUtils {
-public:
+ public:
   /// @brief 字符串转换成整型类型
   template <typename T>
   static bool SafeStrToType(const std::string& str, T& value);
-
-  /// @brief 类型转换成字符串
-  template <typename T>
-  static std::string TypeToStr(T value);
 
   static std::string MapToStr(const std::map<std::string, std::string>& m);
 
@@ -46,6 +42,9 @@ public:
 
   // 忽略大小写比较字符串是否相等
   static bool IgnoreCaseCmp(const std::string& lhs, const std::string& rhs);
+
+  // 字符串切分
+  static std::vector<std::string> SplitString(const std::string& in, const char& separator);
 };
 
 template <typename T>
@@ -60,13 +59,6 @@ bool StringUtils::SafeStrToType(const std::string& str, T& value) {
   }
   value = result;
   return true;
-}
-
-template <typename T>
-std::string StringUtils::TypeToStr(T value) {
-  std::stringstream ss;
-  ss << value;
-  return ss.str();
 }
 
 }  // namespace polaris

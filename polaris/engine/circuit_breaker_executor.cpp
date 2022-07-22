@@ -17,7 +17,8 @@
 
 #include <vector>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
+#include "context/service_context.h"
 #include "metric/metric_connector.h"
 #include "polaris/context.h"
 #include "reactor/reactor.h"
@@ -30,14 +31,14 @@ CircuitBreakerExecutor::CircuitBreakerExecutor(Context* context) : Executor(cont
 }
 
 void CircuitBreakerExecutor::SetMetricConnector(MetricConnector* connector) {
-  if (metric_connector_ != NULL) {
+  if (metric_connector_ != nullptr) {
     delete metric_connector_;
   }
   metric_connector_ = connector;
 }
 
 CircuitBreakerExecutor::~CircuitBreakerExecutor() {
-  if (metric_connector_ != NULL) {
+  if (metric_connector_ != nullptr) {
     delete metric_connector_;
   }
 }
@@ -47,17 +48,21 @@ void CircuitBreakerExecutor::SetupWork() {
 }
 
 void CircuitBreakerExecutor::TimingCircuitBreak(CircuitBreakerExecutor* executor) {
-  std::vector<ServiceContext*> all_service_contexts;
-  executor->context_->GetContextImpl()->GetAllServiceContext(all_service_contexts);
-  for (std::size_t i = 0; i < all_service_contexts.size(); ++i) {
-    CircuitBreakerChain* circuit_breaker_chain = all_service_contexts[i]->GetCircuitBreakerChain();
-    circuit_breaker_chain->TimingCircuitBreak();
-    all_service_contexts[i]->DecrementRef();
+  std::vector<std::shared_ptr<ServiceContext>> all_service_contexts;
+  auto context_impl = executor->context_->GetContextImpl();
+  context_impl->GetAllServiceContext(all_service_contexts);
+  for (auto& service_context : all_service_contexts) {
+    InstanceExistChecker exist_checker = [&](const std::string& instance_id) {
+      context_impl->RcuEnter();
+      bool result = service_context->CheckInstanceExist(instance_id);
+      context_impl->RcuExit();
+      return result;
+    };
+    service_context->GetCircuitBreakerChain()->TimingCircuitBreak(exist_checker);
   }
   all_service_contexts.clear();
   // 设置定时任务
-  executor->reactor_.AddTimingTask(
-      new TimingFuncTask<CircuitBreakerExecutor>(TimingCircuitBreak, executor, 1000));
+  executor->reactor_.AddTimingTask(new TimingFuncTask<CircuitBreakerExecutor>(TimingCircuitBreak, executor, 1000));
 }
 
 }  // namespace polaris

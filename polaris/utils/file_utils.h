@@ -21,7 +21,7 @@
 namespace polaris {
 
 class FileUtils {
-public:
+ public:
   // 展开文件路径中包含的环境变量
   static std::string ExpandPath(const std::string& path);
 

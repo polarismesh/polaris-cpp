@@ -20,18 +20,18 @@
 #include "polaris/consumer.h"
 
 #include "integration/common/integration_base.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
 
-class ConsumerApiTest : public IntegrationBase {
-protected:
+enum TestProtocol { kProtocolGrpc, kProtocolTrpc };
+
+class ConsumerApiTest : public IntegrationBase, public ::testing::WithParamInterface<TestProtocol> {
+ protected:
   virtual void SetUp() {
     service_.mutable_namespace_()->set_value("Test");
-    service_.mutable_name()->set_value("consumer.api.test" +
-                                       StringUtils::TypeToStr(Time::GetCurrentTimeMs()));
-    IntegrationBase::SetUp();
+    service_.mutable_name()->set_value("consumer.api.test" + std::to_string(Time::GetSystemTimeMs()));
+    GetParam() == kProtocolGrpc ? IntegrationBase::SetUp() : IntegrationBase::SetUpWithTrpc();
     CreateInstance(healthy_instance_id_, "127.0.0.1", 8080, true, false);
     std::string instance_id;
     CreateInstance(instance_id, "127.0.0.1", 8081, false, false);
@@ -40,11 +40,11 @@ protected:
     sleep(3);
     // 创建Consumer对象
     consumer_ = polaris::ConsumerApi::Create(context_);
-    ASSERT_TRUE(consumer_ != NULL);
+    ASSERT_TRUE(consumer_ != nullptr);
   }
 
   virtual void TearDown() {
-    if (consumer_ != NULL) {
+    if (consumer_ != nullptr) {
       delete consumer_;
     }
     for (std::size_t i = 0; i < instances_.size(); ++i) {
@@ -53,8 +53,7 @@ protected:
     IntegrationBase::TearDown();
   }
 
-  void CreateInstance(std::string& instance_id, const std::string& ip, uint32_t port, bool healthy,
-                      bool isolate) {
+  void CreateInstance(std::string& instance_id, const std::string& ip, uint32_t port, bool healthy, bool isolate) {
     v1::Instance instance;
     instance.mutable_namespace_()->set_value(service_.namespace_().value());
     instance.mutable_service()->set_value(service_.name().value());
@@ -68,13 +67,13 @@ protected:
     instances_.push_back(instance);
   }
 
-protected:
+ protected:
   polaris::ConsumerApi* consumer_;
   std::vector<v1::Instance> instances_;
   std::string healthy_instance_id_;
 };
 
-TEST_F(ConsumerApiTest, TestGetInstances) {
+TEST_P(ConsumerApiTest, TestGetInstances) {
   ServiceKey service_key = {service_.namespace_().value(), service_.name().value()};
   polaris::GetInstancesRequest request(service_key);
   polaris::InstancesResponse* response;
@@ -83,13 +82,13 @@ TEST_F(ConsumerApiTest, TestGetInstances) {
   ASSERT_EQ(response->GetInstances()[0].GetId(), healthy_instance_id_);
   ASSERT_TRUE(!response->GetRevision().empty());
   delete response;
-  response = NULL;
+  response = nullptr;
 
   request.SetIncludeUnhealthyInstances(true);
   ASSERT_EQ(consumer_->GetInstances(request, response), kReturnOk);
   ASSERT_EQ(response->GetInstances().size(), 2);
   delete response;
-  response = NULL;
+  response = nullptr;
 
   request.SetIncludeUnhealthyInstances(false);
   ASSERT_EQ(consumer_->GetInstances(request, response), kReturnOk);
@@ -98,7 +97,7 @@ TEST_F(ConsumerApiTest, TestGetInstances) {
   delete response;
 }
 
-TEST_F(ConsumerApiTest, TestGetAllInstances) {
+TEST_P(ConsumerApiTest, TestGetAllInstances) {
   ServiceKey service_key = {service_.namespace_().value(), service_.name().value()};
   polaris::GetInstancesRequest request(service_key);
   polaris::InstancesResponse* response;
@@ -107,7 +106,7 @@ TEST_F(ConsumerApiTest, TestGetAllInstances) {
   std::string revision = response->GetRevision();
   ASSERT_TRUE(!revision.empty());
   delete response;
-  response = NULL;
+  response = nullptr;
   std::string instance_id;
   CreateInstance(instance_id, "127.0.0.1", 8083, false, true);
   int sleep_count = 5;
@@ -126,10 +125,10 @@ TEST_F(ConsumerApiTest, TestGetAllInstances) {
   ASSERT_EQ(response->GetInstances().size(), 4);
   ASSERT_TRUE(revision != response->GetRevision());
   delete response;
-  response = NULL;
+  response = nullptr;
 }
 
-TEST_F(ConsumerApiTest, TestUpdateCallResult) {
+TEST_P(ConsumerApiTest, TestUpdateCallResult) {
   ServiceKey service_key = {service_.namespace_().value(), service_.name().value()};
   polaris::GetOneInstanceRequest request(service_key);
   polaris::Instance instance;
@@ -153,5 +152,7 @@ TEST_F(ConsumerApiTest, TestUpdateCallResult) {
     }
   }
 }
+
+INSTANTIATE_TEST_CASE_P(Test, ConsumerApiTest, ::testing::Values(kProtocolGrpc, kProtocolTrpc));
 
 }  // namespace polaris

@@ -15,23 +15,22 @@
 
 namespace polaris {
 
-void RateLimitRuleSubIndex::AddRule(
-    RateLimitRule* rule, const std::map<std::string, MatchString>::const_iterator& label_it,
-    const std::map<std::string, MatchString>::const_iterator& label_end) {
+void RateLimitRuleSubIndex::AddRule(RateLimitRule* rule,
+                                    const std::map<std::string, MatchString>::const_iterator& label_it,
+                                    const std::map<std::string, MatchString>::const_iterator& label_end) {
   std::map<std::string, MatchString>::const_iterator next_label_it = label_it;
-  const std::string& label_value                                   = label_it->second.GetString();
+  const std::string& label_value = label_it->second.GetString();
   while (++next_label_it != label_end) {
     if (next_label_it->second.IsExactText()) {
       sub_index_[label_value][next_label_it->first].AddRule(rule, next_label_it, label_end);
       return;
     }
   }
-  value_index_[label_value] = rule;
+  value_index_[label_value].push_back(rule);
 }
 
-RateLimitRule* RateLimitRuleSubIndex::Search(
-    const std::string& value, const std::map<std::string, std::string>& subset,
-    const std::map<std::string, std::string>& labels) const {
+RateLimitRule* RateLimitRuleSubIndex::Search(const std::string& value, const std::map<std::string, std::string>& subset,
+                                             const std::map<std::string, std::string>& labels) const {
   // 先查找具有更多精确匹配label的索引
   std::map<std::string, std::map<std::string, RateLimitRuleSubIndex> >::const_iterator sub_it;
   std::map<std::string, RateLimitRuleSubIndex>::const_iterator key_it;
@@ -40,24 +39,28 @@ RateLimitRule* RateLimitRuleSubIndex::Search(
       std::map<std::string, std::string>::const_iterator label_it = labels.find(key_it->first);
       if (label_it != labels.end()) {
         RateLimitRule* rule = key_it->second.Search(label_it->second, subset, labels);
-        if (rule != NULL) {
+        if (rule != nullptr) {
           return rule;
         }
       }
     }
   }
   // 在查找没有更多精确匹配的索引
-  std::map<std::string, RateLimitRule*>::const_iterator value_it = value_index_.find(value);
-  if (value_it != value_index_.end()) {
-    if (value_it->second->IsMatch(subset, labels)) {
-      return value_it->second;
+  std::map<std::string, std::vector<RateLimitRule*> >::const_iterator value_it;
+  if ((value_it = value_index_.find(value)) != value_index_.end()) {
+    const std::vector<RateLimitRule*>& rule_array = value_it->second;
+    for (std::size_t i = 0; i < rule_array.size(); ++i) {
+      RateLimitRule* const& rate_limit_rule = rule_array[i];
+      if (rate_limit_rule->IsMatch(subset, labels)) {
+        return rate_limit_rule;
+      }
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 void RateLimitRuleIndex::AddRule(RateLimitRule* rule) {
-  const std::map<std::string, MatchString>& labels      = rule->GetLables();
+  const std::map<std::string, MatchString>& labels = rule->GetLabels();
   std::map<std::string, MatchString>::const_iterator it = labels.begin();
   while (it != labels.end() && !it->second.IsExactText()) {
     it++;
@@ -69,9 +72,8 @@ void RateLimitRuleIndex::AddRule(RateLimitRule* rule) {
   }
 }
 
-RateLimitRule* RateLimitRuleIndex::MatchRule(
-    const std::map<std::string, std::string>& subset,
-    const std::map<std::string, std::string>& labels) const {
+RateLimitRule* RateLimitRuleIndex::MatchRule(const std::map<std::string, std::string>& subset,
+                                             const std::map<std::string, std::string>& labels) const {
   // 优先匹配有精确label的规则
   std::map<std::string, RateLimitRuleSubIndex>::const_iterator sub_it;
   std::map<std::string, std::string>::const_iterator label_it;
@@ -79,7 +81,7 @@ RateLimitRule* RateLimitRuleIndex::MatchRule(
     label_it = labels.find(sub_it->first);
     if (label_it != labels.end()) {
       RateLimitRule* rule = sub_it->second.Search(label_it->second, subset, labels);
-      if (rule != NULL) {
+      if (rule != nullptr) {
         return rule;
       }
     }
@@ -91,7 +93,7 @@ RateLimitRule* RateLimitRuleIndex::MatchRule(
       return rule;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 }  // namespace polaris

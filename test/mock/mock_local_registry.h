@@ -30,41 +30,37 @@
 namespace polaris {
 
 class MockLocalRegistry : public LocalRegistry {
-public:
+ public:
   MOCK_METHOD2(Init, ReturnCode(Config *config, Context *context));
 
   MOCK_METHOD0(RunGcTask, void());
 
-  MOCK_METHOD1(RemoveExpireServiceData, void(uint64_t current_time));
+  MOCK_METHOD0(RemoveExpireServiceData, void());
 
   MOCK_METHOD3(GetServiceDataWithRef,
-               ReturnCode(const ServiceKey &service_key, ServiceDataType data_type,
-                          ServiceData *&service_data));
+               ReturnCode(const ServiceKey &service_key, ServiceDataType data_type, ServiceData *&service_data));
 
-  MOCK_METHOD4(LoadServiceDataWithNotify,
-               ReturnCode(const ServiceKey &service_key, ServiceDataType data_type,
-                          ServiceData *&service_data, ServiceDataNotify *&notify));
+  MOCK_METHOD4(LoadServiceDataWithNotify, ReturnCode(const ServiceKey &service_key, ServiceDataType data_type,
+                                                     ServiceData *&service_data, ServiceDataNotify *&notify));
 
-  MOCK_METHOD3(UpdateServiceData, ReturnCode(const ServiceKey &service_key,
-                                             ServiceDataType data_type, ServiceData *service_data));
+  MOCK_METHOD3(UpdateServiceData,
+               ReturnCode(const ServiceKey &service_key, ServiceDataType data_type, ServiceData *service_data));
 
-  MOCK_METHOD2(UpdateServiceSyncTime,
-               ReturnCode(const ServiceKey &service_key, ServiceDataType data_type));
+  MOCK_METHOD2(UpdateServiceSyncTime, ReturnCode(const ServiceKey &service_key, ServiceDataType data_type));
 
   MOCK_METHOD2(UpdateCircuitBreakerData,
-               ReturnCode(const ServiceKey &service_key,
-                          const CircuitBreakerData &circuit_breaker_data));
+               ReturnCode(const ServiceKey &service_key, const CircuitBreakerData &circuit_breaker_data));
 
   MOCK_METHOD2(UpdateSetCircuitBreakerData,
-               ReturnCode(const ServiceKey &service_key,
-                          const CircuitBreakUnhealthySetsData &cb_unhealthy_set_data));
+               ReturnCode(const ServiceKey &service_key, const CircuitBreakUnhealthySetsData &cb_unhealthy_set_data));
 
-  MOCK_METHOD3(GetCircuitBreakerInstances,
-               ReturnCode(const ServiceKey &service_key, ServiceData *&service_data,
-                          std::vector<Instance *> &open_instances));
+  MOCK_METHOD3(GetCircuitBreakerInstances, ReturnCode(const ServiceKey &service_key, ServiceData *&service_data,
+                                                      std::vector<Instance *> &open_instances));
 
-  MOCK_METHOD2(UpdateDynamicWeight, ReturnCode(const ServiceKey &service_key,
-                                               const DynamicWeightData &dynamic_weight_data));
+  MOCK_METHOD2(UpdateDynamicWeight,
+               ReturnCode(const ServiceKey &service_key, const DynamicWeightData &dynamic_weight_data));
+
+  MOCK_METHOD1(CheckAndSetExpireDynamicWeightServiceData, void(const ServiceKey &service_key));
 
   MOCK_METHOD1(GetAllServiceKey, ReturnCode(std::set<ServiceKey> &service_key_set));
 
@@ -92,10 +88,9 @@ public:
     service_data_index_ = 0;
   }
 
-  void ReturnData(const ServiceKey & /*service_key*/, ServiceDataType /*data_type*/,
-                  ServiceData *&service_data) {
+  void ReturnData(const ServiceKey & /*service_key*/, ServiceDataType /*data_type*/, ServiceData *&service_data) {
     service_data = service_data_list_[service_data_index_++];
-    if (service_data != NULL) {
+    if (service_data != nullptr) {
       service_data->IncrementRef();
     }
   }
@@ -103,14 +98,13 @@ public:
   int service_data_index_;
 
   void ExpectReturnNotify(int times) {
-    EXPECT_CALL(*this,
-                LoadServiceDataWithNotify(::testing::_, ::testing::_, ::testing::_, ::testing::_))
+    EXPECT_CALL(*this, LoadServiceDataWithNotify(::testing::_, ::testing::_, ::testing::_, ::testing::_))
         .Times(::testing::Exactly(times))
-        .WillRepeatedly(::testing::DoAll(::testing::Invoke(this, &MockLocalRegistry::ReturnNotify),
-                                         ::testing::Return(kReturnOk)));
+        .WillRepeatedly(
+            ::testing::DoAll(::testing::Invoke(this, &MockLocalRegistry::ReturnNotify), ::testing::Return(kReturnOk)));
   }
-  void ReturnNotify(const ServiceKey &service_key, ServiceDataType data_type,
-                    ServiceData *& /*service_data*/, ServiceDataNotify *&notify) {
+  void ReturnNotify(const ServiceKey &service_key, ServiceDataType data_type, ServiceData *& /*service_data*/,
+                    ServiceDataNotify *&notify) {
     notify = new ServiceDataNotify(service_key, data_type);
     service_notify_list_.push_back(notify);
   }

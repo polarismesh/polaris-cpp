@@ -23,7 +23,6 @@
 
 #include <string>
 
-#include "polaris/accessors.h"
 #include "polaris/config.h"
 #include "polaris/consumer.h"
 #include "polaris/context.h"

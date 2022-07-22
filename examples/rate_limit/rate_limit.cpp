@@ -31,21 +31,20 @@ void SignalHandler(int signum) {
 int main(int argc, char** argv) {
   if (argc < 3) {
     std::cout << "usage: " << argv[0] << std::endl
-              << "    service_namespace service_name label1<key:value> label2<key:value> qps"
-              << std::endl
+              << "    service_namespace service_name label1<key:value> label2<key:value> qps" << std::endl
               << "example: " << argv[0] << std::endl
               << "    Test service_name labelK1:labelV1 100" << std::endl;
     return -1;
   }
   std::string service_namespace = argv[1];
-  std::string service_name      = argv[2];
+  std::string service_name = argv[2];
   std::map<std::string, std::string> labels;
   for (int i = 3; i < argc - 1; ++i) {
-    std::string kv  = argv[i];
+    std::string kv = argv[i];
     std::size_t pos = kv.find(':');
     labels.insert(std::make_pair(kv.substr(0, pos), kv.substr(pos + 1)));
   }
-  int qps      = atoi(argv[argc - 1]);
+  int qps = atoi(argv[argc - 1]);
   int interval = 1000 * 1000 / qps;  // 根据传入qps计算每个请求耗时
 
   // 注册信号
@@ -53,7 +52,7 @@ int main(int argc, char** argv) {
 
   // 创建Limit API
   polaris::LimitApi* limit_api = polaris::LimitApi::CreateWithDefaultFile();
-  if (limit_api == NULL) {
+  if (limit_api == nullptr) {
     std::cout << "create limit api failed" << std::endl;
     return -1;
   }
@@ -64,15 +63,14 @@ int main(int argc, char** argv) {
   quota_request.SetLabels(labels);                       // 设置label用于匹配限流规则
 
   // 调用接口
-  int ok_count       = 0;
-  int limit_count    = 0;
-  time_t last_second = time(NULL);
+  int ok_count = 0;
+  int limit_count = 0;
+  time_t last_second = time(nullptr);
   while (!signal_received) {
     polaris::ReturnCode ret;
-    polaris::QuotaResponse* response = NULL;
+    polaris::QuotaResponse* response = nullptr;
     if ((ret = limit_api->GetQuota(quota_request, response)) != polaris::kReturnOk) {
-      std::cout << "get quota for service with error:" << polaris::ReturnCodeToMsg(ret).c_str()
-                << std::endl;
+      std::cout << "get quota for service with error:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
       sleep(1);
       continue;
     }
@@ -87,12 +85,11 @@ int main(int argc, char** argv) {
       usleep(interval);
       limit_count++;
     }
-    time_t current_second = time(NULL);
+    time_t current_second = time(nullptr);
     if (current_second >= last_second + 1) {
-      std::cout << "time:" << last_second << " ok:" << ok_count << " limited:" << limit_count
-                << std::endl;
+      std::cout << "time:" << last_second << " ok:" << ok_count << " limited:" << limit_count << std::endl;
       last_second = current_second;
-      ok_count    = 0;
+      ok_count = 0;
       limit_count = 0;
     }
   }

@@ -26,7 +26,7 @@ class ServiceInstances;
 
 // 兼容L5的一致性hash算法，相同数据提供与L5相同的输出
 class SimpleHashLoadBalancer : public LoadBalancer {
-public:
+ public:
   SimpleHashLoadBalancer() {}
 
   virtual ~SimpleHashLoadBalancer() {}
@@ -35,8 +35,7 @@ public:
 
   virtual LoadBalanceType GetLoadBalanceType() { return kLoadBalanceTypeSimpleHash; }
 
-  virtual ReturnCode ChooseInstance(ServiceInstances* instances, const Criteria& criteria,
-                                    Instance*& next);
+  virtual ReturnCode ChooseInstance(ServiceInstances* instances, const Criteria& criteria, Instance*& next);
 };
 
 }  // namespace polaris

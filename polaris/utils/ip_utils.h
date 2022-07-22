@@ -21,7 +21,7 @@
 namespace polaris {
 
 class IpUtils {
-public:
+ public:
   // 将int格式的IP转换成string类型
   static bool IntIpToStr(uint32_t int_ip, std::string& str_ip);
 

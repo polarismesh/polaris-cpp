@@ -23,7 +23,7 @@ namespace polaris {
 /// timeout 默认为 min_timeout，每次失败以 expand 速率扩大，直到成功或最大值
 /// 成功后以后 耗时*expand 作为后续超时时间
 class TimeoutStrategy {
-public:
+ public:
   TimeoutStrategy() : min_timeout_(0), timeout_(0), max_timeout_(0), expand_(0) {}
 
   void Init(uint64_t min_timeout, uint64_t max_timeout, float expand);
@@ -37,7 +37,7 @@ public:
   // 成功是设置以后的超时时间
   void SetNormalTimeout(uint64_t time_used);
 
-private:
+ private:
   uint64_t min_timeout_;  // 最小超时时间
   uint64_t timeout_;      // 当前超时时间
   uint64_t max_timeout_;  // 最大超时时间

@@ -19,6 +19,7 @@
 
 #include <iosfwd>
 #include <map>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,7 +27,6 @@
 #include "polaris/defs.h"
 #include "polaris/model.h"
 #include "polaris/plugin.h"
-#include "sync/mutex.h"
 
 namespace polaris {
 
@@ -58,8 +58,7 @@ struct RecoverAllRecord {
 
 struct InstanceRecords {
   ~InstanceRecords() {
-    for (std::map<std::string, std::vector<CircuitChangeRecord*> >::iterator it =
-             circuit_record_.begin();
+    for (std::map<std::string, std::vector<CircuitChangeRecord*> >::iterator it = circuit_record_.begin();
          it != circuit_record_.end(); ++it) {
       for (std::size_t i = 0; i < it->second.size(); ++i) {
         delete it->second[i];
@@ -75,8 +74,7 @@ struct InstanceRecords {
 
 struct SetRecords {
   ~SetRecords() {
-    for (std::map<std::string, std::vector<CircuitChangeRecord*> >::iterator it =
-             circuit_record_.begin();
+    for (std::map<std::string, std::vector<CircuitChangeRecord*> >::iterator it = circuit_record_.begin();
          it != circuit_record_.end(); ++it) {
       for (std::size_t i = 0; i < it->second.size(); ++i) {
         delete it->second[i];
@@ -88,7 +86,7 @@ struct SetRecords {
 };
 
 class ServiceRecord {
-public:
+ public:
   ServiceRecord();
 
   ~ServiceRecord();
@@ -97,11 +95,9 @@ public:
 
   void ServiceDataDelete(const ServiceKey& service_key, ServiceDataType data_type);
 
-  void InstanceCircuitBreak(const ServiceKey& service_key, const std::string& instance_id,
-                            CircuitChangeRecord* record);
+  void InstanceCircuitBreak(const ServiceKey& service_key, const std::string& instance_id, CircuitChangeRecord* record);
 
-  void SetCircuitBreak(const ServiceKey& service_key, const std::string& set_label_id,
-                       CircuitChangeRecord* record);
+  void SetCircuitBreak(const ServiceKey& service_key, const std::string& set_label_id, CircuitChangeRecord* record);
 
   void InstanceRecoverAll(const ServiceKey& service_key, RecoverAllRecord* record);
 
@@ -111,9 +107,9 @@ public:
 
   void ReportSetCircuitStat(std::map<ServiceKey, SetRecords>& report_data);
 
-private:
+ private:
   uint64_t report_id_;
-  sync::Mutex lock_;
+  std::mutex lock_;
   std::map<ServiceKey, ServiceRecordId> service_record_id_map_;
   std::map<ServiceKey, ::v1::ServiceInfo> service_info_map_;
   std::map<ServiceKey, InstanceRecords> instance_records_map_;

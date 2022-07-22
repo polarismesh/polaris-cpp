@@ -24,8 +24,6 @@ LogAlertReporter::~LogAlertReporter() {}
 
 ReturnCode LogAlertReporter::Init(Config* /*config*/, Context* /*context*/) { return kReturnOk; }
 
-ReturnCode LogAlertReporter::ReportAlert(AlertLevel /*alert_level*/, std::string /*msg*/) {
-  return kReturnOk;
-}
+ReturnCode LogAlertReporter::ReportAlert(AlertLevel /*alert_level*/, std::string /*msg*/) { return kReturnOk; }
 
 }  // namespace polaris

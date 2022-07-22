@@ -26,7 +26,7 @@ namespace polaris {
 
 // 自定义测试环境
 class Environment : public ::testing::Environment {
-public:
+ public:
   virtual ~Environment() {}
 
   virtual void SetUp();
@@ -42,10 +42,13 @@ public:
   /// @brief 获取测试用的发现服务器
   static std::string GetDiscoverServer();
 
+  /// @brief 获取测试用的Trpc协议发现服务器
+  static std::string GetTrpcDiscoverServer();
+
   /// @brief 获取测试接口使用的用户名
   static std::string GetPolarisUser();
 
-private:
+ private:
   std::string log_dir_;
   static std::string persist_dir_;
   static std::string polaris_server_;

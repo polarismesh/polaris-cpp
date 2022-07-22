@@ -109,6 +109,8 @@ message Report {
 	google.protobuf.Duration interval = 1;
 	// 使用了百分之多少配额后启动一次实时上报，值范围(0,100]
 	google.protobuf.UInt32Value amountPercent = 2;
+	// 配置规则是否是否开启批量上报
+	google.protobuf.BoolValue enableBatch = 3;
 }
 
 // 配额调整算法

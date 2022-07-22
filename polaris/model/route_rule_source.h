@@ -22,25 +22,25 @@
 #include "model/match_string.h"
 #include "polaris/defs.h"
 #include "polaris/noncopyable.h"
-#include "utils/shared_ptr.h"
 #include "v1/routing.pb.h"
 
 namespace polaris {
 
 // 请求来源匹配规则
 class RouteRuleSource {
-public:
+ public:
   bool InitFromPb(const v1::Source& source);
 
   bool FillSystemVariables(const SystemVariables& variables);
 
-  bool Match(const ServiceKey& service_key, const std::map<std::string, std::string>& metadata,
-             std::string& parameter) const;
+  bool Match(const ServiceKey& src_service, const ServiceKey& dst_service,
+             const std::map<std::string, std::string>& metadata, std::string& parameter) const;
 
   bool IsWildcardRule() const;
 
-private:
-  ServiceKey service_key_;
+ private:
+  ServiceKey src_service_;
+  ServiceKey dst_service_;
   std::map<std::string, MatchString> metadata_;
 };
 

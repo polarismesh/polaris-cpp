@@ -16,29 +16,25 @@
 #include <stddef.h>
 #include <string>
 
-#include "api/consumer_api.h"
 #include "cache_manager.h"
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "logger.h"
-#include "polaris/consumer.h"
 #include "polaris/defs.h"
 #include "reactor/reactor.h"
 
 namespace polaris {
 
-TimeoutWatcher::TimeoutWatcher(InstancesFutureImpl* future_impl,
-                               ServiceCacheNotify* service_cache_notify)
-    : future_impl_(future_impl), service_cache_notify_(service_cache_notify),
-      wait_data_flag(kWaitDataNone) {}
+TimeoutWatcher::TimeoutWatcher(InstancesFuture::Impl* future_impl, ServiceCacheNotify* service_cache_notify)
+    : future_impl_(future_impl), service_cache_notify_(service_cache_notify), wait_data_flag(kWaitDataNone) {}
 
 TimeoutWatcher::~TimeoutWatcher() {
-  if (future_impl_ != NULL) {
+  if (future_impl_ != nullptr) {
     future_impl_->DecrementRef();
-    future_impl_ = NULL;
+    future_impl_ = nullptr;
   }
-  if (service_cache_notify_ != NULL) {
+  if (service_cache_notify_ != nullptr) {
     delete service_cache_notify_;
-    service_cache_notify_ = NULL;
+    service_cache_notify_ = nullptr;
   }
 }
 
@@ -60,7 +56,7 @@ void TimeoutWatcher::NotifyReady(const ServiceKey& service_key, ServiceDataType 
   }
   if (wait_data_flag == kWaitDataNone) {
     CacheManager* cache_manager = future_impl_->context_impl_->GetCacheManager();
-    Reactor& reactor            = cache_manager->GetReactor();
+    Reactor& reactor = cache_manager->GetReactor();
     reactor.CancelTimingTask(timeout_task_iter_);
     service_cache_notify_->NotifyReady();
   }
@@ -70,10 +66,9 @@ void TimeoutWatcher::NotifyTimeout() { service_cache_notify_->NotifyTimeout(); }
 
 void TimeoutWatcher::SetupTimeoutTask(TimeoutWatcher* timeout_watcher) {
   CacheManager* cache_manager = timeout_watcher->future_impl_->context_impl_->GetCacheManager();
-  Reactor& reactor            = cache_manager->GetReactor();
-  timeout_watcher->timeout_task_iter_ = reactor.AddTimingTask(
-      new TimingFuncTask<TimeoutWatcher>(TimeoutWatcher::ServiceCacheTimeout, timeout_watcher,
-                                         timeout_watcher->future_impl_->request_timeout_));
+  Reactor& reactor = cache_manager->GetReactor();
+  timeout_watcher->timeout_task_iter_ = reactor.AddTimingTask(new TimingFuncTask<TimeoutWatcher>(
+      TimeoutWatcher::ServiceCacheTimeout, timeout_watcher, timeout_watcher->future_impl_->request_timeout_));
 }
 
 void TimeoutWatcher::ServiceCacheTimeout(TimeoutWatcher* timeout_watcher) {

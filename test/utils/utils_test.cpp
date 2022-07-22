@@ -26,6 +26,13 @@
 
 namespace polaris {
 
+TEST(UtilsTest, GetNextSeqId) {
+  for (uint32_t i = 0; i < 10; ++i) {
+    ASSERT_EQ(Utils::GetNextSeqId(), i);
+    ASSERT_EQ(Utils::GetNextSeqId32(), i);
+  }
+}
+
 TEST(UtilsTest, TestUrlEncodeDecode) {
   std::string url;
   std::string encode_url;
@@ -37,7 +44,7 @@ TEST(UtilsTest, TestUrlEncodeDecode) {
   urls.push_back("abc");
   urls.push_back("service.name");
   for (std::size_t i = 0; i < urls.size(); ++i) {
-    url        = urls[i];
+    url = urls[i];
     encode_url = Utils::UrlEncode(url);
     ASSERT_EQ(encode_url, url);
     decode_url = Utils::UrlDecode(encode_url);
@@ -52,7 +59,7 @@ TEST(UtilsTest, TestUrlEncodeDecode) {
   urls.push_back(" #srv#service#name#");
   urls.push_back("#srv#service#name#instances#");
   for (std::size_t i = 0; i < urls.size(); ++i) {
-    url        = urls[i];
+    url = urls[i];
     encode_url = Utils::UrlEncode(url);
     ASSERT_NE(url, encode_url);
     ASSERT_EQ(url.size() + i * 2, encode_url.size());
@@ -60,14 +67,14 @@ TEST(UtilsTest, TestUrlEncodeDecode) {
     ASSERT_EQ(url, decode_url);
   }
 
-  url        = "service name";
+  url = "service name";
   encode_url = Utils::UrlEncode(url);
   ASSERT_EQ(url.size(), encode_url.size());
   ASSERT_EQ(encode_url, "service+name");
   decode_url = Utils::UrlDecode(encode_url);
   ASSERT_EQ(url, decode_url);
 
-  url        = "service#中文name";  // 中文不转义
+  url = "service#中文name";  // 中文不转义
   encode_url = Utils::UrlEncode(url);
   ASSERT_EQ(url.size() + 2, encode_url.size());
   decode_url = Utils::UrlDecode(encode_url);
@@ -75,11 +82,10 @@ TEST(UtilsTest, TestUrlEncodeDecode) {
 }
 
 TEST(UtilsTest, TestHashManager) {
-  Hash64Func hashFunc = NULL;
-  ASSERT_EQ(HashManager::Instance().GetHashFunction("non_exists_hash", hashFunc),
-            kReturnResourceNotFound);
+  Hash64Func hashFunc = nullptr;
+  ASSERT_EQ(HashManager::Instance().GetHashFunction("non_exists_hash", hashFunc), kReturnResourceNotFound);
   ASSERT_EQ(HashManager::Instance().GetHashFunction("murmur3", hashFunc), kReturnOk);
-  ASSERT_TRUE(hashFunc != NULL);
+  ASSERT_TRUE(hashFunc != nullptr);
 }
 
 }  // namespace polaris

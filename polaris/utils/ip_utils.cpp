@@ -23,7 +23,7 @@ bool IpUtils::IntIpToStr(uint32_t int_ip, std::string& str_ip) {
   char buf[16] = {0};
   struct in_addr sin_addr;
   sin_addr.s_addr = int_ip;
-  if (inet_ntop(AF_INET, static_cast<void*>(&sin_addr.s_addr), buf, sizeof(buf)) != NULL) {
+  if (inet_ntop(AF_INET, static_cast<void*>(&sin_addr.s_addr), buf, sizeof(buf)) != nullptr) {
     str_ip = buf;
     return true;
   } else {

@@ -19,8 +19,8 @@
 namespace polaris {
 
 enum ApiStatKey {
-  kApiStatConsumerInitService,
   kApiStatConsumerGetOne,
+  kApiStatConsumerInitService,
   kApiStatConsumerGetBatch,
   kApiStatConsumerAsyncGetOne,
   kApiStatConsumerAsyncGetBatch,
@@ -32,28 +32,29 @@ enum ApiStatKey {
   kApiStatLimitGetQuota,
   kApiStatLimitUpdateCallResult,
   kApiStatProviderAsyncHeartbeat,
-  kApiStatKeyCount
+
+  kApiStatKeyCount,  // NOTICE!! Always be the last one!!!
 };
 
 class ApiStatRegistry;
-class Context;
+class ContextImpl;
 
 #define RECORD_THEN_RETURN(ret_code) \
   api_stat.Record(ret_code);         \
   return ret_code;
 
 class ApiStat {
-public:
-  ApiStat(Context* context, ApiStatKey stat_key);
+ public:
+  ApiStat(ContextImpl* context, ApiStatKey stat_key);
 
-  ~ApiStat();  // 析构，如果为调用Record，则默认记录为成功
+  ~ApiStat() { Record(kReturnOk); }  // 析构，如果未调用Record，则默认记录为成功
 
   void Record(ReturnCode ret_code);  // 主调记录调用结果
 
-private:
+ private:
+  ApiStatRegistry* registry_;  // API统计中心
   uint64_t api_time_;          // API统计开始时间
   ApiStatKey stat_key_;        // API统计key
-  ApiStatRegistry* registry_;  // API统计中心
 };
 
 }  // namespace polaris

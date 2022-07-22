@@ -81,4 +81,13 @@ TEST(StringUtilsTest, TestJoinString) {
   ASSERT_EQ(StringUtils::JoinString(list), "0, 1, 2");
 }
 
+TEST(StringUtilsTest, TestSplitString) {
+  std::string str = "1, a,#";
+  std::vector<std::string> list = StringUtils::SplitString(str, ',');
+  ASSERT_EQ(list.size(), 3);
+  ASSERT_EQ(list[0], "1");
+  ASSERT_EQ(list[1], " a");
+  ASSERT_EQ(list[2], "#");
+}
+
 }  // namespace polaris

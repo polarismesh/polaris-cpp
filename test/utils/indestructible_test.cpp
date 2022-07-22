@@ -22,7 +22,7 @@
 namespace polaris {
 
 class NeverDelete {
-public:
+ public:
   explicit NeverDelete(int value) : value_(value) {}
 
   ~NeverDelete() {
@@ -46,7 +46,7 @@ public:
 
   int Value() { return value_; }
 
-private:
+ private:
   int value_;
 };
 

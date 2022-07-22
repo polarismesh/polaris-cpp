@@ -30,29 +30,36 @@
 namespace polaris {
 
 class HttpHealthCheckerTest : public ::testing::Test {
-protected:
+ protected:
+  static std::string FakeResponseGenerator() {
+    resp_gen_flag_ = !resp_gen_flag_;
+    if (resp_gen_flag_) {
+      return "HTTP/1.0 200 OK\r\n\r\n";
+    } else {
+      return "HTTP/1.0\r\n";
+    }
+  }
+
   static void SetUpTestCase() {
     http_server_list_.push_back(
         NetServerParam(TestUtils::PickUnusedPort(), "HTTP/1.0 200 OK\r\n\r\n", kNetServerInit, 0));
     http_server_list_.push_back(NetServerParam(
-        TestUtils::PickUnusedPort(), "HTTP/1.0 200 OK\r\nContent-Length: 10\r\n\r\n0123456789",
-        kNetServerInit, 0));
-    http_server_list_.push_back(NetServerParam(
-        TestUtils::PickUnusedPort(), "HTTP/1.0 404 NOT FOUND\r\n\r\n", kNetServerInit, 0));
-    http_server_list_.push_back(NetServerParam(
-        TestUtils::PickUnusedPort(),
-        "HTTP/1.0 404 NOT FOUND\r\nContent-Length: 10\r\n\r\n0123456789", kNetServerInit, 0));
+        TestUtils::PickUnusedPort(), "HTTP/1.0 200 OK\r\nContent-Length: 10\r\n\r\n0123456789", kNetServerInit, 0));
+    http_server_list_.push_back(
+        NetServerParam(TestUtils::PickUnusedPort(), "HTTP/1.0 404 NOT FOUND\r\n\r\n", kNetServerInit, 0));
+    http_server_list_.push_back(NetServerParam(TestUtils::PickUnusedPort(),
+                                               "HTTP/1.0 404 NOT FOUND\r\nContent-Length: 10\r\n\r\n0123456789",
+                                               kNetServerInit, 0));
     http_server_list_.push_back(
         NetServerParam(TestUtils::PickUnusedPort(), "HTTP/1.0 200 \r\n\r\n", kNetServerInit, 0));
     http_server_list_.push_back(
         NetServerParam(TestUtils::PickUnusedPort(), "HTTP/1.0 404 \r\n\r\n", kNetServerInit, 0));
-    http_server_list_.push_back(
-        NetServerParam(TestUtils::PickUnusedPort(), "HTTP/1.0\r\n\r\n", kNetServerInit, 0));
-    http_server_list_.push_back(
-        NetServerParam(TestUtils::PickUnusedPort(), "HTTP/1.0\r\n", kNetServerInit, 0));
+    http_server_list_.push_back(NetServerParam(TestUtils::PickUnusedPort(), "HTTP/1.0\r\n\r\n", kNetServerInit, 0));
+    http_server_list_.push_back(NetServerParam(TestUtils::PickUnusedPort(), "HTTP/1.0\r\n", kNetServerInit, 0));
+    http_server_list_.push_back(NetServerParam(TestUtils::PickUnusedPort(), FakeResponseGenerator, kNetServerInit, 0));
+
     for (std::size_t i = 0; i < http_server_list_.size(); ++i) {
-      pthread_create(&http_server_list_[i].tid_, NULL, FakeNetServer::StartTcp,
-                     &http_server_list_[i]);
+      pthread_create(&http_server_list_[i].tid_, nullptr, FakeNetServer::StartTcp, &http_server_list_[i]);
     }
     bool all_server_start = false;
     while (!all_server_start) {
@@ -71,49 +78,50 @@ protected:
   static void TearDownTestCase() {
     for (std::size_t i = 0; i < http_server_list_.size(); ++i) {
       http_server_list_[i].status_ = kNetServerStop;
-      pthread_join(http_server_list_[i].tid_, NULL);
+      pthread_join(http_server_list_[i].tid_, nullptr);
     }
   }
 
   static std::vector<NetServerParam> http_server_list_;
+  static volatile bool resp_gen_flag_;
 
   virtual void SetUp() {
-    default_config_ = NULL;
-    http_detector_  = new HttpHealthChecker();
+    resp_gen_flag_ = true;
+    default_config_ = nullptr;
+    http_detector_ = new HttpHealthChecker();
   }
 
   virtual void TearDown() {
-    if (default_config_ != NULL) {
+    if (default_config_ != nullptr) {
       delete default_config_;
-      default_config_ = NULL;
+      default_config_ = nullptr;
     }
-    if (http_detector_ != NULL) {
+    if (http_detector_ != nullptr) {
       delete http_detector_;
-      http_detector_ = NULL;
+      http_detector_ = nullptr;
     }
   }
 
   void DetectingLocalPortCaseMap(const std::map<int, ReturnCode> &case_map) {
     DetectResult detect_result;
-    for (std::map<int, ReturnCode>::const_iterator it = case_map.begin(); it != case_map.end();
-         ++it) {
+    for (std::map<int, ReturnCode>::const_iterator it = case_map.begin(); it != case_map.end(); ++it) {
       Instance instance("instance_id", "0.0.0.0", it->first, 0);
-      ASSERT_EQ(http_detector_->DetectInstance(instance, detect_result), it->second)
-          << "port:" << it->first;
+      ASSERT_EQ(http_detector_->DetectInstance(instance, detect_result), it->second) << "port:" << it->first;
       ASSERT_EQ(detect_result.detect_type, kPluginHttpHealthChecker);
     }
   }
 
-protected:
+ protected:
   HttpHealthChecker *http_detector_;
   Config *default_config_;
 };
 
 std::vector<NetServerParam> HttpHealthCheckerTest::http_server_list_;
+volatile bool HttpHealthCheckerTest::resp_gen_flag_(true);
 
 TEST_F(HttpHealthCheckerTest, DetectInstanceResponseCode) {
   default_config_ = Config::CreateEmptyConfig();
-  ASSERT_EQ(http_detector_->Init(default_config_, NULL), kReturnInvalidConfig);
+  ASSERT_EQ(http_detector_->Init(default_config_, nullptr), kReturnInvalidConfig);
 
   DetectResult detect_result;
 
@@ -124,20 +132,21 @@ TEST_F(HttpHealthCheckerTest, DetectInstanceResponseCode) {
   ASSERT_EQ(http_detector_->DetectInstance(instance_1, detect_result), kReturnInvalidConfig);
 
   delete default_config_;
-  std::string err_msg, content = "path:\n  /health";
+  std::string err_msg, content = "path:\n  /health\nretry:\n  0";
   default_config_ = Config::CreateFromString(content, err_msg);
-  POLARIS_ASSERT(default_config_ != NULL && err_msg.empty());
-  ASSERT_EQ(http_detector_->Init(default_config_, NULL), kReturnOk);
+  POLARIS_ASSERT(default_config_ != nullptr && err_msg.empty());
+  ASSERT_EQ(http_detector_->Init(default_config_, nullptr), kReturnOk);
 
   std::map<int, ReturnCode> port_testing_case_map;
-  port_testing_case_map[http_server_list_[0].port_]  = kReturnOk;
-  port_testing_case_map[http_server_list_[1].port_]  = kReturnOk;
-  port_testing_case_map[http_server_list_[2].port_]  = kReturnServerError;
-  port_testing_case_map[http_server_list_[3].port_]  = kReturnServerError;
-  port_testing_case_map[http_server_list_[4].port_]  = kReturnServerError;
-  port_testing_case_map[http_server_list_[5].port_]  = kReturnServerError;
-  port_testing_case_map[http_server_list_[6].port_]  = kReturnServerError;
-  port_testing_case_map[http_server_list_[7].port_]  = kReturnServerError;
+  port_testing_case_map[http_server_list_[0].port_] = kReturnOk;
+  port_testing_case_map[http_server_list_[1].port_] = kReturnOk;
+  port_testing_case_map[http_server_list_[2].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[3].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[4].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[5].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[6].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[7].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[8].port_] = kReturnServerError;
   port_testing_case_map[TestUtils::PickUnusedPort()] = kReturnNetworkFailed;
   port_testing_case_map[TestUtils::PickUnusedPort()] = kReturnNetworkFailed;
   DetectingLocalPortCaseMap(port_testing_case_map);
@@ -146,8 +155,8 @@ TEST_F(HttpHealthCheckerTest, DetectInstanceResponseCode) {
 TEST_F(HttpHealthCheckerTest, DetectInstanceWithConfig) {
   std::string err_msg, content = "path:\n  /\ntimeout:\n  1000";
   default_config_ = Config::CreateFromString(content, err_msg);
-  POLARIS_ASSERT(default_config_ != NULL && err_msg.empty());
-  ASSERT_EQ(http_detector_->Init(default_config_, NULL), kReturnOk);
+  POLARIS_ASSERT(default_config_ != nullptr && err_msg.empty());
+  ASSERT_EQ(http_detector_->Init(default_config_, nullptr), kReturnOk);
 
   std::map<int, ReturnCode> port_testing_case_map;
   port_testing_case_map[http_server_list_[0].port_] = kReturnOk;
@@ -161,8 +170,8 @@ TEST_F(HttpHealthCheckerTest, DetectInstanceWithConfig) {
 TEST_F(HttpHealthCheckerTest, DetectInstanceTimeout) {
   std::string err_msg, content = "path:\n  /\ntimeout:\n  3";
   default_config_ = Config::CreateFromString(content, err_msg);
-  POLARIS_ASSERT(default_config_ != NULL && err_msg.empty());
-  ASSERT_EQ(http_detector_->Init(default_config_, NULL), kReturnOk);
+  POLARIS_ASSERT(default_config_ != nullptr && err_msg.empty());
+  ASSERT_EQ(http_detector_->Init(default_config_, nullptr), kReturnOk);
 
   std::map<int, ReturnCode> port_testing_case_map;
   port_testing_case_map[http_server_list_[0].port_] = kReturnNetworkFailed;
@@ -170,6 +179,27 @@ TEST_F(HttpHealthCheckerTest, DetectInstanceTimeout) {
   port_testing_case_map[http_server_list_[2].port_] = kReturnNetworkFailed;
   port_testing_case_map[http_server_list_[3].port_] = kReturnNetworkFailed;
   port_testing_case_map[http_server_list_[4].port_] = kReturnNetworkFailed;
+  DetectingLocalPortCaseMap(port_testing_case_map);
+}
+
+TEST_F(HttpHealthCheckerTest, DetectInstanceRetry) {
+  std::string err_msg, content = "path:\n  /\nretry:\n  2";
+  default_config_ = Config::CreateFromString(content, err_msg);
+  POLARIS_ASSERT(default_config_ != nullptr && err_msg.empty());
+  ASSERT_EQ(http_detector_->Init(default_config_, nullptr), kReturnOk);
+
+  std::map<int, ReturnCode> port_testing_case_map;
+  port_testing_case_map[http_server_list_[0].port_] = kReturnOk;
+  port_testing_case_map[http_server_list_[1].port_] = kReturnOk;
+  port_testing_case_map[http_server_list_[2].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[3].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[4].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[5].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[6].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[7].port_] = kReturnServerError;
+  port_testing_case_map[http_server_list_[8].port_] = kReturnOk;
+  port_testing_case_map[TestUtils::PickUnusedPort()] = kReturnNetworkFailed;
+  port_testing_case_map[TestUtils::PickUnusedPort()] = kReturnNetworkFailed;
   DetectingLocalPortCaseMap(port_testing_case_map);
 }
 

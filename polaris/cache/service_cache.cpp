@@ -13,41 +13,53 @@
 
 #include "cache/service_cache.h"
 
-#include <stddef.h>
-#include <utility>
-
+#include "context/context_impl.h"
+#include "context/service_context.h"
 #include "model/model_impl.h"
+
 namespace polaris {
 
-RouterSubsetCache::RouterSubsetCache() : instances_data_(NULL), current_data_(NULL) {}
+RouterSubsetCache::RouterSubsetCache() : instances_data_(nullptr), current_data_(nullptr) {}
 
 RouterSubsetCache::~RouterSubsetCache() {
-  if (instances_data_ != NULL) {
+  if (instances_data_ != nullptr) {
     instances_data_->DecrementRef();
-    instances_data_ = NULL;
+    instances_data_ = nullptr;
   }
-  if (current_data_ != NULL) {
+  if (current_data_ != nullptr) {
     current_data_->DecrementRef();
-    current_data_ = NULL;
+    current_data_ = nullptr;
   }
 }
 
 RuleRouterCacheValue::RuleRouterCacheValue()
-    : instances_data_(NULL), route_rule_(NULL), sum_weight_(0), match_outbounds_(false) {}
+    : instances_data_(nullptr),
+      route_rule_(nullptr),
+      subset_sum_weight_(0),
+      match_outbounds_(false),
+      is_redirect_(false) {}
 
 RuleRouterCacheValue::~RuleRouterCacheValue() {
-  if (instances_data_ != NULL) {
+  if (instances_data_ != nullptr) {
     instances_data_->DecrementRef();
-    instances_data_ = NULL;
+    instances_data_ = nullptr;
   }
-  if (route_rule_ != NULL) {
+  if (route_rule_ != nullptr) {
     route_rule_->DecrementRef();
-    route_rule_ = NULL;
+    route_rule_ = nullptr;
   }
-  for (std::map<uint32_t, InstancesSet*>::iterator it = data_.begin(); it != data_.end(); ++it) {
-    it->second->DecrementRef();
+  for (auto& subset : subsets_) {
+    subset.second->DecrementRef();
   }
-  data_.clear();
+}
+
+void ServiceCacheUpdateTask::Run() {
+  context_impl_->RcuEnter();
+  ServiceContext* service_context = context_impl_->GetServiceContext(service_key_);
+  if (service_context != nullptr) {
+    service_context->UpdateCircuitBreaker(service_key_, circuit_breaker_version_);
+  }
+  context_impl_->RcuExit();
 }
 
 }  // namespace polaris

@@ -25,23 +25,23 @@
 namespace polaris {
 
 class MonitorReportTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
-    context_          = TestContext::CreateContext();
+    context_ = TestContext::CreateContext();
     monitor_reporter_ = context_->GetContextImpl()->GetMonitorReporter();
-    local_registry_   = context_->GetLocalRegistry();
+    local_registry_ = context_->GetLocalRegistry();
   }
 
   virtual void TearDown() {
-    monitor_reporter_ = NULL;
-    local_registry_   = NULL;
-    if (context_ != NULL) {
+    monitor_reporter_ = nullptr;
+    local_registry_ = nullptr;
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
   }
 
-protected:
+ protected:
   Context* context_;
   MonitorReporter* monitor_reporter_;
   LocalRegistry* local_registry_;
@@ -49,17 +49,17 @@ protected:
 
 void CreateServiceStat(std::map<ServiceKey, ServiceStat>& stat_data) {
   for (int i = 0; i < 3; i++) {
-    ServiceKey service_key    = {"stat_namespace", "stat_service" + StringUtils::TypeToStr(i)};
+    ServiceKey service_key = {"stat_namespace", "stat_service" + std::to_string(i)};
     ServiceStat& service_stat = stat_data[service_key];
     for (int j = 0; j <= i; j++) {
-      std::string instance_id     = "instance_" + StringUtils::TypeToStr(j);
+      std::string instance_id = "instance_" + std::to_string(j);
       InstanceStat& instance_stat = service_stat[instance_id];
       for (int k = 0; k <= i + j; ++k) {
         InstanceCodeStat& code_stat = instance_stat.ret_code_stat_[k];
-        code_stat.success_count_    = k;
-        code_stat.success_delay_    = k * 10;
-        code_stat.error_count_      = k % 2;
-        code_stat.error_delay_      = (k % 2) * 20;
+        code_stat.success_count_ = k;
+        code_stat.success_delay_ = k * 10;
+        code_stat.error_count_ = k % 2;
+        code_stat.error_delay_ = (k % 2) * 20;
       }
     }
   }
@@ -67,14 +67,14 @@ void CreateServiceStat(std::map<ServiceKey, ServiceStat>& stat_data) {
 
 void CreateSetServiceStat(std::map<ServiceKey, SetRecords>& set_circuit_map) {
   for (int i = 0; i < 3; i++) {
-    ServiceKey service_key           = {"Test", "test_name_" + StringUtils::TypeToStr(i)};
-    SetRecords& service_stat         = set_circuit_map[service_key];
-    CircuitChangeRecord* record      = new CircuitChangeRecord();
-    record->change_seq_              = 1;
+    ServiceKey service_key = {"Test", "test_name_" + std::to_string(i)};
+    SetRecords& service_stat = set_circuit_map[service_key];
+    CircuitChangeRecord* record = new CircuitChangeRecord();
+    record->change_seq_ = 1;
     record->circuit_breaker_conf_id_ = "test_id";
-    record->from_                    = kCircuitBreakerClose;
-    record->to_                      = kCircuitBreakerOpen;
-    record->reason_                  = "";
+    record->from_ = kCircuitBreakerClose;
+    record->to_ = kCircuitBreakerOpen;
+    record->reason_ = "";
     service_stat.circuit_record_["k1:set1"].push_back(record);
   }
 }
@@ -88,7 +88,7 @@ TEST_F(MonitorReportTest, BuildServiceStatWithServiceNotFound) {
 }
 
 TEST_F(MonitorReportTest, BuildServiceStatWithInstanceNotFound) {
-  ServiceKey service_key = {"stat_namespace", "stat_service" + StringUtils::TypeToStr(2)};
+  ServiceKey service_key = {"stat_namespace", "stat_service" + std::to_string(2)};
   FakeServer::InitService(local_registry_, service_key, 1, false);
   std::map<ServiceKey, ServiceStat> stat_data;
   // i = 2, j = 0
@@ -100,7 +100,7 @@ TEST_F(MonitorReportTest, BuildServiceStatWithInstanceNotFound) {
 }
 
 TEST_F(MonitorReportTest, BuildServiceStat) {
-  ServiceKey service_key = {"stat_namespace", "stat_service" + StringUtils::TypeToStr(2)};
+  ServiceKey service_key = {"stat_namespace", "stat_service" + std::to_string(2)};
   FakeServer::InitService(local_registry_, service_key, 3, false);
   std::map<ServiceKey, ServiceStat> stat_data;
   // i = 2, j = 0, 1, 2

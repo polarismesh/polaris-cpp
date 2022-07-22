@@ -14,27 +14,27 @@
 #ifndef POLARIS_CPP_POLARIS_PLUGIN_CIRCUIT_BREAKER_ERROR_COUNT_H_
 #define POLARIS_CPP_POLARIS_PLUGIN_CIRCUIT_BREAKER_ERROR_COUNT_H_
 
-#include <pthread.h>
 #include <stdint.h>
 
-#include <map>
+#include <atomic>
 #include <string>
 
+#include "cache/rcu_unordered_map.h"
+#include "plugin/circuit_breaker/circuit_breaker.h"
 #include "polaris/defs.h"
-#include "polaris/plugin.h"
 
 namespace polaris {
 
 struct ErrorCountStatus {
+  ErrorCountStatus() : status(kCircuitBreakerClose), error_count(0), success_count(0), last_update_time(0) {}
   CircuitBreakerStatus status;
-  int error_count;
-  int success_count;
-  uint64_t last_update_time;
-  uint64_t last_access_time;
+  std::atomic<int> error_count;
+  std::atomic<int> success_count;
+  std::atomic<uint64_t> last_update_time;
 };
 
 class ErrorCountCircuitBreaker : public CircuitBreaker {
-public:
+ public:
   ErrorCountCircuitBreaker();
 
   virtual ~ErrorCountCircuitBreaker();
@@ -43,26 +43,27 @@ public:
 
   virtual int RequestAfterHalfOpen() { return request_count_after_half_open_; }
 
+  virtual ReturnCode DetectToHalfOpen(const std::string& instance_id);
+
   virtual ReturnCode RealTimeCircuitBreak(const InstanceGauge& instance_gauge,
                                           InstancesCircuitBreakerStatus* instances_status);
 
   virtual ReturnCode TimingCircuitBreak(InstancesCircuitBreakerStatus* instances_status);
 
-  ErrorCountStatus& GetOrCreateErrorCountStatus(const std::string& instance_id,
-                                                uint64_t current_time);
+  virtual void CleanStatus(InstancesCircuitBreakerStatus* instances_status, InstanceExistChecker& checker);
 
-  void CheckAndExpiredMetric(InstancesCircuitBreakerStatus* instances_status);
+  ErrorCountStatus* GetOrCreateErrorCountStatus(const std::string& instance_id);
 
-private:
-  int continue_error_threshold_;  // 连续错误次数熔断阈值
+ private:
+  Context* context_;
+  int continue_error_threshold_;       // 连续错误次数熔断阈值
+  int request_count_after_half_open_;  // 半开后释放多少个请求
   uint64_t sleep_window_;  // 熔断后等待多久时间转入半开，半开后等待多久未达到恢复条件则重新熔断
-  int request_count_after_half_open_;     // 半开后释放多少个请求
   int success_count_half_open_to_close_;  // 半开后请求成功多少次恢复
   int error_count_half_open_to_open_;     // 半开后多少请求失败则立即打开
 
   uint64_t metric_expired_time_;
-  pthread_rwlock_t rwlock_;
-  std::map<std::string, ErrorCountStatus> error_count_map_;
+  RcuUnorderedMap<std::string, ErrorCountStatus> error_count_map_;
 };
 
 }  // namespace polaris

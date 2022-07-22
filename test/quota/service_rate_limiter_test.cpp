@@ -25,12 +25,12 @@ namespace polaris {
 
 TEST(ServiceRateLimiterTest, RejectQuotaBucket) {
   ServiceRateLimiter* limiter = ServiceRateLimiter::Create(kRateLimitActionReject);
-  QuotaBucket* quota_bucket   = NULL;
-  ASSERT_EQ(limiter->InitQuotaBucket(NULL, quota_bucket), kReturnOk);
+  QuotaBucket* quota_bucket = nullptr;
+  ASSERT_EQ(limiter->InitQuotaBucket(nullptr, quota_bucket), kReturnOk);
   quota_bucket->Release();
   for (int i = 0; i < 100; ++i) {
     QuotaResult* result = quota_bucket->GetQuota(1);
-    ASSERT_TRUE(result != NULL);
+    ASSERT_TRUE(result != nullptr);
     ASSERT_EQ(result->result_code_, kQuotaResultOk);
     ASSERT_EQ(result->queue_time_, 0);
     delete result;
@@ -47,11 +47,11 @@ TEST(ServiceRateLimiterTest, UnirateQuotaBucketRejectAll) {
   amount->mutable_validduration()->set_seconds(1);
   ASSERT_EQ(rate_limit_rule->Init(rule), true);
   ServiceRateLimiter* limiter = ServiceRateLimiter::Create(kRateLimitActionUnirate);
-  QuotaBucket* quota_bucket   = NULL;
+  QuotaBucket* quota_bucket = nullptr;
   ASSERT_EQ(limiter->InitQuotaBucket(rate_limit_rule, quota_bucket), kReturnOk);
   for (int i = 0; i < 100; ++i) {
     QuotaResult* result = quota_bucket->GetQuota(1);
-    ASSERT_TRUE(result != NULL);
+    ASSERT_TRUE(result != nullptr);
     ASSERT_EQ(result->result_code_, kQuotaResultOk);
     ASSERT_EQ(result->queue_time_, 0);
     delete result;
@@ -75,12 +75,12 @@ TEST(ServiceRateLimiterTest, UnirateQuotaBucket) {
   ASSERT_EQ(rate_limit_rule->Init(rule), true);
   // 10s 150个和2s 20个最终会选择2s 20个进行排队
   ServiceRateLimiter* limiter = ServiceRateLimiter::Create(kRateLimitActionUnirate);
-  QuotaBucket* quota_bucket   = NULL;
+  QuotaBucket* quota_bucket = nullptr;
   // 总体上每2000/20=100ms放一个请求
   ASSERT_EQ(limiter->InitQuotaBucket(rate_limit_rule, quota_bucket), kReturnOk);
   for (int i = 0; i < 20; ++i) {
     QuotaResult* result = quota_bucket->GetQuota(1);
-    ASSERT_TRUE(result != NULL);
+    ASSERT_TRUE(result != nullptr);
     if (i < 11) {  // 第0个请求肯定不排队，1-10个请求每个排队i*100s
       ASSERT_EQ(result->result_code_, kQuotaResultOk);
       ASSERT_EQ(result->queue_time_, i * 100);

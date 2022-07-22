@@ -15,190 +15,171 @@
 
 #include <utility>
 
-#include "plugin/circuit_breaker/circuit_breaker.h"
+#include "context/context_impl.h"
+#include "model/constants.h"
+#include "plugin/circuit_breaker/chain.h"
 #include "polaris/config.h"
 #include "utils/time_clock.h"
 #include "utils/utils.h"
 
 namespace polaris {
 
-ErrorCountCircuitBreaker::ErrorCountCircuitBreaker() {
-  continue_error_threshold_         = 0;
-  sleep_window_                     = 0;
-  request_count_after_half_open_    = 0;
-  success_count_half_open_to_close_ = 0;
-  error_count_half_open_to_open_    = 0;
-  metric_expired_time_              = 0;
-  pthread_rwlock_init(&rwlock_, 0);
-}
+ErrorCountCircuitBreaker::ErrorCountCircuitBreaker()
+    : context_(nullptr),
+      continue_error_threshold_(0),
+      request_count_after_half_open_(0),
+      sleep_window_(0),
+      success_count_half_open_to_close_(0),
+      error_count_half_open_to_open_(0),
+      metric_expired_time_(0) {}
 
-ErrorCountCircuitBreaker::~ErrorCountCircuitBreaker() {
-  pthread_rwlock_destroy(&rwlock_);
-  error_count_map_.clear();
-}
+ErrorCountCircuitBreaker::~ErrorCountCircuitBreaker() { context_ = nullptr; }
 
-ReturnCode ErrorCountCircuitBreaker::Init(Config* config, Context* /*context*/) {
+ReturnCode ErrorCountCircuitBreaker::Init(Config* config, Context* context) {
+  context_ = context;
   continue_error_threshold_ =
-      config->GetIntOrDefault(CircuitBreakerConfig::kContinuousErrorThresholdKey,
-                              CircuitBreakerConfig::kContinuousErrorThresholdDefault);
-  sleep_window_ = config->GetMsOrDefault(CircuitBreakerConfig::kHalfOpenSleepWindowKey,
-                                         CircuitBreakerConfig::kHalfOpenSleepWindowDefault);
+      config->GetIntOrDefault(constants::kContinuousErrorThresholdKey, constants::kContinuousErrorThresholdDefault);
+  sleep_window_ = config->GetMsOrDefault(constants::kHalfOpenSleepWindowKey, constants::kHalfOpenSleepWindowDefault);
   request_count_after_half_open_ =
-      config->GetIntOrDefault(CircuitBreakerConfig::kRequestCountAfterHalfOpenKey,
-                              CircuitBreakerConfig::kRequestCountAfterHalfOpenDefault);
+      config->GetIntOrDefault(constants::kRequestCountAfterHalfOpenKey, constants::kRequestCountAfterHalfOpenDefault);
   success_count_half_open_to_close_ =
-      config->GetIntOrDefault(CircuitBreakerConfig::kSuccessCountAfterHalfOpenKey,
-                              CircuitBreakerConfig::kSuccessCountAfterHalfOpenDefault);
-  metric_expired_time_ = config->GetIntOrDefault(CircuitBreakerConfig::kMetricExpiredTimeKey,
-                                                 CircuitBreakerConfig::kMetricExpiredTimeDefault);
+      config->GetIntOrDefault(constants::kSuccessCountAfterHalfOpenKey, constants::kSuccessCountAfterHalfOpenDefault);
+  metric_expired_time_ =
+      config->GetIntOrDefault(constants::kMetricExpiredTimeKey, constants::kMetricExpiredTimeDefault);
 
   // 校验配置有效性
   if (continue_error_threshold_ <= 0) {
-    continue_error_threshold_ = CircuitBreakerConfig::kContinuousErrorThresholdDefault;
+    continue_error_threshold_ = constants::kContinuousErrorThresholdDefault;
   }
   if (sleep_window_ <= 0) {
-    sleep_window_ = CircuitBreakerConfig::kHalfOpenSleepWindowDefault;
+    sleep_window_ = constants::kHalfOpenSleepWindowDefault;
   }
   if (request_count_after_half_open_ <= 0) {
-    request_count_after_half_open_ = CircuitBreakerConfig::kRequestCountAfterHalfOpenDefault;
+    request_count_after_half_open_ = constants::kRequestCountAfterHalfOpenDefault;
   }
   if (success_count_half_open_to_close_ <= 0) {
-    success_count_half_open_to_close_ = CircuitBreakerConfig::kSuccessCountAfterHalfOpenDefault;
+    success_count_half_open_to_close_ = constants::kSuccessCountAfterHalfOpenDefault;
   } else if (success_count_half_open_to_close_ > request_count_after_half_open_) {
     success_count_half_open_to_close_ = request_count_after_half_open_;
   }
-  error_count_half_open_to_open_ =
-      request_count_after_half_open_ - success_count_half_open_to_close_ + 1;
+  error_count_half_open_to_open_ = request_count_after_half_open_ - success_count_half_open_to_close_ + 1;
   if (metric_expired_time_ <= 0) {
-    metric_expired_time_ = CircuitBreakerConfig::kMetricExpiredTimeDefault;
+    metric_expired_time_ = constants::kMetricExpiredTimeDefault;
   }
   return kReturnOk;
 }
 
-ReturnCode ErrorCountCircuitBreaker::RealTimeCircuitBreak(
-    const InstanceGauge& instance_gauge, InstancesCircuitBreakerStatus* instances_status) {
-  uint64_t current_time = Time::GetCurrentTimeMs();
-  ErrorCountStatus& error_count_status =
-      GetOrCreateErrorCountStatus(instance_gauge.instance_id, current_time);
+ReturnCode ErrorCountCircuitBreaker::RealTimeCircuitBreak(const InstanceGauge& instance_gauge,
+                                                          InstancesCircuitBreakerStatus* instances_status) {
+  ErrorCountStatus* error_count_status = GetOrCreateErrorCountStatus(instance_gauge.instance_id);
   if (instance_gauge.call_ret_status != kCallRetOk) {
     // 正常状态下
-    if (error_count_status.status == kCircuitBreakerClose) {
-      ATOMIC_INC(&error_count_status.error_count);
-      if (error_count_status.error_count >= continue_error_threshold_) {  // 达到熔断条件
-        if (instances_status->TranslateStatus(instance_gauge.instance_id, kCircuitBreakerClose,
-                                              kCircuitBreakerOpen)) {
-          error_count_status.status           = kCircuitBreakerOpen;
-          error_count_status.last_update_time = current_time;
+    if (error_count_status->status == kCircuitBreakerClose) {
+      int error_count = error_count_status->error_count.fetch_add(1, std::memory_order_relaxed);
+      if (error_count + 1 >= continue_error_threshold_) {  // 达到熔断条件
+        if (instances_status->TranslateStatus(instance_gauge.instance_id, kCircuitBreakerClose, kCircuitBreakerOpen)) {
+          error_count_status->status = kCircuitBreakerOpen;
+          error_count_status->last_update_time = Time::GetCoarseSteadyTimeMs();
         }
       }
-    } else if (error_count_status.status == kCircuitBreakerHalfOpen) {
-      ATOMIC_INC(&error_count_status.error_count);
+    } else if (error_count_status->status == kCircuitBreakerHalfOpen) {
+      int error_count = error_count_status->error_count.fetch_add(1, std::memory_order_relaxed);
       // 半开状态下的探测请求只要有一个错误则立刻熔断
       // 在请求量较少的时候可使半开后快速又进入熔断状态，避免半开探测占比过高
-      if (error_count_status.error_count >= error_count_half_open_to_open_) {
+      if (error_count + 1 >= error_count_half_open_to_open_) {
         if (instances_status->TranslateStatus(instance_gauge.instance_id, kCircuitBreakerHalfOpen,
                                               kCircuitBreakerOpen)) {
-          error_count_status.status           = kCircuitBreakerOpen;
-          error_count_status.last_update_time = current_time;
+          error_count_status->status = kCircuitBreakerOpen;
+          error_count_status->last_update_time = Time::GetCoarseSteadyTimeMs();
         }
       }
     }
   } else {
-    if (error_count_status.status == kCircuitBreakerHalfOpen) {
-      ATOMIC_INC(&error_count_status.success_count);
+    if (error_count_status->status == kCircuitBreakerHalfOpen) {
+      error_count_status->success_count.fetch_add(1, std::memory_order_relaxed);
     } else {
-      error_count_status.error_count = 0;
+      error_count_status->error_count.store(0, std::memory_order_relaxed);
     }
   }
   return kReturnOk;
 }
 
-ReturnCode ErrorCountCircuitBreaker::TimingCircuitBreak(
-    InstancesCircuitBreakerStatus* instances_status) {
-  uint64_t current_time = Time::GetCurrentTimeMs();
-  std::map<std::string, ErrorCountStatus>::iterator it;
-  pthread_rwlock_rdlock(&rwlock_);
-  for (it = error_count_map_.begin(); it != error_count_map_.end(); ++it) {
-    ErrorCountStatus& error_count_status = it->second;
-    if (error_count_status.status == kCircuitBreakerOpen) {  // 熔断状态
+ReturnCode ErrorCountCircuitBreaker::TimingCircuitBreak(InstancesCircuitBreakerStatus* instances_status) {
+  std::unordered_map<std::string, std::shared_ptr<ErrorCountStatus>> all_error_count;
+  error_count_map_.GetAllData(all_error_count);
+
+  uint64_t current_time = Time::GetCoarseSteadyTimeMs();
+  for (auto it : all_error_count) {
+    std::shared_ptr<ErrorCountStatus>& error_count_status = it.second;
+    if (error_count_status->status == kCircuitBreakerOpen) {  // 熔断状态
       // 达到半开条件
       if (instances_status->AutoHalfOpenEnable() &&
-          error_count_status.last_update_time + sleep_window_ <= current_time) {
-        if (instances_status->TranslateStatus(it->first, kCircuitBreakerOpen,
-                                              kCircuitBreakerHalfOpen)) {
-          error_count_status.status           = kCircuitBreakerHalfOpen;
-          error_count_status.success_count    = 0;
-          error_count_status.error_count      = 0;
-          error_count_status.last_update_time = current_time;
+          error_count_status->last_update_time + sleep_window_ <= current_time) {
+        if (instances_status->TranslateStatus(it.first, kCircuitBreakerOpen, kCircuitBreakerHalfOpen)) {
+          error_count_status->status = kCircuitBreakerHalfOpen;
+          error_count_status->success_count.store(0, std::memory_order_relaxed);
+          error_count_status->error_count.store(0, std::memory_order_relaxed);
+          error_count_status->last_update_time = current_time;
         }
       }
-    } else if (error_count_status.status == kCircuitBreakerHalfOpen) {              // 半开状态
-      if (error_count_status.success_count >= success_count_half_open_to_close_) {  // 达到恢复条件
-        if (instances_status->TranslateStatus(it->first, kCircuitBreakerHalfOpen,
-                                              kCircuitBreakerClose)) {
-          error_count_status.status           = kCircuitBreakerClose;
-          error_count_status.error_count      = 0;
-          error_count_status.last_update_time = current_time;
+    } else if (error_count_status->status == kCircuitBreakerHalfOpen) {              // 半开状态
+      if (error_count_status->success_count >= success_count_half_open_to_close_) {  // 达到恢复条件
+        if (instances_status->TranslateStatus(it.first, kCircuitBreakerHalfOpen, kCircuitBreakerClose)) {
+          error_count_status->status = kCircuitBreakerClose;
+          error_count_status->error_count.store(0, std::memory_order_relaxed);
+          error_count_status->last_update_time = current_time;
         }
-      } else if (error_count_status.last_access_time + 100 * sleep_window_ <= current_time) {
+      } else if (error_count_status->last_update_time + 100 * sleep_window_ <= current_time) {
         // 兜底：如果访问量一定时间达不到要求，则重新熔断
-        if (instances_status->TranslateStatus(it->first, kCircuitBreakerHalfOpen,
-                                              kCircuitBreakerOpen)) {
-          error_count_status.status           = kCircuitBreakerOpen;
-          error_count_status.last_update_time = current_time;
+        if (instances_status->TranslateStatus(it.first, kCircuitBreakerHalfOpen, kCircuitBreakerOpen)) {
+          error_count_status->status = kCircuitBreakerOpen;
+          error_count_status->last_update_time = current_time;
         }
       }
     }
     // 正常状态不做处理
   }
-  pthread_rwlock_unlock(&rwlock_);
-  CheckAndExpiredMetric(instances_status);
   return kReturnOk;
 }
 
-ErrorCountStatus& ErrorCountCircuitBreaker::GetOrCreateErrorCountStatus(
-    const std::string& instance_id, uint64_t current_time) {
-  pthread_rwlock_rdlock(&rwlock_);
-  std::map<std::string, ErrorCountStatus>::iterator it = error_count_map_.find(instance_id);
-  if (it != error_count_map_.end()) {
-    it->second.last_access_time = current_time;
-    pthread_rwlock_unlock(&rwlock_);
-    return it->second;
+ReturnCode ErrorCountCircuitBreaker::DetectToHalfOpen(const std::string& instance_id) {
+  std::shared_ptr<ErrorCountStatus> error_count_status = error_count_map_.Get(instance_id);
+  if (error_count_status != nullptr && error_count_status->status == kCircuitBreakerOpen) {
+    error_count_status->status = kCircuitBreakerHalfOpen;
+    error_count_status->success_count.store(0, std::memory_order_relaxed);
+    error_count_status->error_count.store(0, std::memory_order_relaxed);
+    error_count_status->last_update_time = Time::GetCoarseSteadyTimeMs();
   }
-  pthread_rwlock_unlock(&rwlock_);
-
-  pthread_rwlock_wrlock(&rwlock_);
-  it = error_count_map_.find(instance_id);  // double check
-  if (it != error_count_map_.end()) {
-    it->second.last_access_time = current_time;
-    pthread_rwlock_unlock(&rwlock_);
-    return it->second;
-  }
-  ErrorCountStatus& error_count_status = error_count_map_[instance_id];
-  error_count_status.status            = kCircuitBreakerClose;
-  error_count_status.error_count       = 0;
-  error_count_status.success_count     = 0;
-  error_count_status.last_update_time  = 0;
-  error_count_status.last_access_time  = current_time;
-  pthread_rwlock_unlock(&rwlock_);
-  return error_count_status;
+  return kReturnOk;
 }
 
-void ErrorCountCircuitBreaker::CheckAndExpiredMetric(
-    InstancesCircuitBreakerStatus* instances_status) {
-  uint64_t current_time = Time::GetCurrentTimeMs();
-  std::map<std::string, ErrorCountStatus>::iterator it;
-  pthread_rwlock_wrlock(&rwlock_);
-  for (it = error_count_map_.begin(); it != error_count_map_.end();) {
-    if (it->second.last_access_time + metric_expired_time_ <= current_time) {
-      instances_status->TranslateStatus(it->first, kCircuitBreakerOpen, kCircuitBreakerClose);
-      instances_status->TranslateStatus(it->first, kCircuitBreakerHalfOpen, kCircuitBreakerClose);
-      error_count_map_.erase(it++);
-    } else {
-      ++it;
-    }
+ErrorCountStatus* ErrorCountCircuitBreaker::GetOrCreateErrorCountStatus(const std::string& instance_id) {
+  ErrorCountStatus* status = error_count_map_.GetWithRcuTime(instance_id);
+  if (status != nullptr) {
+    return status;
   }
-  pthread_rwlock_unlock(&rwlock_);
+  std::shared_ptr<ErrorCountStatus> created_status = error_count_map_.CreateOrGet(
+      instance_id, [=] { return std::shared_ptr<ErrorCountStatus>(new ErrorCountStatus()); });
+  return created_status.get();
+}
+
+void ErrorCountCircuitBreaker::CleanStatus(InstancesCircuitBreakerStatus* instances_status,
+                                           InstanceExistChecker& exist_checker) {
+  std::vector<std::string> expired_instances;
+  error_count_map_.CheckExpired(Time::CoarseSteadyTimeSub(metric_expired_time_), expired_instances);
+  if (!expired_instances.empty()) {
+    std::vector<std::string> delete_instances;
+    for (auto instance_id : expired_instances) {
+      if (!exist_checker(instance_id)) {
+        delete_instances.push_back(instance_id);
+        instances_status->TranslateStatus(instance_id, kCircuitBreakerOpen, kCircuitBreakerClose);
+        instances_status->TranslateStatus(instance_id, kCircuitBreakerHalfOpen, kCircuitBreakerClose);
+      }
+    }
+    error_count_map_.Delete(delete_instances);
+  }
+  uint64_t rcu_min_time = context_->GetContextImpl()->RcuMinTime();
+  error_count_map_.CheckGc(rcu_min_time > 1000 ? rcu_min_time - 1000 : 0);
 }
 
 }  // namespace polaris

@@ -13,30 +13,34 @@
 
 #include "provider/api_impl.h"
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 
 namespace polaris {
 
 ProviderApi::Impl::Impl(Context* context) { context_ = context; }
 
 ProviderApi::Impl::~Impl() {
-  if (context_ != NULL && context_->GetContextMode() == kPrivateContext) {
+  if (context_ != nullptr && context_->GetContextMode() == kPrivateContext) {
     delete context_;
   }
-  context_ = NULL;
+  context_ = nullptr;
+  for (auto& item : registeredInstances_) {
+    delete item.second;
+  }
+  registeredInstances_.clear();
 }
 
 ProviderCallbackWrapper::ProviderCallbackWrapper(ProviderCallback* callback, ApiStat* stat)
     : callback_(callback), stat_(stat) {}
 
 ProviderCallbackWrapper::~ProviderCallbackWrapper() {
-  if (callback_ != NULL) {
+  if (callback_ != nullptr) {
     delete callback_;
-    callback_ = NULL;
+    callback_ = nullptr;
   }
-  if (stat_ != NULL) {
+  if (stat_ != nullptr) {
     delete stat_;
-    stat_ = NULL;
+    stat_ = nullptr;
   }
 }
 

@@ -21,34 +21,19 @@
 namespace polaris {
 
 #ifdef __GNUC__
-#define POLARIS_LIKELY(x) __builtin_expect((x), 1)
-#define POLARIS_UNLIKELY(x) __builtin_expect((x), 0)
+#  define POLARIS_LIKELY(x) __builtin_expect((x), 1)
+#  define POLARIS_UNLIKELY(x) __builtin_expect((x), 0)
 #else /* __GNUC__ */
-#define POLARIS_LIKELY(x) (x)
-#define POLARIS_UNLIKELY(x) (x)
+#  define POLARIS_LIKELY(x) (x)
+#  define POLARIS_UNLIKELY(x) (x)
 #endif /* __GNUC__ */
 
 ///////////////////////////////////////////////////////////////////////////////
-#define ATOMIC_CAS(ref, oldval, newval) __sync_bool_compare_and_swap((ref), (oldval), (newval))
-
-#define ATOMIC_ADD(ref, val) __sync_fetch_and_add((ref), (val))
-
-#define ATOMIC_ADD_THEN_GET(ref, val) __sync_add_and_fetch((ref), (val))
-
-#define ATOMIC_SUB(ref, val) __sync_fetch_and_sub((ref), (val))
-
-#define ATOMIC_INC(ref) __sync_fetch_and_add((ref), 1)
-
-#define ATOMIC_INC_THEN_GET(ref) __sync_add_and_fetch((ref), 1)
-
-#define ATOMIC_DEC(ref) __sync_fetch_and_sub((ref), 1)
-
-#define ATOMIC_DEC_THEN_GET(ref) __sync_sub_and_fetch((ref), 1)
-
-///////////////////////////////////////////////////////////////////////////////
 class Utils {
-public:
+ public:
   static uint64_t GetNextSeqId();
+
+  static uint32_t GetNextSeqId32();
 
   static std::string UrlEncode(const std::string& url);
 

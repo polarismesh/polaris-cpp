@@ -11,48 +11,36 @@
 //  language governing permissions and limitations under the License.
 //
 
-#include "location.h"
+#include "model/location.h"
 
-#include "sync/mutex.h"
-#include "utils/string_utils.h"
-
-struct timespec;
+#include <mutex>
 
 namespace polaris {
-namespace model {
 
-std::string VersionedLocation::LocationToString() {
-  return "{region: " + location_.region + ", zone: " + location_.zone +
-         ", campus: " + location_.campus + "}";
+std::string Location::ToString() const {
+  return "{region: " + region + ", zone: " + zone + ", campus: " + campus + "}";
 }
 
-std::string VersionedLocation::ToString() {
-  return LocationToString() + "_" + StringUtils::TypeToStr<int>(version_);
-}
+bool Location::IsValid() const { return !region.empty() || !zone.empty() || !campus.empty(); }
 
-ClientLocation::ClientLocation() : version_(0) {}
-
-ClientLocation::~ClientLocation() {}
-
-void ClientLocation::Init(const Location& location) {
-  if (location.region.empty() && location.zone.empty() && location.campus.empty()) {
-    return;  // location字段全部为空时表示location无效，直接退出
+void ClientLocation::Init(const Location& location, bool enable_update) {
+  enable_update_ = enable_update;
+  if (location.IsValid()) {
+    version_++;
+    location_ = location;
+    notify_.NotifyAll();
   }
-  version_++;
-  location_ = location;
-  notify_.NotifyAll();
+  if (!enable_update) {
+    notify_.NotifyAll();  // 不更新位置信息时，通知其他任务不用等待
+  }
 }
 
-bool ClientLocation::WaitInit(uint64_t timeout) { return notify_.Wait(timeout); }
-
-bool ClientLocation::WaitInit(timespec& ts) { return notify_.Wait(ts); }
+bool ClientLocation::WaitInit(uint64_t timeout) { return notify_.WaitFor(timeout); }
 
 void ClientLocation::Update(const Location& location) {
-  if ((!location.region.empty() || !location.zone.empty() || !location.campus.empty())) {
-    // location有字段不为空，表示location有效，加锁更新
-    sync::MutexGuard mutex_guard(notify_.GetMutex());
-    if (location_.region != location.region || location_.zone != location.zone ||
-        location_.campus != location.campus) {
+  if (enable_update_ && location.IsValid()) {
+    const std::lock_guard<std::mutex> mutex_guard(notify_.GetMutex());
+    if (location_.region != location.region || location_.zone != location.zone || location_.campus != location.campus) {
       version_++;
       location_ = location;
     }
@@ -60,11 +48,19 @@ void ClientLocation::Update(const Location& location) {
   notify_.NotifyAll();
 }
 
-void ClientLocation::GetVersionedLocation(VersionedLocation& versioned_location) {
-  sync::MutexGuard mutex_guard(notify_.GetMutex());
-  versioned_location.version_  = version_;
-  versioned_location.location_ = location_;
+void ClientLocation::GetLocation(Location& location) {
+  const std::lock_guard<std::mutex> mutex_guard(notify_.GetMutex());
+  location = location_;
 }
 
-}  // namespace model
+void ClientLocation::GetLocation(Location& location, uint32_t& version) {
+  const std::lock_guard<std::mutex> mutex_guard(notify_.GetMutex());
+  version = version_;
+  location = location_;
+}
+
+std::string ClientLocation::ToString(const Location& location, uint32_t version) {
+  return location.ToString() + "_" + std::to_string(version);
+}
+
 }  // namespace polaris

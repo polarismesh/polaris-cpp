@@ -21,13 +21,12 @@
 
 #include "integration/common/environment.h"
 #include "integration/common/integration_base.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
 
 class MetadataRouterTest : public IntegrationBase {
-protected:
+ protected:
   virtual void SetUp() {
     config_string_ =
         "global:\n"
@@ -43,17 +42,16 @@ protected:
         "      - dstMetaRouter\n"
         "      - nearbyBasedRouter\n";
     service_.mutable_namespace_()->set_value("Test");
-    service_.mutable_name()->set_value("metadata.router.test" +
-                                       StringUtils::TypeToStr(Time::GetCurrentTimeMs()));
+    service_.mutable_name()->set_value("metadata.router.test" + std::to_string(Time::GetSystemTimeMs()));
     IntegrationBase::SetUp();
 
     // 创建Consumer对象
     consumer_ = ConsumerApi::CreateFromString(config_string_);
-    ASSERT_TRUE(consumer_ != NULL) << config_string_;
+    ASSERT_TRUE(consumer_ != nullptr) << config_string_;
   }
 
   virtual void TearDown() {
-    if (consumer_ != NULL) {
+    if (consumer_ != nullptr) {
       delete consumer_;
     }
     for (std::size_t i = 0; i < instances_.size(); ++i) {
@@ -62,8 +60,7 @@ protected:
     IntegrationBase::TearDown();
   }
 
-  void CreateInstance(const std::string& ip, uint32_t port, bool healthy,
-                      const std::string& metadata_value = "") {
+  void CreateInstance(const std::string& ip, uint32_t port, bool healthy, const std::string& metadata_value = "") {
     v1::Instance instance;
     instance.mutable_namespace_()->set_value(service_.namespace_().value());
     instance.mutable_service()->set_value(service_.name().value());
@@ -111,9 +108,10 @@ protected:
       call_result.SetRetStatus(kCallRetError);
       ASSERT_EQ(consumer_->UpdateServiceCallResult(call_result), kReturnOk);
     }
+    sleep(1);
   }
 
-protected:
+ protected:
   ConsumerApi* consumer_;
   std::vector<v1::Instance> instances_;
 };
@@ -205,7 +203,7 @@ TEST_F(MetadataRouterTest, TestGetInstanceFailover) {
   metadata["key2"] = "v2";
   GetInstancesRequest instances_req(service_key);
   instances_req.SetMetadata(metadata);
-  InstancesResponse* instances_resp = NULL;
+  InstancesResponse* instances_resp = nullptr;
   for (int i = 0; i < 10; i++) {
     instances_req.SetMetadataFailover(kMetadataFailoverNone);
     ASSERT_EQ(consumer_->GetInstances(instances_req, instances_resp), kReturnInstanceNotFound);

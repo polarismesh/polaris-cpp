@@ -17,14 +17,15 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include <atomic>
 #include <map>
 #include <string>
 #include <utility>
 
+#include "plugin/circuit_breaker/circuit_breaker.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
-#include "polaris/plugin.h"
-#include "sync/atomic.h"
 
 namespace v1 {
 class DestinationSet;
@@ -39,8 +40,11 @@ struct CircuitChangeRecord;
 
 struct CircuitBreakerSetComputeResult {
   CircuitBreakerSetComputeResult()
-      : status(kCircuitBreakerClose), half_open_release_percent(0), open_status_begin_time(0),
-        fail_rate_(0), total_count(0) {}
+      : status(kCircuitBreakerClose),
+        half_open_release_percent(0),
+        open_status_begin_time(0),
+        fail_rate_(0),
+        total_count(0) {}
 
   CircuitBreakerStatus status;
   float half_open_release_percent;
@@ -51,14 +55,13 @@ struct CircuitBreakerSetComputeResult {
 };
 
 class CircuitBreakSetChainData : public ServiceBase {
-public:
-  CircuitBreakSetChainData(ServiceKey& service_key, LocalRegistry* local_registry,
-                           MetricWindowManager* window_manager, ServiceRecord* service_record);
+ public:
+  CircuitBreakSetChainData(ServiceKey& service_key, LocalRegistry* local_registry, MetricWindowManager* window_manager,
+                           ServiceRecord* service_record);
 
   virtual ~CircuitBreakSetChainData();
 
-  ReturnCode JudgeAndTranslateStatus(const v1::MetricResponse& resp,
-                                     const std::string& subset_label_id,
+  ReturnCode JudgeAndTranslateStatus(const v1::MetricResponse& resp, const std::string& subset_label_id,
                                      const v1::DestinationSet* conf, const std::string& cb_id);
 
   ReturnCode CheckAndSyncToRegistry();
@@ -71,35 +74,31 @@ public:
     if (iter != unhealthy_sets_.end()) {
       return iter->second;
     } else {
-      return NULL;
+      return nullptr;
     }
   }
 
-  sync::Atomic<bool> is_deleted_;
+  std::atomic<bool> is_deleted_;
 
-private:
+ private:
   ReturnCode ComputeUnhealthyInfo(const v1::MetricResponse& resp, const v1::DestinationSet* conf,
                                   CircuitBreakerSetComputeResult* info);
 
-  ReturnCode ChangeSubsetOneLabel(CircuitBreakerSetComputeResult* new_info,
-                                  const v1::DestinationSet* conf, uint64_t time_now,
-                                  const std::string& set_label_id, const std::string& cb_id);
+  ReturnCode ChangeSubsetOneLabel(CircuitBreakerSetComputeResult* new_info, const v1::DestinationSet* conf,
+                                  uint64_t time_now, const std::string& set_label_id, const std::string& cb_id);
 
-  ReturnCode CircuitBreakSubsetAll(const std::string& set_label_id, uint64_t time_now,
-                                   const std::string& cb_id,
+  ReturnCode CircuitBreakSubsetAll(const std::string& set_label_id, uint64_t time_now, const std::string& cb_id,
                                    CircuitBreakerSetComputeResult* new_info);
 
-  bool JudgeOpenTranslate(SetCircuitBreakerUnhealthyInfo* info, const v1::DestinationSet* conf,
-                          uint64_t time_now);
+  bool JudgeOpenTranslate(SetCircuitBreakerUnhealthyInfo* info, const v1::DestinationSet* conf, uint64_t time_now);
 
-  bool JudgeHalfOpenTranslate(SetCircuitBreakerUnhealthyInfo* info,
-                              CircuitBreakerSetComputeResult* new_info,
+  bool JudgeHalfOpenTranslate(SetCircuitBreakerUnhealthyInfo* info, CircuitBreakerSetComputeResult* new_info,
                               const v1::DestinationSet* conf, uint64_t time_now);
 
-  bool JudgePreservedTranslate(SetCircuitBreakerUnhealthyInfo* info,
-                               CircuitBreakerSetComputeResult* new_info, uint64_t time_now);
+  bool JudgePreservedTranslate(SetCircuitBreakerUnhealthyInfo* info, CircuitBreakerSetComputeResult* new_info,
+                               uint64_t time_now);
 
-private:
+ private:
   void ComputeTypeCount(const v1::MetricResponse& resp, uint64_t* total_count, uint64_t* err_count,
                         uint64_t* slow_count, std::map<std::string, uint64_t>* specific_err_);
 
@@ -107,13 +106,13 @@ private:
                                           CircuitBreakerStatus from, CircuitBreakerStatus to,
                                           std::string& status_reason);
 
-private:
+ private:
   friend class MetricQueryCallback;
   ServiceKey& service_key_;
   LocalRegistry* local_registry_;
 
   pthread_rwlock_t rwlock_;
-  sync::Atomic<uint64_t> version_;
+  std::atomic<uint64_t> version_;
   std::map<std::string, SetCircuitBreakerUnhealthyInfo*> unhealthy_sets_;
 
   MetricWindowManager* windows_manager_;

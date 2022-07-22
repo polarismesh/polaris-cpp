@@ -22,6 +22,7 @@
 
 #include "cache/rcu_map.h"
 #include "model/model_impl.h"
+#include "plugin/server_connector/server_connector.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
 #include "polaris/plugin.h"
@@ -32,15 +33,15 @@ class Config;
 class Context;
 
 namespace LocalRegistryConfig {
-static const char kServiceExpireTimeKey[]       = "serviceExpireTime";
+static const char kServiceExpireTimeKey[] = "serviceExpireTime";
 static const uint64_t kServiceExpireTimeDefault = 24 * 60 * 60 * 1000;  // 24 hours
 
-static const char kServiceRefreshIntervalKey[]       = "serviceRefreshInterval";
+static const char kServiceRefreshIntervalKey[] = "serviceRefreshInterval";
 static const uint64_t kServiceRefreshIntervalDefault = 2000;  // 2s
 }  // namespace LocalRegistryConfig
 
 class ServiceEventHandlerImpl : public ServiceEventHandler {
-public:
+ public:
   ServiceEventHandlerImpl(LocalRegistry* local_registry, ServiceDataNotify* data_notify);
 
   virtual ~ServiceEventHandlerImpl();
@@ -49,13 +50,13 @@ public:
 
   virtual void OnEventSync(const ServiceKey& service_key, ServiceDataType data_type);
 
-private:
+ private:
   LocalRegistry* local_registry_;
   ServiceDataNotify* data_notify_;
 };
 
 class InMemoryRegistry : public LocalRegistry {
-public:
+ public:
   InMemoryRegistry();
 
   virtual ~InMemoryRegistry();
@@ -64,61 +65,63 @@ public:
 
   virtual void RunGcTask();
 
-  virtual void RemoveExpireServiceData(uint64_t current_time);
+  virtual void RemoveExpireServiceData();
 
   virtual ReturnCode GetServiceDataWithRef(const ServiceKey& service_key, ServiceDataType data_type,
                                            ServiceData*& service_data);
 
   // 触发加载服务数据并返回服务加载通知对象
-  virtual ReturnCode LoadServiceDataWithNotify(const ServiceKey& service_key,
-                                               ServiceDataType data_type,
-                                               ServiceData*& service_data,
-                                               ServiceDataNotify*& notify);
+  virtual ReturnCode LoadServiceDataWithNotify(const ServiceKey& service_key, ServiceDataType data_type,
+                                               ServiceData*& service_data, ServiceDataNotify*& notify);
 
   // 更新缓存中的服务数据
   /*
    * @desc 更新缓冲中的数据
    * @param service_key 需要更新的服务(namespace, servicename)
    * @param data_type
-   * @param service_data 新的值。如果是 NULL 则表示删除
+   * @param service_data 新的值。如果是 nullptr 则表示删除
    * @return ReturnCode 具体参考枚举常量
    */
   virtual ReturnCode UpdateServiceData(const ServiceKey& service_key, ServiceDataType data_type,
                                        ServiceData* service_data);
 
-  virtual ReturnCode UpdateServiceSyncTime(const ServiceKey& service_key,
-                                           ServiceDataType data_type);
+  virtual ReturnCode UpdateServiceSyncTime(const ServiceKey& service_key, ServiceDataType data_type);
 
   virtual ReturnCode UpdateCircuitBreakerData(const ServiceKey& service_key,
                                               const CircuitBreakerData& circuit_breaker_data);
 
-  virtual ReturnCode UpdateSetCircuitBreakerData(
-      const ServiceKey& service_key, const CircuitBreakUnhealthySetsData& unhealthy_sets);
+  virtual ReturnCode UpdateSetCircuitBreakerData(const ServiceKey& service_key,
+                                                 const CircuitBreakUnhealthySetsData& unhealthy_sets);
 
-  virtual ReturnCode GetCircuitBreakerInstances(const ServiceKey& service_key,
-                                                ServiceData*& service_data,
+  virtual ReturnCode GetCircuitBreakerInstances(const ServiceKey& service_key, ServiceData*& service_data,
                                                 std::vector<Instance*>& open_instances);
 
-  virtual ReturnCode UpdateDynamicWeight(const ServiceKey& service_key,
-                                         const DynamicWeightData& dynamic_weight_data);
+  virtual ReturnCode UpdateDynamicWeight(const ServiceKey& service_key, const DynamicWeightData& dynamic_weight_data);
+
+  virtual ReturnCode UpdateInstanceDynamicWeight(ServiceData* instances_service_data,
+                                                 const std::map<std::string, uint32_t>& dynamic_weights);
 
   virtual ReturnCode GetAllServiceKey(std::set<ServiceKey>& service_key_set);
 
-private:
+  virtual void CheckAndSetExpireDynamicWeightServiceData(const ServiceKey& service_key);
+
+ private:
   // 创建并获取服务通知对象，必须加锁访问
-  ServiceDataNotify* GetOrCreateDataNotify(const ServiceKey& service_key, ServiceDataType data_type,
-                                           bool& new_create);
+  ServiceDataNotify* GetOrCreateDataNotify(const ServiceKey& service_key, ServiceDataType data_type, bool& new_create);
 
   Service* CreateServiceInLock(const ServiceKey& service_key);
 
   Service* GetServiceInLock(const ServiceKey& service_key);
+  std::map<std::string, uint32_t> GetDynamicWeightDataWithLock(const ServiceKey& service_key);
 
   void DeleteServiceInLock(const ServiceKey& service_key);
+
+  void CheckExpireService(uint64_t min_access_time);
 
   void CheckExpireServiceData(uint64_t min_access_time, RcuMap<ServiceKey, ServiceData>& rcu_cache,
                               ServiceDataType service_data_type);
 
-private:
+ private:
   Context* context_;
   std::map<ServiceKey, uint64_t> service_interval_map_;
 

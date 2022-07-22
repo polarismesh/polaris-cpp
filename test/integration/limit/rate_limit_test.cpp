@@ -22,7 +22,6 @@
 
 #include "integration/common/environment.h"
 #include "integration/common/integration_base.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 #include "v1/ratelimit.pb.h"
@@ -34,13 +33,12 @@ namespace polaris {
   ((expect - (quota / 10)) * seconds <= limit_) && (limit_ <= (expect + (quota / 10)) * seconds)
 
 class RateLimitTest : public IntegrationBase {
-protected:
-  RateLimitTest() : limit_api_(NULL), limit_(0) {}
+ protected:
+  RateLimitTest() : limit_api_(nullptr), limit_(0) {}
 
   virtual void SetUp() {
     service_.mutable_namespace_()->set_value("Test");
-    service_.mutable_name()->set_value("cpp.integration.rate.limit" +
-                                       StringUtils::TypeToStr(Time::GetCurrentTimeMs()));
+    service_.mutable_name()->set_value("cpp.integration.rate.limit" + std::to_string(Time::GetSystemTimeMs()));
     IntegrationBase::SetUp();
     CreateRateLimitRule();  // 创建限流规则
     std::string content =
@@ -60,16 +58,16 @@ protected:
         "    namespace: Polaris\n"
         "    service: polaris.metric.test";
     limit_api_ = LimitApi::CreateFromString(content);
-    ASSERT_TRUE(limit_api_ != NULL);
+    ASSERT_TRUE(limit_api_ != nullptr);
     sleep(3);                // 等待Discover服务器获取到服务信息
     GetQuota(1, 1, limit_);  // 为了初始化
     ASSERT_EQ(limit_, 0) << limit_;
   }
 
   virtual void TearDown() {
-    if (limit_api_ != NULL) {
+    if (limit_api_ != nullptr) {
       delete limit_api_;
-      limit_api_ = NULL;
+      limit_api_ = nullptr;
     }
     if (!rule_id_.empty()) {  // 删除限流规则
       IntegrationBase::DeleteRateLimitRule(rule_id_, service_token_);
@@ -88,12 +86,11 @@ protected:
 
   void UpdateRateLimitRuleRegexCombine(bool regex_combine = true);
 
-public:
+ public:
   // 获取配额
-  void GetQuota(int total, int seconds, int& limit, int acquire_amount = 1,
-                std::string label = "value");
+  void GetQuota(int total, int seconds, int& limit, int acquire_amount = 1, std::string label = "value");
 
-protected:
+ protected:
   LimitApi* limit_api_;
   std::string rule_id_;
   int limit_;
@@ -107,7 +104,7 @@ void RateLimitTest::CreateRateLimitRuleData(v1::Rule& rule) {
   v1::MatchString match_string;
   match_string.set_type(v1::MatchString::REGEX);
   match_string.mutable_value()->set_value("v*");
-  (*rule.mutable_labels())["label"]  = match_string;
+  (*rule.mutable_labels())["label"] = match_string;
   (*rule.mutable_subset())["subset"] = match_string;
 
   v1::Amount* amount = rule.add_amounts();
@@ -140,8 +137,7 @@ void RateLimitTest::UpdateRateLimitRuleRegexCombine(bool regex_combine) {
   IntegrationBase::UpdateRateLimitRule(rule);
 }
 
-void RateLimitTest::GetQuota(int total, int seconds, int& limit, int acquire_amount,
-                             std::string label) {
+void RateLimitTest::GetQuota(int total, int seconds, int& limit, int acquire_amount, std::string label) {
   QuotaRequest request;
   request.SetServiceNamespace(service_.namespace_().value());
   request.SetServiceName(service_.name().value());
@@ -154,14 +150,14 @@ void RateLimitTest::GetQuota(int total, int seconds, int& limit, int acquire_amo
   request.SetAcquireAmount(acquire_amount);
 
   int interval = 1000 * 1000 / total;
-  limit        = 0;
+  limit = 0;
   for (int i = 0; i < seconds; ++i) {
     for (int j = 0; j < total; ++j) {
       QuotaResultCode quota_result;
       if (j % 2 == 0) {
-        QuotaResponse* response = NULL;
+        QuotaResponse* response = nullptr;
         ASSERT_EQ(limit_api_->GetQuota(request, response), kReturnOk);
-        quota_result                = response->GetResultCode();
+        quota_result = response->GetResultCode();
         const QuotaResultInfo& info = response->GetQuotaResultInfo();
         if (quota_result == kQuotaResultLimited) {
           ASSERT_EQ(info.left_quota_, 0);
@@ -192,14 +188,14 @@ TEST_F(RateLimitTest, FetchRule) {
   const std::set<std::string>* label_keys;
   ret_code = limit_api_->FetchRuleLabelKeys(service_key, 0, label_keys);
   ASSERT_EQ(ret_code, kReturnOk);
-  ASSERT_TRUE(label_keys != NULL);
+  ASSERT_TRUE(label_keys != nullptr);
   ASSERT_TRUE(label_keys->count("label") > 0);
 }
 
 // 检查限流
 TEST_F(RateLimitTest, CheckRateLimit) {
   int seconds = 3;
-  int total   = 95;
+  int total = 95;
   GetQuota(total, seconds, limit_);
   ASSERT_TRUE(CHECK_LIMIT(0, seconds, total)) << limit_ << "/" << seconds;
 
@@ -215,8 +211,8 @@ TEST_F(RateLimitTest, CheckRateLimit) {
 
 // 检查多个配额限流
 TEST_F(RateLimitTest, CheckAcquireAmountLimit) {
-  int seconds        = 3;
-  int total          = 45;
+  int seconds = 3;
+  int total = 45;
   int acquire_amount = 2;
   GetQuota(total, seconds, limit_, acquire_amount);
   ASSERT_TRUE(CHECK_LIMIT(0, seconds, total)) << limit_ << "/" << seconds;
@@ -239,9 +235,9 @@ struct RateLimitTestArg {
 
 void* RegexSeparateFunc(void* arg) {
   RateLimitTestArg* func_arg = static_cast<RateLimitTestArg*>(arg);
-  int seconds                = 3;
-  int total                  = 45;
-  int acquire_amount         = 2;
+  int seconds = 3;
+  int total = 45;
+  int acquire_amount = 2;
   int limit_;
   func_arg->rate_limit_test->GetQuota(total, seconds, limit_, acquire_amount, func_arg->label);
   EXPECT_TRUE(CHECK_LIMIT(0, seconds, total)) << limit_ << "/" << seconds;
@@ -254,28 +250,28 @@ void* RegexSeparateFunc(void* arg) {
   func_arg->rate_limit_test->GetQuota(total, 1, limit_, acquire_amount, func_arg->label);
   func_arg->rate_limit_test->GetQuota(total, seconds, limit_, acquire_amount, func_arg->label);
   EXPECT_TRUE(CHECK_LIMIT(5, seconds, total)) << limit_ << "/" << seconds;
-  return NULL;
+  return nullptr;
 }
 
 TEST_F(RateLimitTest, CheckRegexSeparate) {
   RateLimitTestArg thread_arg[4];
   for (int i = 0; i < 4; ++i) {
-    thread_arg[i].label           = "lab" + StringUtils::TypeToStr(i);
+    thread_arg[i].label = "lab" + std::to_string(i);
     thread_arg[i].rate_limit_test = this;
-    int rc = pthread_create(&thread_arg[i].tid, NULL, RegexSeparateFunc, &thread_arg[i]);
+    int rc = pthread_create(&thread_arg[i].tid, nullptr, RegexSeparateFunc, &thread_arg[i]);
     ASSERT_EQ(rc, 0);
   }
   for (int i = 0; i < 4; ++i) {
-    int rc = pthread_join(thread_arg[i].tid, NULL);
+    int rc = pthread_join(thread_arg[i].tid, nullptr);
     ASSERT_EQ(rc, 0);
   }
 }
 
 void* RegexCombineFunc(void* arg) {
   RateLimitTestArg* func_arg = static_cast<RateLimitTestArg*>(arg);
-  int seconds                = 3;
-  int total                  = 45;
-  int acquire_amount         = 1;
+  int seconds = 3;
+  int total = 45;
+  int acquire_amount = 1;
   int limit_;
   func_arg->rate_limit_test->GetQuota(total, seconds, limit_, acquire_amount, func_arg->label);
   EXPECT_TRUE(CHECK_LIMIT(0, seconds, total)) << limit_ << "/" << seconds;
@@ -288,20 +284,20 @@ void* RegexCombineFunc(void* arg) {
   func_arg->rate_limit_test->GetQuota(total, 1, limit_, acquire_amount, func_arg->label);
   func_arg->rate_limit_test->GetQuota(total, seconds, limit_, acquire_amount, func_arg->label);
   EXPECT_TRUE(CHECK_LIMIT(5, seconds, total)) << limit_ << "/" << seconds;
-  return NULL;
+  return nullptr;
 }
 
 TEST_F(RateLimitTest, CheckRegexCombine) {
   UpdateRateLimitRuleRegexCombine();
   RateLimitTestArg thread_arg[2];
   for (int i = 0; i < 2; ++i) {
-    thread_arg[i].label           = "lab" + StringUtils::TypeToStr(i);
+    thread_arg[i].label = "lab" + std::to_string(i);
     thread_arg[i].rate_limit_test = this;
-    int rc = pthread_create(&thread_arg[i].tid, NULL, RegexCombineFunc, &thread_arg[i]);
+    int rc = pthread_create(&thread_arg[i].tid, nullptr, RegexCombineFunc, &thread_arg[i]);
     ASSERT_EQ(rc, 0);
   }
   for (int i = 0; i < 2; ++i) {
-    int rc = pthread_join(thread_arg[i].tid, NULL);
+    int rc = pthread_join(thread_arg[i].tid, nullptr);
     ASSERT_EQ(rc, 0);
   }
 }

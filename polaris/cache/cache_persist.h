@@ -16,9 +16,11 @@
 
 #include <stdint.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "model/location.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
 #include "reactor/task.h"
@@ -30,7 +32,7 @@ class Reactor;
 
 // 缓存持久化配置
 class CachePersistConfig {
-public:
+ public:
   CachePersistConfig();
   ~CachePersistConfig() {}
 
@@ -46,7 +48,7 @@ public:
 
   uint64_t GetUpgradeWaitTime() const { return upgrade_wait_time_; }
 
-private:
+ private:
   std::string persist_dir_;     // 持久化目录
   uint64_t available_time_;     // 持久化数据可用时间
   uint64_t upgrade_wait_time_;  // 过期持久化数据升级内存数据的等待时间
@@ -55,7 +57,7 @@ private:
 };
 
 class CachePersist {
-public:
+ public:
   explicit CachePersist(Reactor& reactor);
 
   ~CachePersist() {}
@@ -64,7 +66,7 @@ public:
   ReturnCode Init(Config* config);
 
   // 获取位置信息
-  Location* LoadLocation();
+  std::unique_ptr<Location> LoadLocation();
 
   // 持久化位置信息
   void PersistLocation(const Location& location);
@@ -74,17 +76,16 @@ public:
 
   // 持久化服务数据
   // data长度为0时删除持久化文件
-  void PersistServiceData(const ServiceKey& service_key, ServiceDataType data_type,
-                          const std::string& data);
+  void PersistServiceData(const ServiceKey& service_key, ServiceDataType data_type, const std::string& data);
 
   // 更新缓存文件时间
   void UpdateSyncTime(const ServiceKey& service_key, ServiceDataType data_type);
 
-private:
+ private:
   //  构造服务数据持久化文件名
   std::string BuildFileName(const ServiceKey& service_key, ServiceDataType data_type);
 
-private:
+ private:
   Reactor& reactor_;
   CachePersistConfig persist_config_;
 };

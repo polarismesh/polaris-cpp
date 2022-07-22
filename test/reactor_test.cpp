@@ -28,7 +28,7 @@
 namespace polaris {
 
 class TestEvent : public EventBase {
-public:
+ public:
   explicit TestEvent(Reactor &reactor)
       : EventBase(eventfd(0, EFD_NONBLOCK)), reactor_(reactor), read_count_(0), write_count_(0) {}
 
@@ -46,7 +46,7 @@ public:
 
   void Write(int data) { eventfd_write(fd_, data); }
 
-public:
+ public:
   Reactor &reactor_;
   volatile int read_count_;
   volatile int write_count_;
@@ -54,24 +54,24 @@ public:
 };
 
 class ReactorTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() { tid_ = 0; }
 
   virtual void TearDown() {
     if (tid_ != 0) {
-      pthread_join(tid_, NULL);
+      pthread_join(tid_, nullptr);
       tid_ = 0;
     }
   }
 
-protected:
+ protected:
   pthread_t tid_;
   Reactor reactor_;
 
   static void *ThreadRun(void *args) {
     Reactor *reactor = static_cast<Reactor *>(args);
     reactor->Run();
-    return NULL;
+    return nullptr;
   }
 };
 
@@ -79,7 +79,7 @@ TEST_F(ReactorTest, EventHandler) {
   TestEvent *event = new TestEvent(reactor_);
   event->Write(20);
   ASSERT_TRUE(reactor_.AddEventHandler(event));  // 启动之前可以添加事件
-  int rc = pthread_create(&tid_, NULL, ThreadRun, &reactor_);
+  int rc = pthread_create(&tid_, nullptr, ThreadRun, &reactor_);
   ASSERT_TRUE(rc == 0 && tid_ > 0);
   while (event->write_count_ < 2) {
   }  // 等待触发事件：可写->可读->可写
@@ -91,18 +91,18 @@ TEST_F(ReactorTest, EventHandler) {
 void AddEventTask(TestEvent *test_event) { test_event->reactor_.AddEventHandler(test_event); }
 
 class DeleteEventTask : public Task {
-public:
+ public:
   explicit DeleteEventTask(TestEvent *test_event) : event_(test_event) {}
   virtual ~DeleteEventTask() { delete event_; }
 
   virtual void Run() { event_->reactor_.RemoveEventHandler(event_->GetFd()); }
 
-private:
+ private:
   TestEvent *event_;
 };
 
 TEST_F(ReactorTest, SubmitTask) {
-  int rc = pthread_create(&tid_, NULL, ThreadRun, &reactor_);
+  int rc = pthread_create(&tid_, nullptr, ThreadRun, &reactor_);
   ASSERT_TRUE(rc == 0 && tid_ > 0);
   TestEvent *event = new TestEvent(reactor_);
   // 已经运行的reactor不能直接添加事件，可以通过提交任务添加
@@ -124,18 +124,15 @@ void WriteTask(TestEvent *event) {
 
 template <int N>
 void SetupTimeoutWrite(TestEvent *event) {
-  event->timeout_iter_ =
-      event->reactor_.AddTimingTask(new TimingFuncTask<TestEvent>(WriteTask<N>, event, N));
+  event->timeout_iter_ = event->reactor_.AddTimingTask(new TimingFuncTask<TestEvent>(WriteTask<N>, event, N));
 }
 
-void CancelTimeoutWrite(TestEvent *event) {
-  event->reactor_.CancelTimingTask(event->timeout_iter_);
-}
+void CancelTimeoutWrite(TestEvent *event) { event->reactor_.CancelTimingTask(event->timeout_iter_); }
 
 TEST_F(ReactorTest, TimingTask) {
   TestEvent *event = new TestEvent(reactor_);
   ASSERT_TRUE(reactor_.AddEventHandler(event));  // 启动之前可以添加事件
-  int rc = pthread_create(&tid_, NULL, ThreadRun, &reactor_);
+  int rc = pthread_create(&tid_, nullptr, ThreadRun, &reactor_);
   ASSERT_TRUE(rc == 0 && tid_ > 0);
 
   reactor_.SubmitTask(new FuncTask<TestEvent>(SetupTimeoutWrite<10000>,
@@ -153,23 +150,23 @@ TEST_F(ReactorTest, TimingTask) {
 }
 
 TEST_F(ReactorTest, TestDeferDeleteTask) {
-  reactor_.SubmitTask(new DeferReleaseTask<int>(new int()));
+  reactor_.SubmitTask(new DeferDeleteTask<int>(new int()));
   reactor_.RunOnce();  // 执行释放int的任务
 
   TestEvent *event = new TestEvent(reactor_);  // reactor析构时会释放event
-  reactor_.SubmitTask(new DeferReleaseTask<TestEvent>(event));
+  reactor_.SubmitTask(new DeferDeleteTask<TestEvent>(event));
   reactor_.Stop();
 }
 
 class ServiceBaseTask : public ServiceBase {
-public:
+ public:
   ServiceBaseTask() : count_(0) {}
 
   static void AddCount(ServiceBaseTask *task) { task->count_++; }
 
   int GetCount() { return count_; }
 
-private:
+ private:
   int count_;
 };
 
@@ -180,6 +177,17 @@ TEST_F(ReactorTest, TestServiceBaseTask) {
   ASSERT_EQ(task->GetCount(), 1);
   reactor_.Stop();
   task->DecrementRef();
+}
+
+void ThreadLocalReactorCheck(Reactor *reactor) {
+  Reactor &thread_local_reactor = ThreadLocalReactor();
+  ASSERT_EQ(&thread_local_reactor, reactor);
+}
+
+TEST_F(ReactorTest, TestThreadLocalReactor) {
+  reactor_.SubmitTask(new FuncTask<Reactor>(ThreadLocalReactorCheck, &reactor_));
+  reactor_.RunOnce();
+  reactor_.Stop();
 }
 
 }  // namespace polaris

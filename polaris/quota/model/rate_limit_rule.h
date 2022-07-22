@@ -40,12 +40,12 @@ struct RateLimitAmount {
 
 // 限流上报配置
 struct RateLimitReport {
-  RateLimitReport() : interval_(0), jitter_(0), amount_percent_(0) {}
+  RateLimitReport() : interval_(0), amount_percent_(0), enable_batch_(false) {}
   uint32_t interval_;        // 配额固定上报周期，单位ms
-  uint32_t jitter_;          // 上报周期抖动范围
   uint32_t amount_percent_;  // 配额使用达到百分比上报，值范围(0, 100]
+  bool enable_batch_;
 
-  uint32_t IntervalWithJitter() const;
+  uint32_t GetInterval() const { return interval_; }
 };
 
 // 限流动作类型
@@ -65,7 +65,7 @@ struct RateLimitWindowKey {
 };
 
 class RateLimitRule {
-public:
+ public:
   RateLimitRule();
 
   bool Init(const v1::Rule& rule);
@@ -83,6 +83,8 @@ public:
   const std::string& GetRevision() const { return revision_; }
 
   v1::Rule::Type GetRateLimitType() const { return limit_type_; }
+
+  bool IsGlobalLimit() const { return limit_type_ == v1::Rule::GLOBAL; }
 
   const RateLimitReport& GetRateLimitReport() const { return report_; }
 
@@ -104,10 +106,9 @@ public:
 
   std::string GetLabelsAsString();
 
-  const std::map<std::string, MatchString>& GetLables() const { return labels_; }
+  const std::map<std::string, MatchString>& GetLabels() const { return labels_; }
 
-  void GetWindowKey(const std::map<std::string, std::string>& subset,
-                    const std::map<std::string, std::string>& labels,
+  void GetWindowKey(const std::map<std::string, std::string>& subset, const std::map<std::string, std::string>& labels,
                     RateLimitWindowKey& window_key);
 
   std::string GetMetricId(const RateLimitWindowKey& window_key);
@@ -116,9 +117,9 @@ public:
 
   const ServiceKey& GetCluster() { return cluster_; }
 
-  bool IsDisbale() const { return disable_; }
+  bool IsDisable() const { return disable_; }
 
-private:
+ private:
   bool InitAmount(const v1::Rule& rule);
 
   bool InitReportConfig(const v1::Rule& rule);
@@ -130,7 +131,7 @@ private:
 
   static std::string MatchMapToStr(const std::map<std::string, MatchString>& match);
 
-private:
+ private:
   std::string id_;
   ServiceKey service_key_;
   uint32_t priority_;  // 优先级，0是最高优先级

@@ -21,13 +21,12 @@
 
 #include "integration/common/environment.h"
 #include "integration/common/integration_base.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
 
 class SetDivisionRouterIntegrationTest : public IntegrationBase {
-protected:
+ protected:
   virtual void SetUp() {
     config_string_ =
         "global:\n"
@@ -44,14 +43,13 @@ protected:
         "      - setDivisionRouter\n"
         "      - nearbyBasedRouter\n";
     service_.mutable_namespace_()->set_value("Test");
-    service_.mutable_name()->set_value("set.division.router.test" +
-                                       StringUtils::TypeToStr(Time::GetCurrentTimeMs()));
+    service_.mutable_name()->set_value("set.division.router.test" + std::to_string(Time::GetSystemTimeMs()));
     (*service_.mutable_metadata())["internal-nearby-enable"] = "true";
     IntegrationBase::SetUp();
 
     // 创建Consumer对象
     consumer_ = ConsumerApi::CreateFromString(config_string_);
-    ASSERT_TRUE(consumer_ != NULL) << config_string_;
+    ASSERT_TRUE(consumer_ != nullptr) << config_string_;
 
     CreateInstance("127.0.0.1", 10001, true, true, "app.sz.1");
     CreateInstance("127.0.0.1", 10002, true, true, "app.sh.1");
@@ -63,7 +61,7 @@ protected:
   }
 
   virtual void TearDown() {
-    if (consumer_ != NULL) {
+    if (consumer_ != nullptr) {
       delete consumer_;
     }
     for (std::size_t i = 0; i < instances_.size(); ++i) {
@@ -83,7 +81,7 @@ protected:
     instance.mutable_port()->set_value(port);
     instance.mutable_healthy()->set_value(healthy);
     (*instance.mutable_metadata())["internal-enable-set"] = enable_set ? "Y" : "N";
-    (*instance.mutable_metadata())["internal-set-name"]   = set_value;
+    (*instance.mutable_metadata())["internal-set-name"] = set_value;
     std::string instance_id;
     AddPolarisServiceInstance(instance, instance_id);
     instance.mutable_id()->set_value(instance_id);
@@ -119,9 +117,10 @@ protected:
       call_result.SetRetStatus(kCallRetError);
       ASSERT_EQ(consumer_->UpdateServiceCallResult(call_result), kReturnOk);
     }
+    sleep(1);
   }
 
-protected:
+ protected:
   ConsumerApi* consumer_;
   std::vector<v1::Instance> instances_;
 };
@@ -152,9 +151,8 @@ TEST_F(SetDivisionRouterIntegrationTest, SetDivisionRouter) {
   one_instance_request.SetSourceSetName("app.sz.*");
   for (int i = 0; i < 10; i++) {
     ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance), kReturnOk) << i;
-    ASSERT_TRUE(instance.GetPort() == 10001 || instance.GetPort() == 10004 ||
-                instance.GetPort() == 10005);
-    std::string& instance_set = instance.GetMetadata()["internal-set-name"];
+    ASSERT_TRUE(instance.GetPort() == 10001 || instance.GetPort() == 10004 || instance.GetPort() == 10005);
+    const std::string& instance_set = instance.GetMetadata().find("internal-set-name")->second;
     ASSERT_TRUE(instance_set.find("app.sz") == 0) << instance_set;
   }
 
@@ -166,7 +164,7 @@ TEST_F(SetDivisionRouterIntegrationTest, SetDivisionRouter) {
   one_instance_request.SetSourceSetName("app.sz.3");
   for (int i = 0; i < 10; i++) {
     ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance), kReturnOk) << i;
-    ASSERT_EQ(instance.GetMetadata()["internal-set-name"], "app.sz.*");
+    ASSERT_EQ(instance.GetMetadata().find("internal-set-name")->second, "app.sz.*");
   }
 
   // set内没有节点，且没有通配set，返回empty

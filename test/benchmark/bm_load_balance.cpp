@@ -18,13 +18,12 @@
 #include <benchmark/benchmark.h>
 
 #include "plugin/load_balancer/hash/hash_manager.h"
+#include "plugin/load_balancer/maglev/entry_selector.h"
 #include "plugin/load_balancer/maglev/maglev.h"
-#include "plugin/load_balancer/maglev/maglev_entry_selector.h"
 #include "plugin/load_balancer/ringhash/continuum.h"
 #include "plugin/load_balancer/ringhash/ringhash.h"
 #include "plugin/load_balancer/weighted_random.h"
 #include "polaris/context.h"
-#include "utils/string_utils.h"
 #include "v1/response.pb.h"
 
 namespace polaris {
@@ -38,10 +37,10 @@ static ServiceData *CreateService(int instance_num, const ServiceKey &service_ke
   service->mutable_revision()->set_value("version");
   for (int i = 0; i < instance_num; i++) {
     ::v1::Instance *instance = response.mutable_instances()->Add();
-    instance->mutable_id()->set_value("instance_" + StringUtils::TypeToStr<int>(i));
+    instance->mutable_id()->set_value("instance_" + std::to_string(i));
     instance->mutable_namespace_()->set_value(service_key.namespace_);
     instance->mutable_service()->set_value(service_key.name_);
-    instance->mutable_host()->set_value("host" + StringUtils::TypeToStr<int>(i));
+    instance->mutable_host()->set_value("host" + std::to_string(i));
     instance->mutable_port()->set_value(i);
     instance->mutable_weight()->set_value(100);
   }
@@ -49,7 +48,7 @@ static ServiceData *CreateService(int instance_num, const ServiceKey &service_ke
 }
 
 class BM_LoadBalance : public benchmark::Fixture {
-public:
+ public:
   void SetUp(const ::benchmark::State &state) {
     if (state.thread_index != 0) {
       return;
@@ -61,40 +60,42 @@ public:
         "    addresses:\n"
         "      - 127.0.0.1:8010";
     config_ = Config::CreateFromString(content, err_msg);
-    if (config_ == NULL) {
+    if (config_ == nullptr) {
       std::cout << "create config with error: " << err_msg << std::endl;
       exit(-1);
     }
     context_ = Context::Create(config_);
-    if (context_ == NULL) {
+    if (context_ == nullptr) {
       std::cout << "create context failed" << std::endl;
       delete config_;
       exit(-1);
     }
-    ServiceKey service_key    = {"benchmark_namespace", "benchmark_service"};
-    ServiceData *service_data = CreateService(state.range(0), service_key);
-    service_instances_        = new ServiceInstances(service_data);
-    service_                  = new Service(service_key, 0);
-    service_->UpdateData(service_data);
-    load_balancer_ = NULL;
+    ServiceKey service_key = {"benchmark_namespace", "benchmark_service"};
+    instances_data_ = CreateService(state.range(0), service_key);
+    service_ = new Service(service_key, 0);
+    service_->UpdateData(instances_data_);
+    load_balancer_ = nullptr;
   }
 
   void TearDown(const ::benchmark::State &state) {
     if (state.thread_index != 0) {
       return;
     }
-    if (config_ != NULL) {
+    if (config_ != nullptr) {
       delete config_;
     }
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
     }
-    delete service_instances_;
+    if (instances_data_ != nullptr) {
+      instances_data_->DecrementRef();
+      instances_data_ = nullptr;
+    }
     delete service_;
   }
 
   Service *service_;
-  ServiceInstances *service_instances_;
+  ServiceData *instances_data_;
   Config *config_;
   Context *context_;
   RandomLoadBalancer *load_balancer_;
@@ -107,8 +108,9 @@ BENCHMARK_DEFINE_F(BM_LoadBalance, RandomLB)(benchmark::State &state) {
   }
   Criteria criteria;
   while (state.KeepRunning()) {
-    Instance *next      = NULL;
-    ReturnCode ret_code = load_balancer_->ChooseInstance(service_instances_, criteria, next);
+    Instance *next = nullptr;
+    ServiceInstances service_instances(instances_data_);
+    ReturnCode ret_code = load_balancer_->ChooseInstance(&service_instances, criteria, next);
     if (ret_code != kReturnOk) {
       state.SkipWithError("choose instance return error");
       break;
@@ -116,7 +118,7 @@ BENCHMARK_DEFINE_F(BM_LoadBalance, RandomLB)(benchmark::State &state) {
   }
   if (state.thread_index == 0) {
     delete load_balancer_;
-    load_balancer_ = NULL;
+    load_balancer_ = nullptr;
   }
   state.SetItemsProcessed(state.iterations());
 }
@@ -129,27 +131,27 @@ BENCHMARK_REGISTER_F(BM_LoadBalance, RandomLB)
     ->UseRealTime();
 
 class BM_LBSimple : public benchmark::Fixture {
-public:
+ public:
   void SetUp(const ::benchmark::State &state) {
     if (state.thread_index != 0) {
       return;
     }
     SetupConfig();
     context_ = Context::Create(config_);
-    if (context_ == NULL) {
+    if (context_ == nullptr) {
       std::cout << "create context failed" << std::endl;
       delete config_;
       exit(-1);
     }
-    ServiceKey service_key    = {"benchmark_namespace", "benchmark_service"};
-    ServiceData *service_data = CreateService(state.range(0), service_key);
-    service_instances_        = new ServiceInstances(service_data);
-    HashManager::Instance().GetHashFunction("murmur3", hashFunc_);
+    ServiceKey service_key = {"benchmark_namespace", "benchmark_service"};
+    instances_data_ = CreateService(state.range(0), service_key);
+    service_instances_ = new ServiceInstances(instances_data_);
+    HashManager::Instance().GetHashFunction("murmur3", hash_func_);
     service_ = new Service(service_key, 0);
-    service_->UpdateData(service_data);
-    instances_set_ = NULL;
-    selector_      = NULL;
-    lb_            = NULL;
+    service_->UpdateData(instances_data_);
+    instances_set_ = nullptr;
+    selector_ = nullptr;
+    lb_ = nullptr;
   }
 
   virtual void SetupConfig() {
@@ -162,16 +164,16 @@ public:
                              "    type: ringHash\n"
                              "    vnodeCount: 10";
     config_ = Config::CreateFromString(content, err_msg);
-    if (config_ == NULL) {
+    if (config_ == nullptr) {
       std::cout << "create config with error: " << err_msg << std::endl;
       exit(-1);
     }
   }
 
-  virtual void BMNoKey(benchmark::State &state) {
+  void BMNoKey(benchmark::State &state) {
     Criteria criteria;
     while (state.KeepRunning()) {
-      Instance *next      = NULL;
+      Instance *next = nullptr;
       ReturnCode ret_code = lb_->ChooseInstance(service_instances_, criteria, next);
       if (ret_code != kReturnOk) {
         state.SkipWithError("choose instance return error");
@@ -180,19 +182,19 @@ public:
     }
     if (state.thread_index == 0) {
       delete lb_;
-      lb_ = NULL;
+      lb_ = nullptr;
     }
     state.SetItemsProcessed(state.iterations());
   }
 
-  virtual void BMWithKey(benchmark::State &state) {
+  void BMWithKey(benchmark::State &state) {
     Criteria criteria;
     while (state.KeepRunning()) {
       state.PauseTiming();
-      std::string uuid   = Utils::Uuid();
-      criteria.hash_key_ = hashFunc_(static_cast<const void *>(uuid.c_str()), uuid.size(), 0);
+      std::string uuid = Utils::Uuid();
+      criteria.hash_key_ = hash_func_(static_cast<const void *>(uuid.c_str()), uuid.size(), 0);
       state.ResumeTiming();
-      Instance *next      = NULL;
+      Instance *next = nullptr;
       ReturnCode ret_code = lb_->ChooseInstance(service_instances_, criteria, next);
       if (ret_code != kReturnOk) {
         state.SkipWithError("choose instance return error");
@@ -201,7 +203,7 @@ public:
     }
     if (state.thread_index == 0) {
       delete lb_;
-      lb_ = NULL;
+      lb_ = nullptr;
     }
     state.SetItemsProcessed(state.iterations());
   }
@@ -210,21 +212,29 @@ public:
     if (state.thread_index != 0) {
       return;
     }
-    if (config_ != NULL) {
+    if (config_ != nullptr) {
       delete config_;
     }
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
     }
-    delete service_instances_;
+    if (service_instances_ != nullptr) {
+      delete service_instances_;
+      service_instances_ = nullptr;
+    }
+    if (instances_data_ != nullptr) {
+      instances_data_->DecrementRef();
+      instances_data_ = nullptr;
+    }
     delete service_;
   }
 
   Service *service_;
+  ServiceData *instances_data_;
   ServiceInstances *service_instances_;
   InstancesSet *instances_set_;
   ContinuumSelector *selector_;
-  Hash64Func hashFunc_;
+  Hash64Func hash_func_;
   std::map<uint64_t, uint64_t> hashCache_;
   Config *config_;
   Context *context_;
@@ -234,18 +244,15 @@ public:
 BENCHMARK_DEFINE_F(BM_LBSimple, RingHash)(benchmark::State &state) {
   if (0 == state.thread_index) {
     instances_set_ = service_instances_->GetAvailableInstances();
-    selector_      = new ContinuumSelector();
+    selector_ = new ContinuumSelector(hash_func_);
   }
 
   while (state.KeepRunning()) {
-    if (!selector_->Setup(instances_set_, state.range(0), hashFunc_)) {
-      state.SkipWithError("Setup return failure");
-      break;
-    }
+    selector_->Setup(instances_set_->GetInstances(), state.range(0), 0, false);
   }
   if (0 == state.thread_index) {
     delete selector_;
-    selector_ = NULL;
+    selector_ = nullptr;
   }
   state.SetItemsProcessed(state.iterations());
 }
@@ -263,18 +270,15 @@ BENCHMARK_REGISTER_F(BM_LBSimple, RingHash)
 BENCHMARK_DEFINE_F(BM_LBSimple, RingHashFast)(benchmark::State &state) {
   if (0 == state.thread_index) {
     instances_set_ = service_instances_->GetAvailableInstances();
-    selector_      = new ContinuumSelector();
+    selector_ = new ContinuumSelector(hash_func_);
   }
 
   while (state.KeepRunning()) {
-    if (!selector_->FastSetup(instances_set_, state.range(0), hashFunc_)) {
-      state.SkipWithError("FastSetup return failure");
-      break;
-    }
+    selector_->FastSetup(instances_set_->GetInstances(), state.range(0), 0, false);
   }
   if (0 == state.thread_index) {
     delete selector_;
-    selector_ = NULL;
+    selector_ = nullptr;
   }
   state.SetItemsProcessed(state.iterations());
 }
@@ -321,7 +325,7 @@ BENCHMARK_REGISTER_F(BM_LBSimple, CohashWithKey)
     ->UseRealTime();
 
 class BM_LBMaglev : public BM_LBSimple {
-public:
+ public:
   virtual void SetupConfig() {
     std::string err_msg, content =
                              "global:\n"
@@ -331,7 +335,7 @@ public:
                              "  loadBalancer:\n"
                              "    type: maglev\n";
     config_ = Config::CreateFromString(content, err_msg);
-    if (config_ == NULL) {
+    if (config_ == nullptr) {
       std::cout << "create config with error: " << err_msg << std::endl;
       exit(-1);
     }
@@ -342,19 +346,19 @@ public:
 
 BENCHMARK_DEFINE_F(BM_LBMaglev, BuildLookupTable)(benchmark::State &state) {
   if (0 == state.thread_index) {
-    instances_set_   = service_instances_->GetAvailableInstances();
+    instances_set_ = service_instances_->GetAvailableInstances();
     maglev_selector_ = new MaglevEntrySelector();
   }
 
   while (state.KeepRunning()) {
-    if (!maglev_selector_->Setup(instances_set_, state.range(0), hashFunc_)) {
+    if (!maglev_selector_->Setup(instances_set_, state.range(0), hash_func_)) {
       state.SkipWithError("Setup return failure");
       break;
     }
   }
   if (0 == state.thread_index) {
     delete maglev_selector_;
-    maglev_selector_ = NULL;
+    maglev_selector_ = nullptr;
   }
   state.SetItemsProcessed(state.iterations());
 }

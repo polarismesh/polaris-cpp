@@ -19,7 +19,7 @@
 #include "reactor/event.h"
 
 #if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2, 9)
-#define HAVE_EVENTFD 1
+#  define HAVE_EVENTFD 1
 #endif
 
 namespace polaris {
@@ -28,7 +28,7 @@ namespace polaris {
 // 优先使用eventfd实现
 // eventfd不支持的情况下使用pipe实现
 class Notifier : public EventBase {
-public:
+ public:
   Notifier();
   virtual ~Notifier();
 
@@ -38,7 +38,7 @@ public:
 
   void Notify();  // 调用此方法可唤醒Reactor
 
-private:
+ private:
   void Init();
 
 #ifndef HAVE_EVENTFD

@@ -19,22 +19,33 @@
 
 namespace polaris {
 
-class Config;
-class Context;
 class Service;
 
+/// @brief 动态权重调整接口
+class WeightAdjuster : public Plugin {
+ public:
+  /// @brief 析构函数
+  virtual ~WeightAdjuster() {}
+
+  /// @brief 通过配置进行初始化
+  virtual ReturnCode Init(Config* config, Context* context) = 0;
+
+  virtual ReturnCode ServiceInstanceUpdate(ServiceData* new_service_data, ServiceData* old_service_data) = 0;
+
+  virtual bool DoAdjust(ServiceData* service_data) = 0;
+};
+
 class DefaultWeightAdjuster : public WeightAdjuster {
-public:
-  DefaultWeightAdjuster();
+ public:
+  DefaultWeightAdjuster() {}
 
-  virtual ~DefaultWeightAdjuster();
+  virtual ~DefaultWeightAdjuster() {}
 
-  virtual ReturnCode Init(Config* config, Context* context);
+  virtual ReturnCode Init(Config*, Context*) { return kReturnOk; }
 
-  virtual ReturnCode RealTimeAdjustDynamicWeight(const InstanceGauge& instance_gauge,
-                                                 bool& need_adjuster);
+  virtual ReturnCode ServiceInstanceUpdate(ServiceData*, ServiceData*) { return kReturnOk; }
 
-  virtual ReturnCode AdjustDynamicWeight(Service* service, const InstanceGauge& instance_gauge);
+  virtual bool DoAdjust(ServiceData*) { return false; }
 };
 
 }  // namespace polaris

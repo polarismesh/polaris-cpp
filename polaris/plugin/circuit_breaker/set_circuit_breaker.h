@@ -14,6 +14,7 @@
 #ifndef POLARIS_CPP_POLARIS_PLUGIN_CIRCUIT_BREAKER_SET_CIRCUIT_BREAKER_H_
 #define POLARIS_CPP_POLARIS_PLUGIN_CIRCUIT_BREAKER_SET_CIRCUIT_BREAKER_H_
 
+#include "plugin/circuit_breaker/circuit_breaker.h"
 #include "polaris/defs.h"
 #include "polaris/plugin.h"
 
@@ -31,7 +32,7 @@ class MetricWindowManager;
 class ServiceData;
 
 class SetCircuitBreakerImpl : public SetCircuitBreaker {
-public:
+ public:
   explicit SetCircuitBreakerImpl(const ServiceKey& service_key);
   virtual ~SetCircuitBreakerImpl();
 
@@ -41,13 +42,12 @@ public:
 
   virtual ReturnCode TimingCircuitBreak();
 
-private:
-  ReturnCode GetCbPConfPbFromLocalRegistry(ServiceData*& service_data,
-                                           v1::CircuitBreaker*& pb_conf);
+ private:
+  ReturnCode GetCbPConfPbFromLocalRegistry(ServiceData*& service_data, v1::CircuitBreaker*& pb_conf);
   ReturnCode MatchDestinationSet(v1::CircuitBreaker* pb_conf, const InstanceGauge& instance_gauge,
                                  v1::DestinationSet*& dst_conf);
 
-private:
+ private:
   ServiceKey service_key_;
   Context* context_;
   bool enable_;

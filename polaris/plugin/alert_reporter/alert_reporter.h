@@ -25,7 +25,7 @@ class Config;
 class Context;
 
 class LogAlertReporter : public AlertReporter {
-public:
+ public:
   LogAlertReporter();
 
   virtual ~LogAlertReporter();

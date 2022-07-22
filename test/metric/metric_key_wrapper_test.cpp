@@ -18,18 +18,18 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <set>
 
-#include "utils/scoped_ptr.h"
 #include "v1/metric.pb.h"
 
 namespace polaris {
 
 TEST(MetricKeyWrapperTest, MetricKeySet) {
   std::set<MetricKeyWrapper> metric_key_set;
-  ScopedPtr<v1::MetricKey> metric_key(new v1::MetricKey());
+  std::unique_ptr<v1::MetricKey> metric_key(new v1::MetricKey());
   MetricKeyWrapper owned_key(*metric_key);
-  MetricKeyWrapper ref_key(metric_key.Get());
+  MetricKeyWrapper ref_key(metric_key.get());
   metric_key_set.insert(ref_key);
   ASSERT_EQ(metric_key_set.count(owned_key), 1);
   ASSERT_EQ(metric_key_set.count(ref_key), 1);

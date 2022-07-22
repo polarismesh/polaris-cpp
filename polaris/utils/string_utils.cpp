@@ -50,8 +50,7 @@ std::string StringUtils::StringTrim(const std::string& str) {
 }
 
 bool StringUtils::StringHasSuffix(const std::string& str, const std::string& suffix) {
-  return str.size() >= suffix.size() &&
-         str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+  return str.size() >= suffix.size() && str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
 std::string StringUtils::JoinString(std::vector<std::string>& lists) {
@@ -75,6 +74,18 @@ bool StringUtils::IgnoreCaseCmp(const std::string& lhs, const std::string& rhs) 
     }
   }
   return true;
+}
+
+std::vector<std::string> StringUtils::SplitString(const std::string& in, const char& separator) {
+  std::stringstream ss(in);
+  std::string tmp_str;
+  std::vector<std::string> vec;
+  while (std::getline(ss, tmp_str, separator)) {
+    if (!tmp_str.empty()) {
+      vec.push_back(tmp_str);
+    }
+  }
+  return vec;
 }
 
 }  // namespace polaris

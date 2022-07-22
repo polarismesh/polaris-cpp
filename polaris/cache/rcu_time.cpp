@@ -21,47 +21,41 @@ namespace polaris {
 
 ThreadTimeMgr::ThreadTimeMgr() {
   thread_time_key_ = 0;
-  int rc           = pthread_key_create(&thread_time_key_, &OnThreadExit);
+  int rc = pthread_key_create(&thread_time_key_, &OnThreadExit);
   POLARIS_ASSERT(rc == 0);
 }
 
 ThreadTimeMgr::~ThreadTimeMgr() {
   pthread_key_delete(thread_time_key_);
-  for (std::set<ThreadTime*>::iterator it = thread_time_set_.begin(); it != thread_time_set_.end();
-       ++it) {
+  for (std::set<ThreadTime*>::iterator it = thread_time_set_.begin(); it != thread_time_set_.end(); ++it) {
     delete (*it);
   }
 }
 
 void ThreadTimeMgr::RcuEnter() {
   ThreadTime* thread_time = static_cast<ThreadTime*>(pthread_getspecific(thread_time_key_));
-  if (thread_time != NULL) {
-    thread_time->thread_time_ = Time::GetCurrentTimeMs();
-    __sync_synchronize();
+  if (thread_time != nullptr) {
+    thread_time->thread_time_.store(Time::GetCoarseSteadyTimeMs(), std::memory_order_release);
     return;
   }
-  thread_time               = new ThreadTime();
-  thread_time->thread_time_ = Time::GetCurrentTimeMs();
-  thread_time->mgr_ptr_     = this;
+  thread_time = new ThreadTime(Time::GetCoarseSteadyTimeMs(), this);
   pthread_setspecific(thread_time_key_, thread_time);
-  sync::MutexGuard mutex_guard(lock_);
+  const std::lock_guard<std::mutex> mutex_guard(lock_);
   thread_time_set_.insert(thread_time);
 }
 
 void ThreadTimeMgr::RcuExit() {
   ThreadTime* thread_time = static_cast<ThreadTime*>(pthread_getspecific(thread_time_key_));
-  if (thread_time != NULL) {
-    __sync_synchronize();
-    thread_time->thread_time_ = Time::kMaxTime;
+  if (thread_time != nullptr) {
+    thread_time->thread_time_.store(Time::kMaxTime, std::memory_order_release);
   }
 }
 
 uint64_t ThreadTimeMgr::MinTime() {
-  uint64_t min_time = Time::GetCurrentTimeMs();
-  sync::MutexGuard mutex_guard(lock_);
-  for (std::set<ThreadTime*>::iterator it = thread_time_set_.begin(); it != thread_time_set_.end();
-       ++it) {
-    uint64_t thread_time = (*it)->thread_time_;  // 先获取时间再比较
+  uint64_t min_time = Time::GetCoarseSteadyTimeMs();
+  const std::lock_guard<std::mutex> mutex_guard(lock_);
+  for (std::set<ThreadTime*>::iterator it = thread_time_set_.begin(); it != thread_time_set_.end(); ++it) {
+    uint64_t thread_time = (*it)->thread_time_.load(std::memory_order_acquire);  // 先获取时间再比较
     if (thread_time < min_time) {
       min_time = thread_time;
     }
@@ -70,15 +64,15 @@ uint64_t ThreadTimeMgr::MinTime() {
 }
 
 void ThreadTimeMgr::OnThreadExit(void* ptr) {
-  if (ptr == NULL) {
+  if (ptr == nullptr) {
     return;
   }
   ThreadTime* thread_time = static_cast<ThreadTime*>(ptr);
-  ThreadTimeMgr* mgr      = static_cast<ThreadTimeMgr*>(thread_time->mgr_ptr_);
+  ThreadTimeMgr* mgr = static_cast<ThreadTimeMgr*>(thread_time->mgr_ptr_);
 
-  mgr->lock_.Lock();
+  mgr->lock_.lock();
   mgr->thread_time_set_.erase(thread_time);
-  mgr->lock_.Unlock();
+  mgr->lock_.unlock();
   delete thread_time;
 }
 

@@ -25,14 +25,17 @@ namespace polaris {
 class RouteRuleTest : public ::testing::Test {
   virtual void SetUp() {
     source_service_info_.service_key_.namespace_ = "test_namespace";
-    source_service_info_.service_key_.name_      = "test_service";
+    source_service_info_.service_key_.name_ = "test_service";
+    dst_service_.namespace_ = "Test";
+    dst_service_.name_ = "dst_service_name";
   }
 
   virtual void TearDown() {}
 
-protected:
+ protected:
   v1::Route route_;
   RouteRule route_rule_;
+  ServiceKey dst_service_;
   ServiceInfo source_service_info_;
   std::string parameters_;
 };
@@ -40,7 +43,7 @@ protected:
 TEST_F(RouteRuleTest, EmptySourceMatch) {
   route_rule_.InitFromPb(route_);
   // 空源服务匹配成功
-  ASSERT_TRUE(route_rule_.MatchSource(NULL, parameters_));
+  ASSERT_TRUE(route_rule_.MatchSource(nullptr, dst_service_, parameters_));
 }
 
 TEST_F(RouteRuleTest, ServiceInfoSourceMatch) {
@@ -49,19 +52,43 @@ TEST_F(RouteRuleTest, ServiceInfoSourceMatch) {
   source->mutable_service()->set_value("test_service");
   // 空源服务匹配失败
   route_rule_.InitFromPb(route_);
-  ASSERT_FALSE(route_rule_.MatchSource(NULL, parameters_));
+  ASSERT_FALSE(route_rule_.MatchSource(nullptr, dst_service_, parameters_));
   // 命名空间和服务名匹配成功
-  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, parameters_));
+  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
 
   source_service_info_.service_key_.namespace_ = "other_test_namespace";
-  source_service_info_.service_key_.name_      = "test_service";
+  source_service_info_.service_key_.name_ = "test_service";
   // 命名空间匹配失败
-  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, parameters_));
+  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
 
   source_service_info_.service_key_.namespace_ = "test_namespace";
-  source_service_info_.service_key_.name_      = "other_test_service";
+  source_service_info_.service_key_.name_ = "other_test_service";
   // 服务名匹配失败
-  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, parameters_));
+  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
+}
+
+TEST_F(RouteRuleTest, DstServiceMatch) {
+  v1::Source *source = route_.add_sources();
+  source->mutable_to_namespace()->set_value(dst_service_.namespace_);
+  source->mutable_to_service()->set_value(dst_service_.name_);
+  route_rule_.InitFromPb(route_);
+
+  // 空的被调服务匹配失败
+  ServiceKey service_key;
+  ASSERT_TRUE(route_rule_.MatchSource(nullptr, service_key, parameters_));
+
+  // 命名空间和服务名匹配成功
+  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
+
+  service_key.namespace_ = "other_test_namespace";
+  service_key.name_ = "test_service";
+  // 命名空间匹配失败
+  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, service_key, parameters_));
+
+  service_key.namespace_ = "test_namespace";
+  service_key.name_ = "other_test_service";
+  // 服务名匹配失败
+  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, service_key, parameters_));
 }
 
 TEST_F(RouteRuleTest, ServiceInfoSourceMatchRegex) {
@@ -74,30 +101,30 @@ TEST_F(RouteRuleTest, ServiceInfoSourceMatchRegex) {
   source_service_info_.service_key_.namespace_ = "other_test_namespace";
   route_rule_.InitFromPb(route_);
   // 通配命名空间匹配成功
-  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, parameters_));
-  ASSERT_FALSE(route_rule_.MatchSource(NULL, parameters_));
+  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
+  ASSERT_FALSE(route_rule_.MatchSource(nullptr, dst_service_, parameters_));
 
   source = route_.add_sources();
   source->mutable_namespace_()->set_value("test_namespace");
   source->mutable_service()->set_value("*");
   source_service_info_.service_key_.namespace_ = "test_namespace";
-  source_service_info_.service_key_.name_      = "other_test_service";
+  source_service_info_.service_key_.name_ = "other_test_service";
   RouteRule route_rule1;
   route_rule1.InitFromPb(route_);
   // 通配服务名匹配成功
-  ASSERT_TRUE(route_rule1.MatchSource(&source_service_info_, parameters_));
-  ASSERT_FALSE(route_rule1.MatchSource(NULL, parameters_));
+  ASSERT_TRUE(route_rule1.MatchSource(&source_service_info_, dst_service_, parameters_));
+  ASSERT_FALSE(route_rule1.MatchSource(nullptr, dst_service_, parameters_));
 
   source = route_.add_sources();
   source->mutable_namespace_()->set_value("*");
   source->mutable_service()->set_value("*");
   source_service_info_.service_key_.namespace_ = "other_test_namespace";
-  source_service_info_.service_key_.name_      = "other_test_service";
+  source_service_info_.service_key_.name_ = "other_test_service";
   RouteRule route_rule2;
   route_rule2.InitFromPb(route_);
   // 通配命名空间和服务名匹配成功
-  ASSERT_TRUE(route_rule2.MatchSource(&source_service_info_, parameters_));
-  ASSERT_TRUE(route_rule2.MatchSource(NULL, parameters_));
+  ASSERT_TRUE(route_rule2.MatchSource(&source_service_info_, dst_service_, parameters_));
+  ASSERT_TRUE(route_rule2.MatchSource(nullptr, dst_service_, parameters_));
 }
 
 TEST_F(RouteRuleTest, ServiceInfoSourceMatchMetadata) {  // 加上Metadata
@@ -107,12 +134,12 @@ TEST_F(RouteRuleTest, ServiceInfoSourceMatchMetadata) {  // 加上Metadata
   v1::MatchString match_string;
   match_string.set_type(v1::MatchString::EXACT);
   match_string.mutable_value()->set_value("value");
-  (*source->mutable_metadata())["key"]        = match_string;
+  (*source->mutable_metadata())["key"] = match_string;
   source_service_info_.metadata_["other_key"] = "other_value";
   route_rule_.InitFromPb(route_);
-  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, parameters_));
+  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
   source_service_info_.metadata_["key"] = "value";
-  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, parameters_));
+  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
 }
 
 TEST_F(RouteRuleTest, SourceMatchMetadataVariableMatch) {
@@ -126,12 +153,12 @@ TEST_F(RouteRuleTest, SourceMatchMetadataVariableMatch) {
   (*source->mutable_metadata())["env"] = match_string;
   route_rule_.InitFromPb(route_);
   source_service_info_.metadata_["env"] = "value";
-  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, parameters_));
+  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
 
   SystemVariables system_variables;
   ASSERT_TRUE(setenv(env_key.c_str(), "value", 1) == 0);
   route_rule_.FillSystemVariables(system_variables);
-  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, parameters_));
+  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
 }
 
 TEST_F(RouteRuleTest, SourceMatchMetadataParameterMatch) {
@@ -142,9 +169,9 @@ TEST_F(RouteRuleTest, SourceMatchMetadataParameterMatch) {
   match_string.set_value_type(v1::MatchString::PARAMETER);
   (*source->mutable_metadata())["key"] = match_string;
   route_rule_.InitFromPb(route_);
-  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, parameters_));
+  ASSERT_FALSE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
   source_service_info_.metadata_["key"] = "value";
-  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, parameters_));
+  ASSERT_TRUE(route_rule_.MatchSource(&source_service_info_, dst_service_, parameters_));
   ASSERT_EQ(parameters_, "value");
 }
 

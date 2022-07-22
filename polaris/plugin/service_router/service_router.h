@@ -14,80 +14,38 @@
 #ifndef POLARIS_CPP_POLARIS_PLUGIN_SERVICE_ROUTER_SERVICE_ROUTER_H_
 #define POLARIS_CPP_POLARIS_PLUGIN_SERVICE_ROUTER_SERVICE_ROUTER_H_
 
-#include <stddef.h>
-#include <stdint.h>
-
-#include <set>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "polaris/defs.h"
-#include "polaris/model.h"
 #include "polaris/plugin.h"
+
+#include "plugin/service_router/route_info.h"
+#include "plugin/service_router/route_result.h"
 #include "v1/request.pb.h"
 
 namespace polaris {
 
-namespace ServiceRouterConfig {
-static const char kChainEnableKey[]   = "enable";
-static const bool kChainEnableDefault = true;
-
-static const char kChainPluginListKey[]     = "chain";
-static const char kChainPluginListDefault[] = "ruleBasedRouter, nearbyBasedRouter";
-
-static const char kRecoverAllEnableKey[]   = "enableRecoverAll";
-static const bool kRecoverAllEnableDefault = true;
-
-static const char kPercentOfMinInstancesKey[]    = "percentOfMinInstances";
-static const float kPercentOfMinInstancesDefault = 0.0;
-
-static const uint32_t kRuleDefaultPriority = 9;
-static const uint32_t kRuleDefaultWeight   = 0;
-}  // namespace ServiceRouterConfig
-
-struct ServiceDataOrNotify {
-  ServiceDataOrNotify() : service_data_(NULL), service_notify_(NULL) {}
-  ~ServiceDataOrNotify() {
-    if (service_data_ != NULL) {
-      service_data_->DecrementRef();
-      service_data_ = NULL;
-    }
-  }
-
-  ServiceData* service_data_;
-  ServiceDataNotify* service_notify_;
+struct RouterStatData {
+  v1::RouteRecord record_;
 };
 
-static const int kDataOrNotifySize = 3;
+/// @brief 服务路由插件接口定义
+class ServiceRouter : public Plugin {
+ public:
+  /// @brief 析构函数
+  virtual ~ServiceRouter() {}
 
-class RouteInfoNotifyImpl {
-public:
-  RouteInfoNotifyImpl() : all_data_ready_(false) {}
+  /// @brief 通过配置进行初始化
+  virtual ReturnCode Init(Config* config, Context* context) = 0;
 
-  ~RouteInfoNotifyImpl() {}
+  /// @brief 执行服务路由
+  ///
+  /// @param router_context 路由上限文，作为路由的输入
+  /// @param router_result 路由结果，作为路由的输出
+  /// @return ReturnCode
+  virtual ReturnCode DoRoute(RouteInfo& route_info, RouteResult* route_result) = 0;
 
-private:
-  friend class ServiceRouterChain;
-  friend class RouteInfoNotify;
-  bool all_data_ready_;
-  ServiceDataOrNotify data_or_notify_[kDataOrNotifySize];
+  /// @brief 收集路由统计数据
+  virtual RouterStatData* CollectStat() = 0;
 };
-
-// 服务路由执行链实现
-class ServiceRouterChainImpl {
-private:
-  friend class ServiceRouterChain;
-  Context* context_;
-  ServiceKey service_key_;
-  bool enable_;
-  bool is_rule_router_enable_;
-  std::vector<ServiceRouter*> service_router_list_;
-  std::vector<std::string> plugin_name_list_;
-};
-
-void CalculateUnhealthySet(RouteInfo& route_info, ServiceInstances* service_instances,
-                           std::set<Instance*>& unhealthy_set);
 
 }  // namespace polaris
 

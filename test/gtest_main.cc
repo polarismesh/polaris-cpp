@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <atomic>
 #include <string>
 
 #include "polaris/log.h"
@@ -26,15 +27,15 @@
 
 namespace polaris {
 
-void (*current_time_impl_backup)(timespec &ts);
-volatile uint64_t g_fake_time_now_ms = 0;
+std::atomic<uint64_t> g_fake_system_time_ms(0);
+std::atomic<uint64_t> g_fake_steady_time_ms(0);
 std::string g_test_persist_dir_;
 
 };  // namespace polaris
 
 // 自定义测试环境
 class Environment : public ::testing::Environment {
-public:
+ public:
   virtual ~Environment() {}
 
   virtual void SetUp() {
@@ -54,7 +55,7 @@ public:
     }
   }
 
-private:
+ private:
   std::string log_dir_;
 };
 

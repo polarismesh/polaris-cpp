@@ -21,7 +21,6 @@
 
 #include "integration/common/environment.h"
 #include "integration/common/integration_base.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
@@ -36,19 +35,19 @@ struct ThreadArg {
 };
 
 class SetCircuitBreakerTest : public IntegrationBase {
-protected:
+ protected:
   virtual void SetUp() {
-    set1_                   = "set1";
-    set2_                   = "set2";
-    set3_                   = "set3";
-    set_key_                = "k1";
+    set1_ = "set1";
+    set2_ = "set2";
+    set3_ = "set3";
+    set_key_ = "k1";
     service_key_.namespace_ = "Test";
-    service_key_.name_      = "set_cb_test_" + StringUtils::TypeToStr(Time::GetCurrentTimeMs());
-    cb_namespace_           = "Test";
-    cb_version_             = "version1";
-    IntegrationBase::SetUp();
+    service_key_.name_ = "set_cb_test_" + std::to_string(Time::GetSystemTimeMs());
+    cb_namespace_ = "Test";
+    cb_version_ = "version1";
+
     // 创建Consumer对象
-    std::string content =
+    config_string_ =
         "global:\n"
         "  serverConnector:\n"
         "    addresses: [" +
@@ -64,23 +63,24 @@ protected:
         "\n  circuitBreaker:\n"
         "    setCircuitBreaker:\n"
         "      enable: true\n";
-    consumer_ = polaris::ConsumerApi::CreateFromString(content);
-    ASSERT_TRUE(consumer_ != NULL);
+    IntegrationBase::SetUp();
+    consumer_ = polaris::ConsumerApi::CreateFromString(config_string_);
+    ASSERT_TRUE(consumer_ != nullptr);
 
     SetUpServiceData();
     TryDoRoute();
   }
 
   virtual void TearDown() {
-    if (consumer_ != NULL) {
+    if (consumer_ != nullptr) {
       delete consumer_;
     }
     TearDownServiceData();
     IntegrationBase::TearDown();
   }
 
-  void CreateInstance(v1::Instance& instance, std::string& ins_id, const std::string& ip,
-                      uint32_t port, const std::string& set_name) {
+  void CreateInstance(v1::Instance& instance, std::string& ins_id, const std::string& ip, uint32_t port,
+                      const std::string& set_name) {
     instance.mutable_namespace_()->set_value(service_key_.namespace_);
     instance.mutable_service()->set_value(service_key_.name_);
     instance.mutable_service_token()->set_value(service_token_);
@@ -138,12 +138,12 @@ protected:
   }
 
   void CreateCbConfig() {
-    cb_name_ = "TestCb_t1" + StringUtils::TypeToStr(Time::GetCurrentTimeMs());
+    cb_name_ = "TestCb_t1" + std::to_string(Time::GetSystemTimeMs());
     circuit_breaker_.mutable_service_namespace()->set_value(service_key_.namespace_);
     circuit_breaker_.mutable_service()->set_value(service_key_.name_);
     circuit_breaker_.mutable_name()->set_value(cb_name_);
     circuit_breaker_.mutable_namespace_()->set_value(cb_namespace_);
-    v1::CbRule* rule          = circuit_breaker_.mutable_inbounds()->Add();
+    v1::CbRule* rule = circuit_breaker_.mutable_inbounds()->Add();
     v1::SourceMatcher* source = rule->mutable_sources()->Add();
     source->mutable_namespace_()->set_value("*");
     source->mutable_service()->set_value("*");
@@ -151,10 +151,10 @@ protected:
     ms.mutable_value()->set_value(".*");
     ms.set_type(v1::MatchString_MatchStringType_REGEX);
     (*source->mutable_labels())["l1"] = ms;
-    v1::DestinationSet* dst           = rule->mutable_destinations()->Add();
+    v1::DestinationSet* dst = rule->mutable_destinations()->Add();
     dst->mutable_namespace_()->set_value("*");
     dst->mutable_service()->set_value("*");
-    (*dst->mutable_metadata())["k1"]     = ms;
+    (*dst->mutable_metadata())["k1"] = ms;
     v1::CbPolicy_ErrRateConfig* err_rate = dst->mutable_policy()->mutable_errorrate();
     err_rate->mutable_enable()->set_value(true);
     err_rate->mutable_errorratetopreserved()->set_value(10);
@@ -213,15 +213,15 @@ protected:
   }
 
   void UpdateCbPbConf() {
-    DeletePolarisSetBreakerRule(cb_name_, cb_version_, cb_token_, cb_namespace_, service_token_,
-                                service_key_.name_, service_key_.namespace_);
-    cb_name_    = "TestCb_t2" + StringUtils::TypeToStr(Time::GetCurrentTimeMs());
+    DeletePolarisSetBreakerRule(cb_name_, cb_version_, cb_token_, cb_namespace_, service_token_, service_key_.name_,
+                                service_key_.namespace_);
+    cb_name_ = "TestCb_t2" + std::to_string(Time::GetSystemTimeMs());
     cb_version_ = "version2";
     circuit_breaker2_.mutable_service_namespace()->set_value(service_key_.namespace_);
     circuit_breaker2_.mutable_service()->set_value(service_key_.name_);
     circuit_breaker2_.mutable_name()->set_value(cb_name_);
     circuit_breaker2_.mutable_namespace_()->set_value(cb_namespace_);
-    v1::CbRule* rule          = circuit_breaker2_.mutable_inbounds()->Add();
+    v1::CbRule* rule = circuit_breaker2_.mutable_inbounds()->Add();
     v1::SourceMatcher* source = rule->mutable_sources()->Add();
     source->mutable_namespace_()->set_value("*");
     source->mutable_service()->set_value("*");
@@ -229,10 +229,10 @@ protected:
     ms.mutable_value()->set_value(".*");
     ms.set_type(v1::MatchString_MatchStringType_REGEX);
     (*source->mutable_labels())["l1"] = ms;
-    v1::DestinationSet* dst           = rule->mutable_destinations()->Add();
+    v1::DestinationSet* dst = rule->mutable_destinations()->Add();
     dst->mutable_namespace_()->set_value("*");
     dst->mutable_service()->set_value("*");
-    (*dst->mutable_metadata())["k1"]     = ms;
+    (*dst->mutable_metadata())["k1"] = ms;
     v1::CbPolicy_ErrRateConfig* err_rate = dst->mutable_policy()->mutable_errorrate();
     err_rate->mutable_enable()->set_value(true);
     err_rate->mutable_errorratetopreserved()->set_value(60);
@@ -263,19 +263,19 @@ protected:
     DeletePolarisServiceInstance(instance2_1_);
     DeletePolarisServiceInstance(instance3_);
     DeletePolarisServiceRouteRule(route_);
-    DeletePolarisSetBreakerRule(cb_name_, cb_version_, cb_token_, cb_namespace_, service_token_,
-                                service_key_.name_, service_key_.namespace_);
+    DeletePolarisSetBreakerRule(cb_name_, cb_version_, cb_token_, cb_namespace_, service_token_, service_key_.name_,
+                                service_key_.namespace_);
   }
 
   static void* UpdateCallFunc(void* arg) {
     ThreadArg* real_args = static_cast<ThreadArg*>(arg);
     polaris::ReturnCode ret;
     if (real_args->cnt == 0) {
-      return NULL;
+      return nullptr;
     }
-    int64_t cnt   = real_args->cnt * 1000000;
+    int64_t cnt = real_args->cnt * 1000000;
     int64_t count = 0;
-    int num       = 0;
+    int num = 0;
     while (true) {
       real_args->result->SetRetStatus(kCallRetOk);
       real_args->result->SetRetCode(0);
@@ -292,8 +292,7 @@ protected:
           real_args->result->SetRetCode(1222);
         }
       }
-      if ((ret = real_args->consumer->UpdateServiceCallResult(*(real_args->result))) !=
-          polaris::kReturnOk) {
+      if ((ret = real_args->consumer->UpdateServiceCallResult(*(real_args->result))) != polaris::kReturnOk) {
         std::cout << "update call result for instance with error:" << ret
                   << " msg:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
       }
@@ -304,7 +303,7 @@ protected:
         break;
       }
     }
-    return NULL;
+    return nullptr;
   }
 
   void TryUpdateCall(polaris::ServiceCallResult& err_result) {
@@ -326,10 +325,10 @@ protected:
   void TestCircuitBreaker(ThreadArg* arg, std::map<std::string, int>& set_count, int times) {
     pthread_t tids[2];
     for (int i = 0; i < 2; ++i) {
-      pthread_create(&tids[i], NULL, UpdateCallFunc, static_cast<void*>(arg));
+      pthread_create(&tids[i], nullptr, UpdateCallFunc, static_cast<void*>(arg));
     }
     for (int i = 0; i < 2; ++i) {
-      pthread_join(tids[i], NULL);
+      pthread_join(tids[i], nullptr);
     }
     RunGetOneInstancesByTimes(set_count, times);
   }
@@ -337,40 +336,38 @@ protected:
   void RunGetOneInstancesByTimes(std::map<std::string, int>& set_count, int times) {
     polaris::GetOneInstanceRequest req(service_key_);
     polaris::ServiceInfo service_info;
-    service_info.service_key_.name_      = "test2";
+    service_info.service_key_.name_ = "test2";
     service_info.service_key_.namespace_ = "Test";
-    service_info.metadata_["f"]          = "fv1";
+    service_info.metadata_["f"] = "fv1";
     req.SetSourceService(service_info);
     polaris::Instance instance;
     for (int i = 0; i < times; ++i) {
       ASSERT_EQ(consumer_->GetOneInstance(req, instance), kReturnOk);
-      std::map<std::string, std::string>& metadata = instance.GetMetadata();
+      const std::map<std::string, std::string>& metadata = instance.GetMetadata();
       ASSERT_TRUE(metadata.count(set_key_) > 0);
-      set_count[metadata[set_key_]]++;
+      set_count[metadata.find(set_key_)->second]++;
     }
   }
 
   static void AssertPercent(int total, float percent, float err_rate, int count) {
     // err_rate 0.8%, 0.008
     int dif = total * err_rate;
-    ASSERT_TRUE(count > (total * percent - dif))
-        << total << " " << percent << " " << err_rate << " " << count;
-    ASSERT_TRUE(count < (total * percent + dif))
-        << total << " " << percent << " " << err_rate << " " << count;
+    ASSERT_TRUE(count > (total * percent - dif)) << total << " " << percent << " " << err_rate << " " << count;
+    ASSERT_TRUE(count < (total * percent + dif)) << total << " " << percent << " " << err_rate << " " << count;
   }
 
   void TryDoRoute() {
     polaris::GetOneInstanceRequest req(service_key_);
     polaris::ServiceInfo service_info;
-    service_info.service_key_.name_      = "test2";
+    service_info.service_key_.name_ = "test2";
     service_info.service_key_.namespace_ = "Test";
-    service_info.metadata_["f"]          = "fv1";
+    service_info.metadata_["f"] = "fv1";
     req.SetSourceService(service_info);
     polaris::Instance instance;
     ASSERT_EQ(consumer_->GetOneInstance(req, instance), kReturnOk);
   }
 
-protected:
+ protected:
   polaris::ServiceKey service_key_;
   polaris::ConsumerApi* consumer_;
 
@@ -418,7 +415,7 @@ TEST_F(SetCircuitBreakerTest, ErrRateOpen) {
   err_result.SetLabels(labels);
 
   polaris::ServiceKey source_service_key;
-  source_service_key.name_      = "Test";
+  source_service_key.name_ = "Test";
   source_service_key.namespace_ = "set_cb_sources_service";
   err_result.SetSource(source_service_key);
   err_result.SetRetCode(1);
@@ -428,10 +425,10 @@ TEST_F(SetCircuitBreakerTest, ErrRateOpen) {
 
   // 熔断set1
   ThreadArg arg;
-  arg.result      = &err_result;
-  arg.cnt         = 15;
-  arg.sleep_time  = 1000 * 50;
-  arg.consumer    = consumer_;
+  arg.result = &err_result;
+  arg.cnt = 15;
+  arg.sleep_time = 1000 * 50;
+  arg.consumer = consumer_;
   arg.not_ok_type = 1;
   arg.not_ok_rate = 1;
   std::map<std::string, int> set_flags;
@@ -450,9 +447,9 @@ TEST_F(SetCircuitBreakerTest, ErrRateOpen) {
 
   // 进一步放量
   printf("------------half open 2\n");
-  arg.result      = &err_result;
-  arg.cnt         = 12;
-  arg.sleep_time  = 1000 * 50;
+  arg.result = &err_result;
+  arg.cnt = 12;
+  arg.sleep_time = 1000 * 50;
   arg.not_ok_type = 1;
   arg.not_ok_rate = 0xfffffff;
   set_flags.clear();
@@ -463,7 +460,7 @@ TEST_F(SetCircuitBreakerTest, ErrRateOpen) {
 
   // 熔断
   sleep(2);
-  arg.cnt         = 15;
+  arg.cnt = 15;
   arg.not_ok_type = 1;
   arg.not_ok_rate = 1;
   set_flags.clear();
@@ -486,7 +483,7 @@ TEST_F(SetCircuitBreakerTest, SlowRateOpen) {
   slow_result.SetLabels(labels);
 
   polaris::ServiceKey source_service_key;
-  source_service_key.name_      = "Test";
+  source_service_key.name_ = "Test";
   source_service_key.namespace_ = "set_cb_sources_service";
   slow_result.SetSource(source_service_key);
   slow_result.SetRetCode(1);
@@ -497,10 +494,10 @@ TEST_F(SetCircuitBreakerTest, SlowRateOpen) {
 
   // 熔断set1
   ThreadArg arg;
-  arg.result      = &slow_result;
-  arg.cnt         = 15;
-  arg.sleep_time  = 1000 * 50;
-  arg.consumer    = consumer_;
+  arg.result = &slow_result;
+  arg.cnt = 15;
+  arg.sleep_time = 1000 * 50;
+  arg.consumer = consumer_;
   arg.not_ok_type = 2;
   arg.not_ok_rate = 1;
   std::map<std::string, int> set_flags;
@@ -519,8 +516,8 @@ TEST_F(SetCircuitBreakerTest, SlowRateOpen) {
 
   // 进一步放量
   printf("------------half open 2\n");
-  arg.cnt         = 12;
-  arg.sleep_time  = 1000 * 50;
+  arg.cnt = 12;
+  arg.sleep_time = 1000 * 50;
   arg.not_ok_type = 2;
   arg.not_ok_rate = 0xfffffff;
   set_flags.clear();
@@ -531,7 +528,7 @@ TEST_F(SetCircuitBreakerTest, SlowRateOpen) {
 
   // 熔断
   sleep(2);
-  arg.cnt         = 15;
+  arg.cnt = 15;
   arg.not_ok_type = 2;
   arg.not_ok_rate = 2;
   set_flags.clear();
@@ -552,7 +549,7 @@ TEST_F(SetCircuitBreakerTest, ErrRatePreserved) {
   labels["l1"] = "v1";
   err_result.SetLabels(labels);
   polaris::ServiceKey source_service_key;
-  source_service_key.name_      = "Test";
+  source_service_key.name_ = "Test";
   source_service_key.namespace_ = "set_cb_sources_service";
   err_result.SetSource(source_service_key);
   err_result.SetRetCode(1);
@@ -565,7 +562,7 @@ TEST_F(SetCircuitBreakerTest, ErrRatePreserved) {
   subset["k1"] = "set2";
   err_result2.SetSubset(subset);
   err_result2.SetLabels(labels);
-  source_service_key.name_      = "Test";
+  source_service_key.name_ = "Test";
   source_service_key.namespace_ = "set_cb_sources_service";
   err_result2.SetSource(source_service_key);
   err_result2.SetRetCode(1);
@@ -574,29 +571,29 @@ TEST_F(SetCircuitBreakerTest, ErrRatePreserved) {
   TryUpdateCall(err_result);
   // 熔断set1, 保持set2
   ThreadArg arg;
-  arg.result      = &err_result;
-  arg.cnt         = 10;
-  arg.sleep_time  = 1000 * 50;
-  arg.consumer    = consumer_;
+  arg.result = &err_result;
+  arg.cnt = 10;
+  arg.sleep_time = 1000 * 50;
+  arg.consumer = consumer_;
   arg.not_ok_type = 1;
   arg.not_ok_rate = 1;
 
   ThreadArg parg;
-  parg.result      = &err_result2;
-  parg.cnt         = 10;
-  parg.consumer    = consumer_;
-  parg.sleep_time  = 1000 * 50;
+  parg.result = &err_result2;
+  parg.cnt = 10;
+  parg.consumer = consumer_;
+  parg.sleep_time = 1000 * 50;
   parg.not_ok_type = 1;
   parg.not_ok_rate = 7;
 
   pthread_t tids[2], ptids[2];
   for (int i = 0; i < 1; ++i) {
-    pthread_create(&tids[i], NULL, UpdateCallFunc, static_cast<void*>(&arg));
-    pthread_create(&ptids[i], NULL, UpdateCallFunc, static_cast<void*>(&parg));
+    pthread_create(&tids[i], nullptr, UpdateCallFunc, static_cast<void*>(&arg));
+    pthread_create(&ptids[i], nullptr, UpdateCallFunc, static_cast<void*>(&parg));
   }
   for (int i = 0; i < 1; ++i) {
-    pthread_join(tids[i], NULL);
-    pthread_join(ptids[i], NULL);
+    pthread_join(tids[i], nullptr);
+    pthread_join(ptids[i], nullptr);
   }
   std::map<std::string, int> set_flags;
   RunGetOneInstancesByTimes(set_flags, 10);
@@ -616,7 +613,7 @@ TEST_F(SetCircuitBreakerTest, SlowRatePreserved) {
   labels["l1"] = "v1";
   slow_result.SetLabels(labels);
   polaris::ServiceKey source_service_key;
-  source_service_key.name_      = "Test";
+  source_service_key.name_ = "Test";
   source_service_key.namespace_ = "set_cb_sources_service";
   slow_result.SetSource(source_service_key);
   slow_result.SetRetCode(1);
@@ -629,7 +626,7 @@ TEST_F(SetCircuitBreakerTest, SlowRatePreserved) {
   subset["k1"] = "set2";
   slow_result2.SetSubset(subset);
   slow_result2.SetLabels(labels);
-  source_service_key.name_      = "Test";
+  source_service_key.name_ = "Test";
   source_service_key.namespace_ = "set_cb_sources_service";
   slow_result2.SetSource(source_service_key);
   slow_result2.SetRetCode(1);
@@ -638,29 +635,29 @@ TEST_F(SetCircuitBreakerTest, SlowRatePreserved) {
   TryUpdateCall(slow_result);
   // 熔断set1, 保持set2
   ThreadArg arg;
-  arg.result      = &slow_result;
-  arg.cnt         = 10;
-  arg.sleep_time  = 1000 * 50;
-  arg.consumer    = consumer_;
+  arg.result = &slow_result;
+  arg.cnt = 10;
+  arg.sleep_time = 1000 * 50;
+  arg.consumer = consumer_;
   arg.not_ok_type = 2;
   arg.not_ok_rate = 1;
 
   ThreadArg parg;
-  parg.result      = &slow_result2;
-  parg.cnt         = 10;
-  parg.consumer    = consumer_;
-  parg.sleep_time  = 1000 * 50;
+  parg.result = &slow_result2;
+  parg.cnt = 10;
+  parg.consumer = consumer_;
+  parg.sleep_time = 1000 * 50;
   parg.not_ok_type = 2;
   parg.not_ok_rate = 7;
 
   pthread_t tids[2], ptids[2];
   for (int i = 0; i < 1; ++i) {
-    pthread_create(&tids[i], NULL, UpdateCallFunc, static_cast<void*>(&arg));
-    pthread_create(&ptids[i], NULL, UpdateCallFunc, static_cast<void*>(&parg));
+    pthread_create(&tids[i], nullptr, UpdateCallFunc, static_cast<void*>(&arg));
+    pthread_create(&ptids[i], nullptr, UpdateCallFunc, static_cast<void*>(&parg));
   }
   for (int i = 0; i < 1; ++i) {
-    pthread_join(tids[i], NULL);
-    pthread_join(ptids[i], NULL);
+    pthread_join(tids[i], nullptr);
+    pthread_join(ptids[i], nullptr);
   }
   std::map<std::string, int> set_flags;
   RunGetOneInstancesByTimes(set_flags, 100);
@@ -679,9 +676,9 @@ TEST_F(SetCircuitBreakerTest, SlowRatePreserved) {
   // 进一步放量
   printf("------------half open 2\n");
   sleep(5);
-  arg.result      = &slow_result;
-  arg.cnt         = 10;
-  arg.sleep_time  = 1000 * 50;
+  arg.result = &slow_result;
+  arg.cnt = 10;
+  arg.sleep_time = 1000 * 50;
   arg.not_ok_type = 1;
   arg.not_ok_rate = 0xfffffff;
   set_flags.clear();
@@ -692,8 +689,8 @@ TEST_F(SetCircuitBreakerTest, SlowRatePreserved) {
   // 关闭熔断
   printf("------------half open 3\n");
   sleep(5);
-  arg.cnt         = 10;
-  arg.sleep_time  = 1000 * 50;
+  arg.cnt = 10;
+  arg.sleep_time = 1000 * 50;
   arg.not_ok_type = 1;
   arg.not_ok_rate = 0xfffffff;
   set_flags.clear();
@@ -718,7 +715,7 @@ TEST_F(SetCircuitBreakerTest, CbConfUpdate) {
   err_result.SetLabels(labels);
 
   polaris::ServiceKey source_service_key;
-  source_service_key.name_      = "Test";
+  source_service_key.name_ = "Test";
   source_service_key.namespace_ = "set_cb_sources_service";
   err_result.SetSource(source_service_key);
   err_result.SetRetCode(1);
@@ -727,10 +724,10 @@ TEST_F(SetCircuitBreakerTest, CbConfUpdate) {
   TryUpdateCall(err_result);
   // 熔断set1
   ThreadArg arg;
-  arg.result      = &err_result;
-  arg.cnt         = 10;
-  arg.sleep_time  = 1000 * 50;
-  arg.consumer    = consumer_;
+  arg.result = &err_result;
+  arg.cnt = 10;
+  arg.sleep_time = 1000 * 50;
+  arg.consumer = consumer_;
   arg.not_ok_type = 1;
   arg.not_ok_rate = 2;
   std::map<std::string, int> set_flags;
@@ -750,9 +747,9 @@ TEST_F(SetCircuitBreakerTest, CbConfUpdate) {
   // 进一步放量
   printf("------------half open 2\n");
   sleep(5);
-  arg.result      = &err_result;
-  arg.cnt         = 10;
-  arg.sleep_time  = 1000 * 50;
+  arg.result = &err_result;
+  arg.cnt = 10;
+  arg.sleep_time = 1000 * 50;
   arg.not_ok_type = 1;
   arg.not_ok_rate = 0xfffffff;
   set_flags.clear();
@@ -763,9 +760,9 @@ TEST_F(SetCircuitBreakerTest, CbConfUpdate) {
   // 关闭熔断
   printf("------------half open 3\n");
   sleep(5);
-  arg.result      = &err_result;
-  arg.cnt         = 10;
-  arg.sleep_time  = 1000 * 50;
+  arg.result = &err_result;
+  arg.cnt = 10;
+  arg.sleep_time = 1000 * 50;
   arg.not_ok_type = 1;
   arg.not_ok_rate = 0xfffffff;
   set_flags.clear();
@@ -787,10 +784,10 @@ TEST_F(SetCircuitBreakerTest, CbConfUpdate) {
   err_result.SetRetStatus(kCallRetOk);
   err_result.SetDelay(0);
   err_result.SetRetCode(0);
-  arg2->result      = &err_result;
-  arg2->cnt         = 15;
-  arg2->sleep_time  = 1000 * 50;
-  arg2->consumer    = consumer_;
+  arg2->result = &err_result;
+  arg2->cnt = 15;
+  arg2->sleep_time = 1000 * 50;
+  arg2->consumer = consumer_;
   arg2->not_ok_type = 1;
   arg2->not_ok_rate = 2;
   set_flags.clear();
@@ -811,7 +808,7 @@ TEST_F(SetCircuitBreakerTest, SpecificError) {
   labels["l1"] = "v1";
   err_result.SetLabels(labels);
   polaris::ServiceKey source_service_key;
-  source_service_key.name_      = "Test";
+  source_service_key.name_ = "Test";
   source_service_key.namespace_ = "set_cb_sources_service";
   err_result.SetSource(source_service_key);
   err_result.SetRetCode(1222);
@@ -824,7 +821,7 @@ TEST_F(SetCircuitBreakerTest, SpecificError) {
   subset["k1"] = "set2";
   err_result2.SetSubset(subset);
   err_result2.SetLabels(labels);
-  source_service_key.name_      = "Test";
+  source_service_key.name_ = "Test";
   source_service_key.namespace_ = "set_cb_sources_service";
   err_result2.SetSource(source_service_key);
   err_result2.SetRetCode(1222);
@@ -833,29 +830,29 @@ TEST_F(SetCircuitBreakerTest, SpecificError) {
   TryUpdateCall(err_result);
   // 熔断set1, 保持set2
   ThreadArg arg;
-  arg.result      = &err_result;
-  arg.cnt         = 10;
-  arg.sleep_time  = 1000 * 50;
-  arg.consumer    = consumer_;
+  arg.result = &err_result;
+  arg.cnt = 10;
+  arg.sleep_time = 1000 * 50;
+  arg.consumer = consumer_;
   arg.not_ok_type = 3;
   arg.not_ok_rate = 7;
 
   ThreadArg parg;
-  parg.result      = &err_result2;
-  parg.cnt         = 10;
-  parg.consumer    = consumer_;
-  parg.sleep_time  = 1000 * 50;
+  parg.result = &err_result2;
+  parg.cnt = 10;
+  parg.consumer = consumer_;
+  parg.sleep_time = 1000 * 50;
   parg.not_ok_type = 3;
   parg.not_ok_rate = 30;
 
   pthread_t tids[2], ptids[2];
   for (int i = 0; i < 1; ++i) {
-    pthread_create(&tids[i], NULL, UpdateCallFunc, static_cast<void*>(&arg));
-    pthread_create(&ptids[i], NULL, UpdateCallFunc, static_cast<void*>(&parg));
+    pthread_create(&tids[i], nullptr, UpdateCallFunc, static_cast<void*>(&arg));
+    pthread_create(&ptids[i], nullptr, UpdateCallFunc, static_cast<void*>(&parg));
   }
   for (int i = 0; i < 1; ++i) {
-    pthread_join(tids[i], NULL);
-    pthread_join(ptids[i], NULL);
+    pthread_join(tids[i], nullptr);
+    pthread_join(ptids[i], nullptr);
   }
   std::map<std::string, int> set_flags;
   RunGetOneInstancesByTimes(set_flags, 10);

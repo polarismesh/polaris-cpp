@@ -45,12 +45,12 @@ int main(int argc, char** argv) {
   polaris::SetLogDir("log");
   // polaris::GetLogger()->SetLogLevel(polaris::kTraceLogLevel);
   std::string service_namespace = argv[1];
-  std::string service_name      = argv[2];
-  int uin_num                   = atoi(argv[3]);
+  std::string service_name = argv[2];
+  int uin_num = atoi(argv[3]);
 
   // 创建Limit API
   polaris::LimitApi* limit_api = polaris::LimitApi::CreateWithDefaultFile();
-  if (limit_api == NULL) {
+  if (limit_api == nullptr) {
     std::cout << "create limit api failed" << std::endl;
     return -1;
   }
@@ -65,8 +65,7 @@ int main(int argc, char** argv) {
       labels["uin"] = TO_STR(i);
       quota_request.SetLabels(labels);
       if ((ret = limit_api->GetQuota(quota_request, result)) != polaris::kReturnOk) {
-        std::cout << "get quota for service with error:" << polaris::ReturnCodeToMsg(ret).c_str()
-                  << std::endl;
+        std::cout << "get quota for service with error:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
         sleep(1);
         continue;
       }

@@ -20,7 +20,6 @@
 #include "logger.h"
 #include "polaris/defs.h"
 #include "utils/indestructible.h"
-#include "utils/string_utils.h"
 
 namespace polaris {
 
@@ -55,8 +54,7 @@ PolarisServerCode ToPolarisServerCode(uint32_t code) {
   code_map.insert(std::make_pair(CODE, ReturnCodeInfo(MSG, STR, kReturnCodeTypeUserFail, index++)));
 
 #define POLARIS_CODE(CODE, MSG, STR) \
-  code_map.insert(                   \
-      std::make_pair(CODE, ReturnCodeInfo(MSG, STR, kReturnCodeTypePolarisFail, index++)));
+  code_map.insert(std::make_pair(CODE, ReturnCodeInfo(MSG, STR, kReturnCodeTypePolarisFail, index++)));
 
 std::map<ReturnCode, ReturnCodeInfo> CreateReturnCodeMap(ReturnCodeInfo& UnknownErrorInfo) {
   std::map<ReturnCode, ReturnCodeInfo> code_map;
@@ -73,6 +71,7 @@ std::map<ReturnCode, ReturnCodeInfo> CreateReturnCodeMap(ReturnCodeInfo& Unknown
   USER_CODE(kReturnInvalidRouteRule, "invalid route rule", "ErrCodeInvalidRouteRule");
   USER_CODE(kReturnRouteRuleNotMatch, "route rule not match", "ErrCodeRouteRuleNotMatch");
   USER_CODE(kReturnServiceNotFound, "service not found", "ErrCodeServiceNotFound");
+  USER_CODE(kRetrunCallAfterFork, "call after fork, see examples/fork_support/README.md", "ErrCodeCallAfterFork");
   SUCC_CODE(kReturnExistedResource, "resource already existed", "ErrCodeExistedResource");
   USER_CODE(kReturnUnauthorized, "request unauthorized", "ErrCodeUnauthorized");
   USER_CODE(kReturnHealthyCheckDisable, "healthy check disbale", "ErrCodeHealthyCheckDisable");
@@ -99,18 +98,18 @@ std::map<ReturnCode, ReturnCodeInfo>& ReturnCodeInfo::GetReturnCodeInfoMap() {
 }
 
 std::string ReturnCodeToMsg(ReturnCode return_code) {
-  std::string err_prefix = StringUtils::TypeToStr<int>(static_cast<int>(return_code)) + "-";
-  std::map<ReturnCode, ReturnCodeInfo>& return_code_map   = ReturnCodeInfo::GetReturnCodeInfoMap();
+  std::string err_prefix = std::to_string(static_cast<int>(return_code)) + "-";
+  std::map<ReturnCode, ReturnCodeInfo>& return_code_map = ReturnCodeInfo::GetReturnCodeInfoMap();
   std::map<ReturnCode, ReturnCodeInfo>::const_iterator it = return_code_map.find(return_code);
   if (it != return_code_map.end()) {
     return err_prefix + it->second.message_;
   } else {
-    return err_prefix + err_prefix + ReturnCodeInfo::GetUnkownErrorInfo().message_;
+    return err_prefix + ReturnCodeInfo::GetUnkownErrorInfo().message_;
   }
 }
 
 std::size_t ReturnCodeToIndex(ReturnCode return_code) {
-  std::map<ReturnCode, ReturnCodeInfo>& return_code_map   = ReturnCodeInfo::GetReturnCodeInfoMap();
+  std::map<ReturnCode, ReturnCodeInfo>& return_code_map = ReturnCodeInfo::GetReturnCodeInfoMap();
   std::map<ReturnCode, ReturnCodeInfo>::const_iterator it = return_code_map.find(return_code);
   if (it != return_code_map.end()) {
     return it->second.stat_index_;
@@ -121,8 +120,7 @@ std::size_t ReturnCodeToIndex(ReturnCode return_code) {
 
 void GetAllRetrunCodeInfo(std::vector<ReturnCodeInfo*>& return_code_info, int& success_code_index) {
   std::map<ReturnCode, ReturnCodeInfo>& return_code_map = ReturnCodeInfo::GetReturnCodeInfoMap();
-  for (std::map<ReturnCode, ReturnCodeInfo>::iterator it = return_code_map.begin();
-       it != return_code_map.end(); ++it) {
+  for (std::map<ReturnCode, ReturnCodeInfo>::iterator it = return_code_map.begin(); it != return_code_map.end(); ++it) {
     if (it->first == kReturnOk) {
       POLARIS_ASSERT(it->second.stat_index_ == 0);
       success_code_index = 0;

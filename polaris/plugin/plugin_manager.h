@@ -15,54 +15,55 @@
 #define POLARIS_CPP_POLARIS_PLUGIN_PLUGIN_MANAGER_H_
 
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 
 #include "polaris/defs.h"
 #include "polaris/plugin.h"
-#include "sync/mutex.h"
 
 namespace polaris {
 
 class ServiceData;
 
 const char kPluginDefaultServerConnector[] = "grpc";
-const char kPluginDefaultLocalRegistry[]   = "inmemory";
-const char kPluginDefaultStatReporter[]    = "default";
-const char kPluginDefaultAlertReporter[]   = "default";
+const char kPluginTrpcServerConnector[] = "trpc";
+
+const char kPluginDefaultLocalRegistry[] = "inmemory";
+const char kPluginDefaultStatReporter[] = "default";
+const char kPluginDefaultAlertReporter[] = "default";
 
 const char kPluginDefaultWeightAdjuster[] = "default";
+const char kPluginSlowStartWeightAdjuster[] = "slowStart";
 
-const char kPluginRuleServiceRouter[]        = "ruleBasedRouter";
-const char kPluginNearbyServiceRouter[]      = "nearbyBasedRouter";
+const char kPluginRuleServiceRouter[] = "ruleBasedRouter";
+const char kPluginNearbyServiceRouter[] = "nearbyBasedRouter";
 const char kPluginSetDivisionServiceRouter[] = "setDivisionRouter";
-const char kPluginMetadataServiceRouter[]    = "dstMetaRouter";
-const char kPluginCanaryServiceRouter[]      = "canaryRouter";
-const char kPluginRuleServiceRouterAlias[]   = "ruleRouter";
+const char kPluginMetadataServiceRouter[] = "dstMetaRouter";
+const char kPluginCanaryServiceRouter[] = "canaryRouter";
+const char kPluginRuleServiceRouterAlias[] = "ruleRouter";
 const char kPluginNearbyServiceRouterAlias[] = "nearbyRouter";
 
 const char kPluginErrorCountCircuitBreaker[] = "errorCount";
-const char kPluginErrorRateCircuitBreaker[]  = "errorRate";
+const char kPluginErrorRateCircuitBreaker[] = "errorRate";
 
 const char kPluginHttpHealthChecker[] = "http";
-const char kPluginTcpHealthChecker[]  = "tcp";
-const char kPluginUdpHealthChecker[]  = "udp";
+const char kPluginTcpHealthChecker[] = "tcp";
+const char kPluginUdpHealthChecker[] = "udp";
 const char* PluginTypeToString(PluginType plugin_type);
 
 /// @brief 管理插件，全局只初始化一个对象
 class PluginManager {
-public:
+ public:
   PluginManager();
 
   ~PluginManager();
 
-  ReturnCode RegisterPlugin(const std::string& name, PluginType plugin_type,
-                            PluginFactory plugin_factory);
+  ReturnCode RegisterPlugin(const std::string& name, PluginType plugin_type, PluginFactory plugin_factory);
 
   ReturnCode GetPlugin(const std::string& name, PluginType plugin_type, Plugin*& plugin);
 
-  ReturnCode RegisterInstancePreUpdateHandler(InstancePreUpdateHandler handler,
-                                              bool bFront = false);
+  ReturnCode RegisterInstancePreUpdateHandler(InstancePreUpdateHandler handler, bool bFront = false);
   ReturnCode DeregisterInstancePreUpdateHandler(InstancePreUpdateHandler handler);
 
   void OnPreUpdateServiceData(ServiceData* oldData, ServiceData* newData);
@@ -72,11 +73,11 @@ public:
   // 通过类型创建负载均衡插件
   //  ReturnCode GetLoadBalancePlugin(LoadBalanceType load_balace_type, Plugin*& plugin);
 
-private:
-  sync::Mutex lock_;
+ private:
+  std::mutex lock_;
   std::map<std::string, PluginFactory> plugin_factory_map_;
 
-  sync::Mutex instancePreUpdatelock_;
+  std::mutex instancePreUpdatelock_;
   std::vector<InstancePreUpdateHandler> instancePreUpdateHandlers_;
 };
 

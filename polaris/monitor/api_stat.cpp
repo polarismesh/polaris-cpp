@@ -16,33 +16,19 @@
 #include <stddef.h>
 
 #include "api_stat_registry.h"
-#include "context_internal.h"
-#include "polaris/context.h"
+#include "context/context_impl.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
 
-ApiStat::ApiStat(Context* context, ApiStatKey stat_key) {
-  registry_ = context->GetContextImpl()->GetApiStatRegistry();
-  stat_key_ = stat_key;
-  api_time_ = Time::GetCurrentTimeMs();
-}
-
-ApiStat::~ApiStat() {
-  if (registry_ != NULL) {
-    Record(kReturnOk);
-    registry_ = NULL;
-  }
-}
+ApiStat::ApiStat(ContextImpl* context_impl, ApiStatKey stat_key)
+    : registry_(context_impl->GetApiStatRegistry()), api_time_(Time::GetCoarseSteadyTimeMs()), stat_key_(stat_key) {}
 
 void ApiStat::Record(ReturnCode ret_code) {
-  if (registry_ == NULL) {
-    return;
+  if (registry_ != nullptr) {
+    registry_->Record(stat_key_, ret_code, Time::GetCoarseSteadyTimeMs() - api_time_);
+    registry_ = nullptr;
   }
-  uint64_t current_time = Time::GetCurrentTimeMs();
-  uint64_t time_used    = current_time >= api_time_ ? current_time - api_time_ : 0;
-  registry_->Record(stat_key_, ret_code, time_used);
-  registry_ = NULL;
 }
 
 }  // namespace polaris

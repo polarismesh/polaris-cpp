@@ -28,10 +28,9 @@ RateLimitData::~RateLimitData() {
 
 void RateLimitData::AddRule(RateLimitRule* rule) {
   rules_.push_back(rule);
-  if (!rule->IsDisbale()) {
-    const std::map<std::string, MatchString>& labels = rule->GetLables();
-    for (std::map<std::string, MatchString>::const_iterator it = labels.begin(); it != labels.end();
-         ++it) {
+  if (!rule->IsDisable()) {
+    const std::map<std::string, MatchString>& labels = rule->GetLabels();
+    for (std::map<std::string, MatchString>::const_iterator it = labels.begin(); it != labels.end(); ++it) {
       label_keys_.insert(it->first);
     }
   }
@@ -48,9 +47,7 @@ bool RateLimitRulePtrCompare(RateLimitRule* lhs, RateLimitRule* rhs) {
   }
 }
 
-void RateLimitData::SortByPriority() {
-  std::sort(rules_.begin(), rules_.end(), RateLimitRulePtrCompare);
-}
+void RateLimitData::SortByPriority() { std::sort(rules_.begin(), rules_.end(), RateLimitRulePtrCompare); }
 
 void RateLimitData::SetupIndexMap() {
   for (std::size_t i = 0; i < rules_.size(); ++i) {
@@ -68,34 +65,45 @@ RateLimitRule* RateLimitData::MatchRule(const std::map<std::string, std::string>
         return rule;
       }
     }
-    return NULL;
+    return nullptr;
   }
   // 使用索引查询
-  for (std::map<int, RateLimitRuleIndex>::const_iterator it = rule_index_.begin();
-       it != rule_index_.end(); ++it) {
+  for (std::map<int, RateLimitRuleIndex>::const_iterator it = rule_index_.begin(); it != rule_index_.end(); ++it) {
     RateLimitRule* rule = it->second.MatchRule(subset, labels);
-    if (rule != NULL) {
+    if (rule != nullptr) {
       return rule;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
-ServiceRateLimitRule::ServiceRateLimitRule(ServiceData* service_data)
-    : service_data_(service_data) {}
+ServiceRateLimitRule::ServiceRateLimitRule(ServiceData* service_data) : service_data_(service_data) {}
 
 ServiceRateLimitRule::~ServiceRateLimitRule() {
-  if (service_data_ != NULL) {
+  if (service_data_ != nullptr) {
     service_data_->DecrementRef();
-    service_data_ = NULL;
+    service_data_ = nullptr;
   }
 }
 
-RateLimitRule* ServiceRateLimitRule::MatchRateLimitRule(
-    const std::map<std::string, std::string>& subset,
-    const std::map<std::string, std::string>& labels) const {
+RateLimitRule* ServiceRateLimitRule::MatchRateLimitRule(const std::map<std::string, std::string>& subset,
+                                                        const std::map<std::string, std::string>& labels) const {
   RateLimitData* rate_limit_data = service_data_->GetServiceDataImpl()->GetRateLimitData();
   return rate_limit_data->MatchRule(subset, labels);
+}
+
+bool ServiceRateLimitRule::IsRuleEnable(RateLimitRule* rule) {
+  RateLimitData* rate_limit_data = service_data_->GetServiceDataImpl()->GetRateLimitData();
+  const std::vector<RateLimitRule*>& rules = rate_limit_data->GetRules();
+  for (std::size_t i = 0; i < rules.size(); ++i) {
+    if (rules[i] == rule) {
+      return !rule->IsDisable();
+    } else if (rules[i]->GetId() == rule->GetId()) {
+      // 如果版本号不同，则说明规则已经失效
+      return rules[i]->GetRevision() == rule->GetRevision() && !rule->IsDisable();
+    }
+  }
+  return false;  // 未匹配到任何规则，则说明规则已经被删除
 }
 
 const std::set<std::string>& ServiceRateLimitRule::GetLabelKeys() const {

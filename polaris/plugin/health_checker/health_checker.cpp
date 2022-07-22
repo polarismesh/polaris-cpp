@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "logger.h"
+#include "plugin/circuit_breaker/chain.h"
 #include "plugin/plugin_manager.h"
 #include "polaris/config.h"
 #include "polaris/model.h"
@@ -30,13 +31,41 @@
 
 namespace polaris {
 
-HealthCheckerChainImpl::HealthCheckerChainImpl(const ServiceKey& service_key,
-                                               LocalRegistry* local_registry) {
-  service_key_         = service_key;
-  local_registry_      = local_registry;
-  when_                = "never";
+BaseHealthChecker::BaseHealthChecker() : timeout_ms_(0), retry_(0) {}
+
+BaseHealthChecker::~BaseHealthChecker() {}
+
+ReturnCode BaseHealthChecker::Init(Config* config, Context* /*context*/) {
+  timeout_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kTimeoutKey, HealthCheckerConfig::kTimeoutDefault);
+  retry_ = config->GetIntOrDefault(HealthCheckerConfig::kRetryKey, HealthCheckerConfig::kRetryDefault);
+  return kReturnOk;
+}
+
+ReturnCode BaseHealthChecker::DetectInstance(Instance& instance, DetectResult& detect_result) {
+  int retry_cnt = 0;
+  ReturnCode result = kReturnUnknownError;
+
+  do {
+    if (retry_cnt != 0) {
+      POLARIS_LOG(LOG_ERROR, "health checker[%s] failed to detect instance [%s:%d], retry count %d", Name(),
+                  instance.GetHost().c_str(), instance.GetPort(), retry_cnt);
+    }
+
+    // call DetectInstanceOnce at least once
+    result = DetectInstanceOnce(instance, detect_result);
+    if (result == kReturnOk) return result;
+
+    ++retry_cnt;
+  } while (retry_cnt <= retry_);
+  return result;
+}
+
+HealthCheckerChainImpl::HealthCheckerChainImpl(const ServiceKey& service_key, LocalRegistry* local_registry) {
+  service_key_ = service_key;
+  local_registry_ = local_registry;
+  when_ = "never";
   health_check_ttl_ms_ = 0;
-  last_detect_time_ms_ = Time::GetCurrentTimeMs();
+  next_detect_time_ms_ = Time::GetCoarseSteadyTimeMs();
 }
 
 HealthCheckerChainImpl::~HealthCheckerChainImpl() {
@@ -44,35 +73,43 @@ HealthCheckerChainImpl::~HealthCheckerChainImpl() {
     delete health_checker_list_[i];
   }
   health_checker_list_.clear();
-  local_registry_ = NULL;
+  local_registry_ = nullptr;
 }
 
 ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
-  when_ = config->GetStringOrDefault(HealthCheckerConfig::kChainWhenKey,
-                                     HealthCheckerConfig::kChainWhenNever);
-  if (when_ == HealthCheckerConfig::kChainWhenNever) {
-    return kReturnOk;
+  if (config->GetRootKey() == "outlierDetection") {
+    if (!config->GetBoolOrDefault(HealthCheckerConfig::kChainEnableKey, HealthCheckerConfig::kChainEnableDefault)) {
+      return kReturnOk;
+    }
+    // 兼容 outlier detection配置
+    when_ = HealthCheckerConfig::kChainWhenOnRecover;
+    health_check_ttl_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kDetectorIntervalKey,
+                                                  HealthCheckerConfig::kDetectorIntervalDefault);
   }
-  POLARIS_LOG(LOG_INFO, "health checker for service[%s/%s] is enable",
-              service_key_.namespace_.c_str(), service_key_.name_.c_str());
+  if (config->GetRootKey() == "healthCheck") {
+    when_ = config->GetStringOrDefault(HealthCheckerConfig::kChainWhenKey, HealthCheckerConfig::kChainWhenNever);
+    if (when_ == HealthCheckerConfig::kChainWhenNever) {
+      return kReturnOk;
+    }
+    health_check_ttl_ms_ =
+        config->GetMsOrDefault(HealthCheckerConfig::kCheckerIntervalKey, HealthCheckerConfig::kDetectorIntervalDefault);
+  }
 
-  health_check_ttl_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kCheckerIntervalKey,
-                                                HealthCheckerConfig::kDetectorIntervalDefault);
+  POLARIS_LOG(LOG_INFO, "health checker for service[%s/%s] is %s", service_key_.namespace_.c_str(),
+              service_key_.name_.c_str(), when_.c_str());
 
-  std::vector<std::string> plugin_name_list = config->GetListOrDefault(
-      HealthCheckerConfig::kChainPluginListKey, HealthCheckerConfig::kChainPluginListDefault);
+  std::vector<std::string> plugin_name_list =
+      config->GetListOrDefault(HealthCheckerConfig::kChainPluginListKey, HealthCheckerConfig::kChainPluginListDefault);
   if (plugin_name_list.empty()) {
-    POLARIS_LOG(LOG_WARN,
-                "health checker config[enable] for service[%s/%s] is true, "
-                "but config [chain] not found",
+    POLARIS_LOG(LOG_WARN, "enable health checker for service[%s/%s], but config [chain] not found",
                 service_key_.name_.c_str(), service_key_.namespace_.c_str());
     when_ = HealthCheckerConfig::kChainWhenNever;
     return kReturnOk;
   }
 
-  Config* chain_config  = config->GetSubConfig("plugin");
-  Config* plugin_config = NULL;
-  Plugin* plugin        = NULL;
+  Config* chain_config = config->GetSubConfig("plugin");
+  Config* plugin_config = nullptr;
+  Plugin* plugin = nullptr;
   HealthChecker* health_checker;
   ReturnCode ret;
   for (size_t i = 0; i < plugin_name_list.size(); i++) {
@@ -80,37 +117,34 @@ ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
     ret = PluginManager::Instance().GetPlugin(plugin_name, kPluginHealthChecker, plugin);
     if (ret == kReturnOk) {
       health_checker = dynamic_cast<HealthChecker*>(plugin);
-      if (health_checker == NULL) {
+      if (health_checker == nullptr) {
         continue;
       }
       plugin_config = chain_config->GetSubConfig(plugin_name);
-      if (plugin_config == NULL) {
+      if (plugin_config == nullptr) {
         continue;
       }
 
       ret = health_checker->Init(plugin_config, context);
       if (ret == kReturnOk) {
-        POLARIS_LOG(LOG_INFO, "Init health checker plugin[%s] for service[%s/%s] success",
-                    plugin_name.c_str(), service_key_.namespace_.c_str(),
-                    service_key_.name_.c_str());
+        POLARIS_LOG(LOG_INFO, "Init health checker plugin[%s] for service[%s/%s] success", plugin_name.c_str(),
+                    service_key_.namespace_.c_str(), service_key_.name_.c_str());
         health_checker_list_.push_back(health_checker);
       } else {
-        POLARIS_LOG(LOG_ERROR, "Init health checker plugin[%s] for service[%s/%s] failed, skip it",
-                    plugin_name.c_str(), service_key_.namespace_.c_str(),
-                    service_key_.name_.c_str());
+        POLARIS_LOG(LOG_ERROR, "Init health checker plugin[%s] for service[%s/%s] failed, skip it", plugin_name.c_str(),
+                    service_key_.namespace_.c_str(), service_key_.name_.c_str());
         delete health_checker;
-        health_checker = NULL;
+        health_checker = nullptr;
       }
       delete plugin_config;
-      plugin_config = NULL;
+      plugin_config = nullptr;
     } else {
-      POLARIS_LOG(LOG_ERROR,
-                  "health checker plugin with name[%s] not found, skip it for service[%s/%s]",
+      POLARIS_LOG(LOG_ERROR, "health checker plugin with name[%s] not found, skip it for service[%s/%s]",
                   plugin_name.c_str(), service_key_.namespace_.c_str(), service_key_.name_.c_str());
     }
   }
   delete chain_config;
-  chain_config = NULL;
+  chain_config = nullptr;
 
   if (health_checker_list_.empty()) {
     POLARIS_LOG(LOG_ERROR,
@@ -123,24 +157,24 @@ ReturnCode HealthCheckerChainImpl::Init(Config* config, Context* context) {
 }
 
 ReturnCode HealthCheckerChainImpl::DetectInstance(CircuitBreakerChain& circuit_breaker_chain) {
-  POLARIS_LOG(LOG_INFO, "here detectInstance, namespace: %s, name: %s, when: %s",
-              service_key_.namespace_.c_str(), service_key_.name_.c_str(), when_.c_str());
-  uint64_t now_time_ms = Time::GetCurrentTimeMs();
-  if (now_time_ms - last_detect_time_ms_ <= health_check_ttl_ms_) {
+  if (when_ == HealthCheckerConfig::kChainWhenNever) {
     return kReturnOk;
   }
-  last_detect_time_ms_ = now_time_ms;
+  uint64_t steady_time_ms = Time::GetCoarseSteadyTimeMs();
+  if (steady_time_ms <= next_detect_time_ms_) {
+    return kReturnOk;
+  }
+  next_detect_time_ms_ = steady_time_ms + health_check_ttl_ms_;
 
-  if (local_registry_ == NULL) {
+  if (local_registry_ == nullptr) {
     POLARIS_LOG(LOG_ERROR, "The health checker local_registry_ of service[%s/%s] is null",
                 service_key_.namespace_.c_str(), service_key_.name_.c_str());
     return kReturnOk;
   }
 
-  ServiceData* service_data = NULL;
+  ServiceData* service_data = nullptr;
   std::vector<Instance*> health_check_instances;
-  if (local_registry_->GetCircuitBreakerInstances(service_key_, service_data,
-                                                  health_check_instances) != kReturnOk) {
+  if (local_registry_->GetCircuitBreakerInstances(service_key_, service_data, health_check_instances) != kReturnOk) {
     return kReturnOk;
   }
 
@@ -160,57 +194,63 @@ ReturnCode HealthCheckerChainImpl::DetectInstance(CircuitBreakerChain& circuit_b
     // 健康检查设置不为on_recover, 则探测半开实例
     health_check_instances.clear();
   }
+  service_data->DecrementRef();
+
+  POLARIS_LOG(LOG_DEBUG, "health check for service[%s/%s] with %zu instance", service_key_.namespace_.c_str(),
+              service_key_.name_.c_str(), health_check_instances.size());
 
   for (std::size_t i = 0; i < health_check_instances.size(); ++i) {
     bool is_detect_success = false;
-    Instance* instance     = health_check_instances[i];
+    Instance* instance = health_check_instances[i];
     for (std::size_t i = 0; i < health_checker_list_.size(); ++i) {
       HealthChecker*& detector = health_checker_list_[i];
       DetectResult detector_result;
       if (kReturnOk == detector->DetectInstance(*instance, detector_result)) {
         POLARIS_LOG(LOG_INFO,
-                    "The detector[%s] of service[%s/%s] getting instance[%s-%s:%d] success[0], "
+                    "The detector[%s] of service[%s/%s] instance[%s-%s:%d] success, "
                     "elapsing %" PRIu64 " ms",
-                    detector_result.detect_type.c_str(), service_key_.namespace_.c_str(),
-                    service_key_.name_.c_str(), instance->GetId().c_str(),
-                    instance->GetHost().c_str(), instance->GetPort(), detector_result.elapse);
+                    detector_result.detect_type.c_str(), service_key_.namespace_.c_str(), service_key_.name_.c_str(),
+                    instance->GetId().c_str(), instance->GetHost().c_str(), instance->GetPort(),
+                    detector_result.elapse);
         is_detect_success = true;
         break;
       } else {
         POLARIS_LOG(LOG_INFO,
-                    "The detector[%s] of service[%s/%s] getting instance[%s-%s:%d] failed[%d],"
+                    "The detector[%s] of service[%s/%s] instance[%s-%s:%d] return[%d],"
                     " elapsing %" PRIu64 " ms",
-                    detector_result.detect_type.c_str(), service_key_.namespace_.c_str(),
-                    service_key_.name_.c_str(), instance->GetId().c_str(),
-                    instance->GetHost().c_str(), instance->GetPort(), detector_result.return_code,
-                    detector_result.elapse);
+                    detector_result.detect_type.c_str(), service_key_.namespace_.c_str(), service_key_.name_.c_str(),
+                    instance->GetId().c_str(), instance->GetHost().c_str(), instance->GetPort(),
+                    detector_result.return_code, detector_result.elapse);
       }
     }
-    // 探活插件成功，则将熔断实例置为半开状态，其他实例状态不变
-    // 探活插件失败，则将健康实例置为熔断状态，其他实例状态不变
-    if (is_detect_success) {
-      circuit_breaker_chain.TranslateStatus(instance->GetId(), kCircuitBreakerOpen,
-                                            kCircuitBreakerHalfOpen);
-      POLARIS_LOG(LOG_INFO,
-                  "service[%s/%s] getting instance[%s-%s:%d] detectoring success, change to "
-                  "half-open status",
-                  service_key_.namespace_.c_str(), service_key_.name_.c_str(),
-                  instance->GetId().c_str(), instance->GetHost().c_str(), instance->GetPort());
-    } else {
-      circuit_breaker_chain.TranslateStatus(instance->GetId(), kCircuitBreakerClose,
-                                            kCircuitBreakerOpen);
-      POLARIS_LOG(LOG_INFO,
-                  "service[%s/%s] getting instance[%s-%s:%d] detectoring failed, change to "
-                  "open status",
-                  service_key_.namespace_.c_str(), service_key_.name_.c_str(),
-                  instance->GetId().c_str(), instance->GetHost().c_str(), instance->GetPort());
+
+    if (when_ == HealthCheckerConfig::kChainWhenAlways) {  // 一直探测节点状态
+      if (is_detect_success) {
+        if (circuit_breaker_chain.TranslateStatus(instance->GetId(), kCircuitBreakerOpen, kCircuitBreakerClose)) {
+          POLARIS_LOG(LOG_INFO, "service[%s/%s] instance[%s-%s:%d] open to close", service_key_.namespace_.c_str(),
+                      service_key_.name_.c_str(), instance->GetId().c_str(), instance->GetHost().c_str(),
+                      instance->GetPort());
+        }
+      } else {
+        if (circuit_breaker_chain.TranslateStatus(instance->GetId(), kCircuitBreakerClose, kCircuitBreakerOpen)) {
+          POLARIS_LOG(LOG_INFO, "service[%s/%s] instance[%s-%s:%d] close to open", service_key_.namespace_.c_str(),
+                      service_key_.name_.c_str(), instance->GetId().c_str(), instance->GetHost().c_str(),
+                      instance->GetPort());
+        }
+      }
+    } else {  // 只在熔断恢复时探测成功时转化为半开状态
+      if (is_detect_success) {
+        if (circuit_breaker_chain.TranslateStatus(instance->GetId(), kCircuitBreakerOpen, kCircuitBreakerHalfOpen)) {
+          POLARIS_LOG(LOG_INFO, "service[%s/%s] instance[%s-%s:%d] close to half open", service_key_.namespace_.c_str(),
+                      service_key_.name_.c_str(), instance->GetId().c_str(), instance->GetHost().c_str(),
+                      instance->GetPort());
+        }
+      }
     }
   }
   return kReturnOk;
 }
 
-std::vector<HealthChecker*> HealthCheckerChainImpl::GetHealthCheckers() {
-  return health_checker_list_;
-}
+std::vector<HealthChecker*> HealthCheckerChainImpl::GetHealthCheckers() { return health_checker_list_; }
 
 }  // namespace polaris

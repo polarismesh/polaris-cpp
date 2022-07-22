@@ -21,10 +21,10 @@
 #include <map>
 #include <string>
 
-#include "grpc/client.h"
-#include "grpc/status.h"
 #include "metric/metric_key_wrapper.h"
 #include "model/return_code.h"
+#include "network/grpc/client.h"
+#include "network/grpc/status.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
 #include "reactor/task.h"
@@ -52,8 +52,7 @@ enum MetricRequestStatus {
 
 // 异步初始化请求或同步请求
 struct MetricInflightRequest {
-  MetricInflightRequest(MetricRpcType rpc_type, grpc::RpcCallback<v1::MetricResponse>* callback,
-                        uint64_t timeout);
+  MetricInflightRequest(MetricRpcType rpc_type, grpc::RpcCallback<v1::MetricResponse>* callback, uint64_t timeout);
   ~MetricInflightRequest();
 
   const v1::MetricKey* GetMetricKey() {
@@ -65,7 +64,7 @@ struct MetricInflightRequest {
       case kMetricRpcTypeReport:
         return &request_.query_->key();
     }
-    return NULL;
+    return nullptr;
   }
 
   union Request {  // 用于pending状态下缓存请求
@@ -85,15 +84,15 @@ struct MetricInflightRequest {
 class MetricConnection;
 // 请求超时检查任务
 class MetricRequestTimeoutCheck : public TimingTask {
-public:
+ public:
   MetricRequestTimeoutCheck(uint64_t msg_id, MetricConnection* connection, uint64_t timeout)
       : TimingTask(timeout), msg_id_(msg_id), connection_(connection) {}
 
-  virtual ~MetricRequestTimeoutCheck() { connection_ = NULL; }
+  virtual ~MetricRequestTimeoutCheck() { connection_ = nullptr; }
 
   virtual void Run();
 
-private:
+ private:
   uint64_t msg_id_;  // 用于索引请求
   MetricConnection* connection_;
 };
@@ -102,22 +101,20 @@ class MetricConnector;
 // 通过一致性hash方式选择的限流Server并建立连接，并管理连接上的请求
 class MetricConnection : public grpc::RequestCallback<v1::MetricResponse>,
                          public grpc::StreamCallback<v1::MetricResponse> {
-public:
+ public:
   MetricConnection(MetricConnector* metric_connector, Instance* instance);
   virtual ~MetricConnection();
 
   // 回调函数，提供给连接回调对象使用
-  void OnConnectSuccess();
-  void OnConnectFailed();
-  void OnConnectTimeout();
+  void OnConnect(ReturnCode return_code);
 
   // Unary 请求回调
   virtual void OnSuccess(v1::MetricResponse* response);
-  virtual void OnFailure(grpc::GrpcStatusCode status, const std::string& message);
+  virtual void OnFailure(const std::string& message);
 
   // Stream 请求回调
   virtual void OnReceiveMessage(v1::MetricResponse* response);
-  virtual void OnRemoteClose(grpc::GrpcStatusCode status, const std::string& message);
+  virtual void OnRemoteClose(const std::string& message);
 
   // 异步发送初始化请求
   // 如果连接还未建立，则缓存请求，等连接建立后自动发送
@@ -131,8 +128,7 @@ public:
 
   // 发送上报请求
   // 如果连接未建立，则直接报错，发送Report请求前必须确保Init请求已经应答
-  void SendReportStream(v1::MetricRequest* request, uint64_t timeout,
-                        grpc::RpcCallback<v1::MetricResponse>* callback);
+  void SendReportStream(v1::MetricRequest* request, uint64_t timeout, grpc::RpcCallback<v1::MetricResponse>* callback);
 
   // 检查连接是否空闲
   bool CheckIdle(uint64_t idle_check_time);
@@ -143,17 +139,16 @@ public:
   // 获取建立连接所用的服务实例ID，标示连接
   const std::string& GetId() { return instance_->GetId(); }
 
-private:
+ private:
   // 根据请求类型获取RPC请求路径
   static const char* GetCallPath(MetricRpcType rate_limit_rpc_type);
 
   // 请求出错关闭连接
-  void CloseForError();
+  void CloseForError(PolarisServerCode server_code);
 
-  void ResponseErrHandler(uint32_t resp_code,
-                          std::map<uint64_t, MetricInflightRequest*>::iterator& it);
+  void ResponseErrHandler(uint32_t resp_code, std::map<uint64_t, MetricInflightRequest*>::iterator& it);
 
-private:
+ private:
   friend class MetricRequestTimeoutCheck;
   MetricConnector* connector_;
   Instance* instance_;
@@ -172,7 +167,7 @@ private:
 
 // 负责与限流服务器同步限流数据
 class MetricConnector {
-public:
+ public:
   MetricConnector(Reactor& reactor, Context* context);
 
   virtual ~MetricConnector();
@@ -198,18 +193,18 @@ public:
   void UpdateCallResult(Instance* instance, PolarisServerCode server_code);
   void EraseConnection(const std::string& key) { connection_mgr_.erase(key); }
 
-private:
+ private:
   ReturnCode SelectConnection(const v1::MetricKey& metric_key, MetricConnection*& connection);
 
   uint64_t NextMsgId();
 
-private:
+ private:
   Reactor& reactor_;
   Context* context_;
   uint64_t idle_check_interval_;     // 空闲连接检查间隔
   uint64_t remove_after_idle_time_;  // 连接空闲删除时间
 
-protected:  // protected for test
+ protected:  // protected for test
   virtual ReturnCode SelectInstance(const std::string& hash_key, Instance** instance);
 
   // 定时检查空闲连接

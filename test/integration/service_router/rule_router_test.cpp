@@ -22,16 +22,15 @@
 #include "integration/common/integration_base.h"
 
 #include "polaris/consumer.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
 
 class RuleRouterIntegrationTest : public IntegrationBase {
-protected:
+ protected:
   virtual void SetUp() {
     service_key_.namespace_ = "Test";
-    service_key_.name_      = "rule.router.test" + StringUtils::TypeToStr(Time::GetCurrentTimeMs());
+    service_key_.name_ = "rule.router.test" + std::to_string(Time::GetSystemTimeMs());
     service_.mutable_namespace_()->set_value(service_key_.namespace_);
     service_.mutable_name()->set_value(service_key_.name_);
 
@@ -39,7 +38,7 @@ protected:
 
     // 创建Consumer对象
     consumer_ = ConsumerApi::CreateFromString(config_string_);
-    ASSERT_TRUE(consumer_ != NULL) << config_string_;
+    ASSERT_TRUE(consumer_ != nullptr) << config_string_;
 
     routing_.mutable_service()->set_value(service_.name().value());
     routing_.mutable_namespace_()->set_value(service_.namespace_().value());
@@ -48,7 +47,7 @@ protected:
   }
 
   virtual void TearDown() {
-    if (consumer_ != NULL) {
+    if (consumer_ != nullptr) {
       delete consumer_;
     }
     for (std::size_t i = 0; i < instances_.size(); ++i) {
@@ -66,7 +65,7 @@ protected:
     instance.mutable_service_token()->set_value(service_token_);
     instance.mutable_weight()->set_value(100);
     next_port_++;
-    instance.mutable_host()->set_value("host" + StringUtils::TypeToStr(next_port_));
+    instance.mutable_host()->set_value("host" + std::to_string(next_port_));
     instance.mutable_port()->set_value(next_port_);
     (*instance.mutable_metadata())["env"] = env;
     AddPolarisServiceInstance(instance, instance_id);
@@ -100,7 +99,7 @@ protected:
     ASSERT_EQ(instances_size, instances_.size());
   }
 
-protected:
+ protected:
   ConsumerApi *consumer_;
   std::vector<v1::Instance> instances_;
   v1::Routing routing_;
@@ -111,7 +110,7 @@ protected:
 
 TEST_F(RuleRouterIntegrationTest, EmptySourceRuleMatch) {
   // 创建规则
-  v1::Route *route             = routing_.add_inbounds();
+  v1::Route *route = routing_.add_inbounds();
   v1::Destination *destination = route->add_destinations();
   (*destination->mutable_metadata())["env"].set_type(v1::MatchString::EXACT);
   (*destination->mutable_metadata())["env"].mutable_value()->set_value("base");
@@ -123,13 +122,13 @@ TEST_F(RuleRouterIntegrationTest, EmptySourceRuleMatch) {
   GetOneInstanceRequest one_instance_request(service_key_);
   for (int i = 0; i < 100; i++) {
     ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance_), kReturnOk);
-    ASSERT_EQ(instance_.GetMetadata()["env"], "base");
+    ASSERT_EQ(instance_.GetMetadata().find("env")->second, "base");
   }
 }
 
 TEST_F(RuleRouterIntegrationTest, WildcardSourceRuleMatch) {
   // 创建规则
-  v1::Route *route   = routing_.add_inbounds();
+  v1::Route *route = routing_.add_inbounds();
   v1::Source *source = route->add_sources();
   source->mutable_namespace_()->set_value("*");
   source->mutable_service()->set_value("*");
@@ -144,13 +143,13 @@ TEST_F(RuleRouterIntegrationTest, WildcardSourceRuleMatch) {
   GetOneInstanceRequest one_instance_request(service_key_);
   for (int i = 0; i < 100; i++) {
     ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance_), kReturnOk);
-    ASSERT_EQ(instance_.GetMetadata()["env"], "test1");
+    ASSERT_EQ(instance_.GetMetadata().find("env")->second, "test1");
   }
 }
 
 TEST_F(RuleRouterIntegrationTest, RuleMatchWithParameter) {
   // 创建规则
-  v1::Route *route   = routing_.add_inbounds();
+  v1::Route *route = routing_.add_inbounds();
   v1::Source *source = route->add_sources();
   (*source->mutable_metadata())["env"].set_value_type(v1::MatchString::PARAMETER);
   v1::Destination *destination = route->add_destinations();
@@ -166,32 +165,32 @@ TEST_F(RuleRouterIntegrationTest, RuleMatchWithParameter) {
     service_info.metadata_["env"] = i % 2 == 0 ? "test1" : "base";
     one_instance_request.SetSourceService(service_info);
     ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance_), kReturnOk);
-    ASSERT_EQ(instance_.GetMetadata()["env"], service_info.metadata_["env"]);
+    ASSERT_EQ(instance_.GetMetadata().find("env")->second, service_info.metadata_["env"]);
   }
 }
 
 class RuleRouterMultiEnvIntegrationTest : public RuleRouterIntegrationTest {
-protected:
+ protected:
   virtual void SetUp() {
     base_env_ = "POLARIS_BASE_ENV";
-    int rc    = setenv(base_env_.c_str(), "base", 1);
+    int rc = setenv(base_env_.c_str(), "base", 1);
     ASSERT_EQ(rc, 0);
     env_ = "POLARIS_ENV";
-    rc   = setenv(env_.c_str(), "feature1", 1);
+    rc = setenv(env_.c_str(), "feature1", 1);
     ASSERT_EQ(rc, 0);
     RuleRouterIntegrationTest::SetUp();
   }
 
   virtual void TearDown() { RuleRouterIntegrationTest::TearDown(); }
 
-protected:
+ protected:
   std::string base_env_;
   std::string env_;
 };
 
 TEST_F(RuleRouterMultiEnvIntegrationTest, MultiEnvWithVariable) {
   // 创建规则
-  v1::Route *route   = routing_.add_inbounds();
+  v1::Route *route = routing_.add_inbounds();
   v1::Source *source = route->add_sources();
   (*source->mutable_metadata())["env"].set_value_type(v1::MatchString::PARAMETER);
   v1::Destination *destination = route->add_destinations();
@@ -202,7 +201,7 @@ TEST_F(RuleRouterMultiEnvIntegrationTest, MultiEnvWithVariable) {
   (*destination->mutable_metadata())["env"].mutable_value()->set_value(base_env_);
   destination->mutable_priority()->set_value(1);
 
-  route       = routing_.add_inbounds();
+  route = routing_.add_inbounds();
   destination = route->add_destinations();
   (*destination->mutable_metadata())["env"].set_value_type(v1::MatchString::VARIABLE);
   (*destination->mutable_metadata())["env"].mutable_value()->set_value(env_);
@@ -224,14 +223,14 @@ TEST_F(RuleRouterMultiEnvIntegrationTest, MultiEnvWithVariable) {
     service_info.metadata_["env"] = i % 2 == 0 ? "test1" : "feature2";
     one_instance_request.SetSourceService(service_info);
     ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance_), kReturnOk);
-    ASSERT_EQ(instance_.GetMetadata()["env"], service_info.metadata_["env"]);
+    ASSERT_EQ(instance_.GetMetadata().find("env")->second, service_info.metadata_["env"]);
   }
   // 透传的env不存在，路由到base
   for (int i = 1; i < 10; i += 2) {
-    service_info.metadata_["env"] = "feature" + StringUtils::TypeToStr(i);
+    service_info.metadata_["env"] = "feature" + std::to_string(i);
     one_instance_request.SetSourceService(service_info);
     ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance_), kReturnOk);
-    ASSERT_EQ(instance_.GetMetadata()["env"], "base");
+    ASSERT_EQ(instance_.GetMetadata().find("env")->second, "base");
   }
 
   // // 不传env
@@ -239,7 +238,7 @@ TEST_F(RuleRouterMultiEnvIntegrationTest, MultiEnvWithVariable) {
   one_instance_request.SetSourceService(service_info);
   for (int i = 1; i < 10; ++i) {
     ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance_), kReturnOk);
-    ASSERT_EQ(instance_.GetMetadata()["env"], "base");
+    ASSERT_EQ(instance_.GetMetadata().find("env")->second, "base");
   }
 
   // 创建feature1
@@ -247,7 +246,7 @@ TEST_F(RuleRouterMultiEnvIntegrationTest, MultiEnvWithVariable) {
   WaitDataReady();
   for (int i = 1; i < 10; ++i) {
     ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance_), kReturnOk);
-    ASSERT_EQ(instance_.GetMetadata()["env"], "feature1");
+    ASSERT_EQ(instance_.GetMetadata().find("env")->second, "feature1");
   }
 
   // 传入别的metadata
@@ -256,7 +255,32 @@ TEST_F(RuleRouterMultiEnvIntegrationTest, MultiEnvWithVariable) {
   one_instance_request.SetSourceService(service_info);
   for (int i = 1; i < 10; ++i) {
     ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance_), kReturnOk);
-    ASSERT_EQ(instance_.GetMetadata()["env"], "feature1");
+    ASSERT_EQ(instance_.GetMetadata().find("env")->second, "feature1");
+  }
+}
+
+TEST_F(RuleRouterMultiEnvIntegrationTest, MatchDstService) {
+  // 创建规则
+  v1::Route *route = routing_.add_inbounds();
+  v1::Source *source = route->add_sources();
+  source->mutable_to_namespace()->set_value(service_key_.namespace_);
+  source->mutable_to_service()->set_value(service_key_.name_);
+  v1::Destination *destination = route->add_destinations();
+  (*destination->mutable_metadata())["env"].mutable_value()->set_value("base");
+
+  route = routing_.add_inbounds();
+  destination = route->add_destinations();
+  (*destination->mutable_metadata())["env"].mutable_value()->set_value("test1");
+
+  AddPolarisRouteRule(routing_);
+
+  // 创建实例
+  CreateInstances();
+
+  GetOneInstanceRequest one_instance_request(service_key_);
+  for (int i = 0; i < 100; i++) {  // 透传env存在实例
+    ASSERT_EQ(consumer_->GetOneInstance(one_instance_request, instance_), kReturnOk);
+    ASSERT_EQ(instance_.GetMetadata().find("env")->second, "base");
   }
 }
 

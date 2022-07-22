@@ -29,14 +29,14 @@
 namespace polaris {
 
 static const char POLARIS_SERVER_ENV[] = "POLARIS_SERVER";
-static const char POLARIS_USER_ENV[]   = "POLARIS_USER";
+static const char POLARIS_USER_ENV[] = "POLARIS_USER";
 
 std::string Environment::persist_dir_;
 std::string Environment::polaris_server_;
 
 void Environment::SetUp() {
   char* env = getenv(POLARIS_SERVER_ENV);
-  ASSERT_TRUE(env != NULL) << "get env POLARIS_SERVER errno:" << errno;
+  ASSERT_TRUE(env != nullptr) << "get env POLARIS_SERVER errno:" << errno;
   polaris_server_.assign(env);
   polaris::TestUtils::CreateTempDir(log_dir_);
   polaris::GetLogger()->SetLogDir(log_dir_);
@@ -62,9 +62,11 @@ void Environment::GetConsoleServer(std::string& host, int& port) {
 
 std::string Environment::GetDiscoverServer() { return polaris_server_ + ":8081"; }
 
+std::string Environment::GetTrpcDiscoverServer() { return polaris_server_ + ":8091"; }
+
 std::string Environment::GetPolarisUser() {
   char* env = getenv(POLARIS_USER_ENV);
-  EXPECT_TRUE(env != NULL) << "get env POLARIS_USER errno:" << errno;
+  EXPECT_TRUE(env != nullptr) << "get env POLARIS_USER errno:" << errno;
   return env;
 }
 

@@ -34,25 +34,25 @@ std::string FileUtils::ExpandPath(const std::string& path) {
   }
 
   std::string before = path.substr(0, begin_index);
-  std::string after  = path.substr(begin_index + 1);
+  std::string after = path.substr(begin_index + 1);
   std::string variable;
   std::size_t end_index = after.find('/');
   if (end_index == std::string::npos) {
     variable.swap(after);
   } else {
     variable = after.substr(0, end_index);
-    after    = after.substr(end_index);
+    after = after.substr(end_index);
   }
 
   std::string value;
-  char* v = NULL;
+  char* v = nullptr;
   if (variable.compare("HOME") == 0) {
     // HOME环境变量需要从用户属性获取，避免程序调用setuid导致$HOME还指向之前用户的问题
     v = getpwuid(getuid())->pw_dir;
   } else {
     v = getenv(variable.c_str());
   }
-  if (v != NULL) {
+  if (v != nullptr) {
     value = std::string(v);
   }
 
@@ -98,8 +98,8 @@ bool FileUtils::UpdateModifiedTime(const std::string& file) {
     return false;
   }
   struct utimbuf new_times;
-  new_times.actime  = st.st_atime;  // 访问时间不变
-  new_times.modtime = time(NULL);   // 修改时间为当前时间
+  new_times.actime = st.st_atime;     // 访问时间不变
+  new_times.modtime = time(nullptr);  // 修改时间为当前时间
   return utime(file.c_str(), &new_times) == 0;
 }
 
