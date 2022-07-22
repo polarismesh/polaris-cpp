@@ -19,12 +19,12 @@ namespace polaris {
 
 void SystemVariables::InitFromConfig(const std::map<std::string, std::string>& variables) {
   if (!variables.empty()) {
-    config_variables_.Set(new std::map<std::string, std::string>(variables));
+    config_variables_.reset(new std::map<std::string, std::string>(variables));
   }
 }
 
 bool SystemVariables::GetVariable(const std::string& variable, std::string& value) const {
-  if (config_variables_.NotNull()) {
+  if (config_variables_ != nullptr) {
     std::map<std::string, std::string>::const_iterator it = config_variables_->find(variable);
     if (it != config_variables_->end()) {
       value = it->second;
@@ -33,7 +33,7 @@ bool SystemVariables::GetVariable(const std::string& variable, std::string& valu
   }
   // 从系统环境变量中查询
   char* env_var = getenv(variable.c_str());
-  if (env_var != NULL) {
+  if (env_var != nullptr) {
     value = env_var;
     return true;
   }

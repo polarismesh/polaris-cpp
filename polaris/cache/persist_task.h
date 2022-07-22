@@ -24,7 +24,7 @@ namespace polaris {
 
 // 服务数据持久化异步任务
 class PersistTask : public TimingTask {
-public:
+ public:
   PersistTask(const std::string& file, const std::string& data, int retry_times, uint64_t interval);
 
   virtual void Run();
@@ -35,7 +35,7 @@ public:
 
   bool DoDelete();  // 执行删除持久化文件操作
 
-private:
+ private:
   std::string file_;  // 持久化文件名
   std::string data_;  // 持久化数据
   int retry_times_;   // 剩余重试次数
@@ -43,12 +43,12 @@ private:
 
 // 执行刷新磁盘文件缓存时间任务
 class PersistRefreshTimeTask : public Task {
-public:
+ public:
   explicit PersistRefreshTimeTask(const std::string& file) : file_(file) {}
 
   virtual void Run();
 
-private:
+ private:
   std::string file_;  // 文件名
 };
 

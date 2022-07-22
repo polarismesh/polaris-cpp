@@ -39,24 +39,21 @@ struct FeedbackInfo {
 
 struct LocalityAwareLbCacheKey {
   InstancesSet *prior_data_;
-  bool operator<(const LocalityAwareLbCacheKey &rhs) const {
-    return this->prior_data_ < rhs.prior_data_;
-  }
+  bool operator<(const LocalityAwareLbCacheKey &rhs) const { return this->prior_data_ < rhs.prior_data_; }
 };
 
-class LocalityAwareLBCacheValue : public CacheValueBase {
-public:
-  LocalityAwareLBCacheValue(int64_t min_weight, InstancesSet *prior_date)
-      : locality_aware_selector_(min_weight) {
-    route_key_  = 0;
+class LocalityAwareLBCacheValue : public ServiceBase {
+ public:
+  LocalityAwareLBCacheValue(int64_t min_weight, InstancesSet *prior_date) : locality_aware_selector_(min_weight) {
+    route_key_ = 0;
     sum_weight_ = 0;
     prior_date_ = prior_date;
     prior_date_->IncrementRef();
   }
   virtual ~LocalityAwareLBCacheValue() {
-    if (prior_date_ != NULL) {
+    if (prior_date_ != nullptr) {
       prior_date_->DecrementRef();
-      prior_date_ = NULL;
+      prior_date_ = nullptr;
     }
     route_key_ = 0;
     instance_map_.clear();
@@ -64,7 +61,7 @@ public:
     weight_instances_.clear();
   }
 
-public:
+ public:
   struct WeightInstance {
     int weight_;
     Instance *instance_;
@@ -82,30 +79,28 @@ public:
 };
 
 class LocalityAwareLoadBalancer : public LoadBalancer {
-public:
+ public:
   LocalityAwareLoadBalancer();
   virtual ~LocalityAwareLoadBalancer();
   virtual ReturnCode Init(Config *config, Context *context);
   virtual LoadBalanceType GetLoadBalanceType() { return kLoadBalanceTypeLocalityAware; }
-  virtual ReturnCode ChooseInstance(ServiceInstances *service_instances, const Criteria &criteria,
-                                    Instance *&next);
+  virtual ReturnCode ChooseInstance(ServiceInstances *service_instances, const Criteria &criteria, Instance *&next);
   ReturnCode Feedback(const FeedbackInfo &info);
 
-private:
+ private:
   uint64_t CalculateLocalityAwareInfo(uint32_t route_key, uint64_t begin_time_ms);
   uint32_t GetRouteKey(uint64_t locality_aware_info);
   uint64_t GetBeginTimeMs(uint64_t locality_aware_info);
 
-private:
+ private:
   Context *context_;
-  sync::Mutex mutex_;
   uint32_t route_key_count_;
-  uint64_t system_begin_time_;            // us
-  uint32_t describe_interval_;            // ms
-  sync::Atomic<uint64_t> describe_time_;  // us
+  uint64_t system_begin_time_;           // us
+  uint32_t describe_interval_;           // ms
+  std::atomic<uint64_t> describe_time_;  // us
   int64_t min_weight_;
-  ServiceCache<LocalityAwareLbCacheKey> *cache_key_data_cache_;
-  ServiceCache<uint32_t> *rout_key_data_cache_;
+  ServiceCache<LocalityAwareLbCacheKey, LocalityAwareLBCacheValue> *cache_key_data_cache_;
+  ServiceCache<uint32_t, LocalityAwareLBCacheValue> *rout_key_data_cache_;
 };
 
 }  // namespace polaris

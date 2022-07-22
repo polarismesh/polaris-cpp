@@ -26,26 +26,46 @@
 
 namespace polaris {
 
+TEST(QuotaUseUpTimeTest, TestUseTime) {
+  QuotaUseUpTime use_up_time;
+  ASSERT_FALSE(use_up_time.Valid());
+
+  use_up_time.Update(100);
+  use_up_time.Update(200);
+  use_up_time.Reset();
+  ASSERT_TRUE(use_up_time.Valid()) << use_up_time.GetLastTime();
+  ASSERT_EQ(use_up_time.GetLastTime(), 100);
+
+  use_up_time.Reset();
+  ASSERT_FALSE(use_up_time.Valid()) << use_up_time.GetLastTime();
+
+  use_up_time.Update(150);
+  use_up_time.Update(200);
+  use_up_time.Reset();
+  ASSERT_TRUE(use_up_time.Valid());
+  ASSERT_EQ(use_up_time.GetLastTime(), 150);
+}
+
 class TokenBucketTest : public ::testing::Test {
-protected:
+ protected:
   void SetUp() {
     RateLimitAmount amount;
-    amount.max_amount_     = 10;
+    amount.max_amount_ = 10;
     amount.valid_duration_ = 1000;
-    token_bucket_.Init(amount, Time::GetCurrentTimeMs(), 5);
+    token_bucket_.Init(amount, Time::GetSystemTimeMs(), 5);
     acquire_amount_ = 1;
   }
 
   void TearDown() {}
 
-protected:
+ protected:
   TokenBucket token_bucket_;
   int64_t acquire_amount_;
 };
 
 TEST_F(TokenBucketTest, LocalUsage) {
   int64_t left_quota;
-  uint64_t expect_bucket_time = Time::GetCurrentTimeMs() / 1000;
+  uint64_t expect_bucket_time = Time::GetSystemTimeMs() / 1000;
   for (int i = 0; i < 10; ++i) {
     bool result = token_bucket_.GetToken(acquire_amount_, expect_bucket_time, false, left_quota);
     if (i < 5) {
@@ -59,7 +79,7 @@ TEST_F(TokenBucketTest, LocalUsage) {
 }
 
 TEST_F(TokenBucketTest, RemoteUsage) {
-  uint64_t expect_bucket_time = Time::GetCurrentTimeMs() / 1000;
+  uint64_t expect_bucket_time = Time::GetSystemTimeMs() / 1000;
   // 已经使用完2次，还剩8次
   token_bucket_.RefreshToken(8, 0, expect_bucket_time, false, 0);
   for (int i = 0; i < 10; ++i) {
@@ -74,8 +94,17 @@ TEST_F(TokenBucketTest, RemoteUsage) {
   }
 }
 
+TEST_F(TokenBucketTest, TestNextReportTime) {
+  uint64_t expect_bucket_time = Time::GetSystemTimeMs() / 1000;
+  // 初始10 qps
+  int64_t remote_left = 10;
+  int64_t ack_quota = 0;
+  uint64_t time_in_bucket = 0;
+  ASSERT_TRUE(token_bucket_.RefreshToken(remote_left, ack_quota, expect_bucket_time, false, time_in_bucket) > 1);
+}
+
 TEST_F(TokenBucketTest, RefreshToken) {
-  uint64_t expect_bucket_time = Time::GetCurrentTimeMs() / 1000;
+  uint64_t expect_bucket_time = Time::GetSystemTimeMs() / 1000;
   // 已经使用完0次，还剩10
   token_bucket_.RefreshToken(10, 0, expect_bucket_time, false, 0);
   for (int i = 0; i < 20; ++i) {
@@ -100,11 +129,11 @@ TEST_F(TokenBucketTest, RefreshToken) {
 }
 
 TEST_F(TokenBucketTest, RefreshTokenWithLeft) {
-  uint64_t current_time       = Time::GetCurrentTimeMs();
+  uint64_t current_time = Time::GetSystemTimeMs();
   uint64_t expect_bucket_time = current_time / 1000;
   // 还剩10次，不需要加快上报
   uint64_t report_time = token_bucket_.RefreshToken(10, 0, expect_bucket_time, false, 0);
-  ASSERT_EQ(report_time, 1);
+  ASSERT_EQ(report_time, Time::kMaxTime);
   for (int i = 0; i < 20; ++i) {
     int64_t left_quota;
     bool result = token_bucket_.GetToken(acquire_amount_, expect_bucket_time, true, left_quota);
@@ -133,25 +162,25 @@ TEST_F(TokenBucketTest, RefreshTokenWithLeft) {
 }
 
 class QuotaBucketQpsTest : public ::testing::Test {
-protected:
+ protected:
   void SetUp() {
     TestUtils::SetUpFakeTime();
-    qps_bucket_ = NULL;
+    qps_bucket_ = nullptr;
     RateLimitRule rate_limit_rule;
     InitRateLimitRule(rate_limit_rule);
-    qps_bucket_     = new RemoteAwareQpsBucket(&rate_limit_rule);
+    qps_bucket_ = new RemoteAwareQpsBucket(&rate_limit_rule);
     acquire_amount_ = 1;
   }
 
   void TearDown() {
-    if (qps_bucket_ != NULL) {
+    if (qps_bucket_ != nullptr) {
       delete qps_bucket_;
-      qps_bucket_ = NULL;
+      qps_bucket_ = nullptr;
     }
     TestUtils::TearDownFakeTime();
   }
 
-protected:
+ protected:
   static void InitRateLimitRule(RateLimitRule &rate_limit_rule);
   RemoteAwareQpsBucket *qps_bucket_;
   int64_t acquire_amount_;
@@ -169,13 +198,12 @@ void QuotaBucketQpsTest::InitRateLimitRule(RateLimitRule &rate_limit_rule) {
 
 TEST_F(QuotaBucketQpsTest, AllocateMulti) {
   LimitAllocateResult limit_result;
-  QuotaResponse *response =
-      qps_bucket_->Allocate(acquire_amount_, Time::GetCurrentTimeMs(), &limit_result);
+  QuotaResponse *response = qps_bucket_->Allocate(acquire_amount_, Time::GetSystemTimeMs(), &limit_result);
   ASSERT_EQ(response->GetResultCode(), kQuotaResultOk);
   ASSERT_EQ(limit_result.violate_duration_, 0);
   delete response;
   acquire_amount_ = 39;
-  response        = qps_bucket_->Allocate(acquire_amount_, Time::GetCurrentTimeMs(), &limit_result);
+  response = qps_bucket_->Allocate(acquire_amount_, Time::GetSystemTimeMs(), &limit_result);
   ASSERT_EQ(response->GetResultCode(), kQuotaResultLimited);
   ASSERT_EQ(limit_result.violate_duration_, 1000);
   delete response;
@@ -184,8 +212,7 @@ TEST_F(QuotaBucketQpsTest, AllocateMulti) {
 TEST_F(QuotaBucketQpsTest, AllocateBeforeInit) {
   LimitAllocateResult limit_result;
   for (int i = 0; i < 20; ++i) {
-    QuotaResponse *response =
-        qps_bucket_->Allocate(acquire_amount_, Time::GetCurrentTimeMs(), &limit_result);
+    QuotaResponse *response = qps_bucket_->Allocate(acquire_amount_, Time::GetSystemTimeMs(), &limit_result);
     ASSERT_EQ(response->GetResultCode(), i < 10 ? kQuotaResultOk : kQuotaResultLimited);
     ASSERT_EQ(limit_result.violate_duration_, i < 10 ? 0 : 1000);
     delete response;
@@ -197,15 +224,14 @@ TEST_F(QuotaBucketQpsTest, AllocateWithExpired) {
   for (int j = 0; j < 10; ++j) {
     if (j == 5) {  // 完成Init
       RemoteQuotaResult result;
-      result.local_usage_                                      = NULL;
-      result.curret_server_time_                               = Time::GetCurrentTimeMs();
-      result.remote_usage_.create_server_time_                 = result.curret_server_time_;
+      result.local_usage_ = nullptr;
+      result.current_server_time_ = Time::GetSystemTimeMs();
+      result.remote_usage_.create_server_time_ = result.current_server_time_;
       result.remote_usage_.quota_usage_[1000].quota_allocated_ = 10;
       qps_bucket_->SetRemoteQuota(result);
     }
     for (int i = 0; i < 20; ++i) {
-      QuotaResponse *response =
-          qps_bucket_->Allocate(acquire_amount_, Time::GetCurrentTimeMs(), &limit_result);
+      QuotaResponse *response = qps_bucket_->Allocate(acquire_amount_, Time::GetSystemTimeMs(), &limit_result);
       ASSERT_EQ(response->GetResultCode(), i < 10 ? kQuotaResultOk : kQuotaResultLimited);
       delete response;
     }
@@ -216,21 +242,20 @@ TEST_F(QuotaBucketQpsTest, AllocateWithExpired) {
 TEST_F(QuotaBucketQpsTest, AllocateAfterInit) {
   // 完成Init
   RemoteQuotaResult result;
-  result.local_usage_                                      = NULL;
-  result.curret_server_time_                               = Time::GetCurrentTimeMs();
-  result.remote_usage_.create_server_time_                 = result.curret_server_time_;
+  result.local_usage_ = nullptr;
+  result.current_server_time_ = Time::GetSystemTimeMs();
+  result.remote_usage_.create_server_time_ = result.current_server_time_;
   result.remote_usage_.quota_usage_[1000].quota_allocated_ = 5;
   qps_bucket_->SetRemoteQuota(result);
   LimitAllocateResult limit_result;
   for (int i = 0; i < 10; ++i) {
-    QuotaResponse *response =
-        qps_bucket_->Allocate(acquire_amount_, Time::GetCurrentTimeMs(), &limit_result);
+    QuotaResponse *response = qps_bucket_->Allocate(acquire_amount_, Time::GetSystemTimeMs(), &limit_result);
     ASSERT_EQ(response->GetResultCode(), i < 5 ? kQuotaResultOk : kQuotaResultLimited);
     ASSERT_EQ(limit_result.violate_duration_, i < 5 ? 0 : 1000);
     delete response;
     if (i == 1) {  // 第40%*5次时触发上报
-      uint64_t current_server_time = Time::GetCurrentTimeMs();
-      QuotaUsageInfo *usage        = qps_bucket_->GetQuotaUsage(current_server_time);
+      uint64_t current_server_time = Time::GetSystemTimeMs();
+      QuotaUsageInfo *usage = qps_bucket_->GetQuotaUsage(current_server_time);
       ASSERT_EQ(usage->create_server_time_, current_server_time);
       ASSERT_EQ(usage->quota_usage_.size(), 1);
       ASSERT_EQ(usage->quota_usage_[1000].quota_allocated_, 2);

@@ -21,13 +21,11 @@
 #include <sstream>
 #include <string>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "logger.h"
 #include "model/return_code.h"
 #include "monitor/api_stat.h"
 #include "polaris/context.h"
-#include "utils/static_assert.h"
-#include "utils/string_utils.h"
 #include "utils/utils.h"
 
 namespace polaris {
@@ -35,8 +33,8 @@ namespace polaris {
 extern const char* g_sdk_type;
 extern const char* g_sdk_version;
 
-static const char* g_ApiStatKeyMap[] = {"Consumer::InitService",
-                                        "Consumer::GetOneInstance",
+static const char* g_ApiStatKeyMap[] = {"Consumer::GetOneInstance",
+                                        "Consumer::InitService",
                                         "Consumer::GetInstances",
                                         "Consumer::AsyncGetOneInstance",
                                         "Consumer::AsyncGetInstances",
@@ -50,12 +48,10 @@ static const char* g_ApiStatKeyMap[] = {"Consumer::InitService",
                                         "Provider::AsyncHeartbeat"};
 
 // 静态断言两处stat key的长度相等
-STATIC_ASSERT(sizeof(g_ApiStatKeyMap) / sizeof(const char*) == kApiStatKeyCount,
-              "api stat key define error");
+static_assert(sizeof(g_ApiStatKeyMap) / sizeof(const char*) == kApiStatKeyCount, "api stat key define error");
 
 static const char* g_DelayRangeStr[] = {
-    "[0ms,2ms)",     "[2ms, 10ms)",   "[10ms,50ms)", "[50ms,100ms)",
-    "[100ms,150ms)", "[150ms,200ms)", "[200ms,)",
+    "[0ms,2ms)", "[2ms, 10ms)", "[10ms,50ms)", "[50ms,100ms)", "[100ms,150ms)", "[150ms,200ms)", "[200ms,)",
 };
 
 static const int kDelayBucketCount = sizeof(g_DelayRangeStr) / sizeof(const char*);
@@ -64,20 +60,20 @@ ApiStatRegistry::ApiStatRegistry(Context* context) {
   context_ = context;
   GetAllRetrunCodeInfo(ret_code_info_, success_code_index_);
   ret_code_count_ = ret_code_info_.size();
-  api_metrics_    = new int**[kApiStatKeyCount];
+  api_metrics_ = new std::atomic<int>**[kApiStatKeyCount];
   for (int i = 0; i < kApiStatKeyCount; i++) {
-    api_metrics_[i] = new int*[ret_code_count_];
+    api_metrics_[i] = new std::atomic<int>*[ret_code_count_];
     for (int j = 0; j < ret_code_count_; j++) {
-      api_metrics_[i][j] = new int[kDelayBucketCount];
+      api_metrics_[i][j] = new std::atomic<int>[kDelayBucketCount];
       for (int k = 0; k < kDelayBucketCount; k++) {
-        api_metrics_[i][j][k] = 0;
+        api_metrics_[i][j][k].store(0, std::memory_order_relaxed);
       }
     }
   }
 }
 
 ApiStatRegistry::~ApiStatRegistry() {
-  context_ = NULL;
+  context_ = nullptr;
   for (int i = 0; i < kApiStatKeyCount; i++) {
     for (int j = 0; j < ret_code_count_; j++) {
       delete[] api_metrics_[i][j];
@@ -88,7 +84,7 @@ ApiStatRegistry::~ApiStatRegistry() {
 }
 
 void ApiStatRegistry::Record(ApiStatKey stat_key, ReturnCode ret_code, uint64_t delay) {
-  std::size_t ret_code_index = ReturnCodeToIndex(ret_code);
+  std::size_t ret_code_index = ret_code == kReturnOk ? 0 : ReturnCodeToIndex(ret_code);
   int delay_index;
   if (delay < 2) {
     delay_index = 0;
@@ -102,7 +98,7 @@ void ApiStatRegistry::Record(ApiStatKey stat_key, ReturnCode ret_code, uint64_t 
       delay_index = kDelayBucketCount - 1;
     }
   }
-  ATOMIC_INC(&api_metrics_[stat_key][ret_code_index][delay_index]);
+  api_metrics_[stat_key][ret_code_index][delay_index].fetch_add(1, std::memory_order_relaxed);
 }
 
 void ApiStatLog(google::protobuf::RepeatedField<v1::SDKAPIStatistics>& statistics) {
@@ -110,31 +106,29 @@ void ApiStatLog(google::protobuf::RepeatedField<v1::SDKAPIStatistics>& statistic
     v1::SDKAPIStatistics& item = statistics[i];
     std::ostringstream output;
     const v1::SDKAPIStatisticsKey& stat_key = item.key();
-    const v1::Indicator& stat_value         = item.value();
+    const v1::Indicator& stat_value = item.value();
     output << "id:" << item.id().value() << ", client_host:" << stat_key.client_host().value()
            << ", api:" << stat_key.sdk_api().value() << ", ret_code:" << stat_key.res_code().value()
-           << ", success:" << stat_key.success().value()
-           << ", delay_range:" << stat_key.delay_range().value()
+           << ", success:" << stat_key.success().value() << ", delay_range:" << stat_key.delay_range().value()
            << ", client_version:" << stat_key.client_version().value()
            << ", client_type: " << stat_key.client_type().value()
-           << ", result_type: " << v1::APIResultType_Name(stat_key.result())
-           << ", uid: " << stat_key.uid()
+           << ", result_type: " << v1::APIResultType_Name(stat_key.result()) << ", uid: " << stat_key.uid()
            << ", value:" << stat_value.total_request_per_minute().value();
     POLARIS_STAT_LOG(LOG_INFO, "sdk api stat %s", output.str().c_str());
   }
 }
 
-void ApiStatRegistry::GetApiStatistics(
-    google::protobuf::RepeatedField<v1::SDKAPIStatistics>& statistics) {
+void ApiStatRegistry::GetApiStatistics(google::protobuf::RepeatedField<v1::SDKAPIStatistics>& statistics) {
   const std::string& tontext_uid = context_->GetContextImpl()->GetSdkToken().uid();
   for (int i = 0; i < kApiStatKeyCount; i++) {
     for (int j = 0; j < ret_code_count_; j++) {
       for (int k = 0; k < kDelayBucketCount; k++) {
-        if (api_metrics_[i][j][k] == 0) {
+        int count = api_metrics_[i][j][k].exchange(0, std::memory_order_relaxed);
+        if (count == 0) {
           continue;
         }
         v1::SDKAPIStatistics* api_stat = statistics.Add();
-        api_stat->mutable_id()->set_value(StringUtils::TypeToStr<uint64_t>(Utils::GetNextSeqId()));
+        api_stat->mutable_id()->set_value(std::to_string(Utils::GetNextSeqId()));
         v1::SDKAPIStatisticsKey* stat_key = api_stat->mutable_key();
         stat_key->mutable_client_host()->set_value(context_->GetContextImpl()->GetApiBindIp());
         stat_key->mutable_sdk_api()->set_value(g_ApiStatKeyMap[i]);
@@ -145,9 +139,7 @@ void ApiStatRegistry::GetApiStatistics(
         stat_key->mutable_client_type()->set_value(g_sdk_type);
         stat_key->set_result(static_cast<v1::APIResultType>(ret_code_info_[j]->type_));
         stat_key->set_uid(tontext_uid);
-        int count = api_metrics_[i][j][k];
         api_stat->mutable_value()->mutable_total_request_per_minute()->set_value(count);
-        ATOMIC_SUB(&api_metrics_[i][j][k], count);  // 扣除
       }
     }
   }

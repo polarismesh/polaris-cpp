@@ -19,8 +19,6 @@
 
 #include <gtest/gtest.h>
 
-#include "utils/string_utils.h"
-
 namespace polaris {
 
 void InitRuleAmount(v1::Rule& rule) {
@@ -138,10 +136,7 @@ TEST(RateLimitRuleTest, InitReport) {
 
   rule.mutable_report()->mutable_interval()->set_nanos(50 * 1000 * 1000);
   ASSERT_TRUE(rate_limit_rule.Init(rule));
-  ASSERT_EQ(rate_limit_rule.GetRateLimitReport().interval_, 40);
-  ASSERT_EQ(rate_limit_rule.GetRateLimitReport().jitter_, 20);
-  ASSERT_GE(rate_limit_rule.GetRateLimitReport().IntervalWithJitter(), 40);
-  ASSERT_LE(rate_limit_rule.GetRateLimitReport().IntervalWithJitter(), 60);
+  ASSERT_EQ(rate_limit_rule.GetRateLimitReport().GetInterval(), 50);
 }
 
 TEST(RateLimitRuleTest, SortByPriority) {
@@ -150,7 +145,7 @@ TEST(RateLimitRuleTest, SortByPriority) {
     v1::Rule rule;
     InitRuleAmount(rule);
     rule.mutable_priority()->set_value((10 - i) / 3);
-    rule.mutable_id()->set_value(StringUtils::TypeToStr(i));
+    rule.mutable_id()->set_value(std::to_string(i));
     RateLimitRule* rate_limit_rule = new RateLimitRule();
     ASSERT_TRUE(rate_limit_rule->Init(rule));
     limit_data.AddRule(rate_limit_rule);
@@ -159,8 +154,7 @@ TEST(RateLimitRuleTest, SortByPriority) {
   const std::vector<RateLimitRule*>& rules = limit_data.GetRules();
   for (int i = 1; i < 10; ++i) {
     ASSERT_TRUE(rules[i - 1]->GetPriority() < rules[i]->GetPriority() ||
-                (rules[i - 1]->GetPriority() == rules[i]->GetPriority() &&
-                 rules[i - 1]->GetId() < rules[i]->GetId()));
+                (rules[i - 1]->GetPriority() == rules[i]->GetPriority() && rules[i - 1]->GetId() < rules[i]->GetId()));
   }
 }
 
@@ -177,13 +171,13 @@ TEST(RateLimitRuleTest, RegexCombine) {
     match_string.set_type(v1::MatchString::REGEX);
     match_string.mutable_value()->set_value("r.*");
     (*rule.mutable_subset())["subset"] = match_string;
-    (*rule.mutable_labels())["label"]  = match_string;
+    (*rule.mutable_labels())["label"] = match_string;
     ASSERT_TRUE(rate_limit_rule.Init(rule));
 
     std::map<std::string, std::string> subset;
     std::map<std::string, std::string> labels;
     subset["subset"] = "re1";
-    labels["label"]  = "reg2";
+    labels["label"] = "reg2";
     ASSERT_TRUE(rate_limit_rule.IsMatch(subset, labels));
     ASSERT_EQ("rule_id", rate_limit_rule.GetId());
     RateLimitWindowKey window_key;
@@ -194,21 +188,21 @@ TEST(RateLimitRuleTest, RegexCombine) {
 
 TEST(RateLimitRuleTest, RuleIndex) {
   RateLimitData limit_data;
-  srand(time(NULL));
+  srand(time(nullptr));
   for (int i = 0; i < 100; ++i) {
     v1::Rule rule;
     InitRuleAmount(rule);
-    rule.mutable_id()->set_value(StringUtils::TypeToStr(i));
+    rule.mutable_id()->set_value(std::to_string(i));
     for (int j = 0; j < 4; ++j) {
       v1::MatchString match_string;
       if (rand() % 3 != 0) {
         match_string.set_type(v1::MatchString::EXACT);
-        match_string.mutable_value()->set_value("v" + StringUtils::TypeToStr(i));
+        match_string.mutable_value()->set_value("v" + std::to_string(i));
       } else {
         match_string.set_type(v1::MatchString::REGEX);
         match_string.mutable_value()->set_value("v.*");
       }
-      (*rule.mutable_labels())["k" + StringUtils::TypeToStr(j)] = match_string;
+      (*rule.mutable_labels())["k" + std::to_string(j)] = match_string;
     }
     RateLimitRule* rate_limit_rule = new RateLimitRule();
     ASSERT_TRUE(rate_limit_rule->Init(rule));
@@ -218,10 +212,10 @@ TEST(RateLimitRuleTest, RuleIndex) {
   std::map<std::string, std::string> subset;
   std::map<std::string, std::string> labels;
   for (int i = 0; i < 1000; ++i) {
-    int value    = rand() % 100;
-    labels["k0"] = labels["k1"] = labels["k2"] = labels["k3"] = "v" + StringUtils::TypeToStr(value);
+    int value = rand() % 100;
+    labels["k0"] = labels["k1"] = labels["k2"] = labels["k3"] = "v" + std::to_string(value);
     RateLimitRule* rule = limit_data.MatchRule(subset, labels);
-    ASSERT_TRUE(rule != NULL);
+    ASSERT_TRUE(rule != nullptr);
     ASSERT_TRUE(rule->IsMatch(subset, labels));
   }
 }

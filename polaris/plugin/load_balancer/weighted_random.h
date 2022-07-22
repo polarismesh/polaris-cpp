@@ -25,13 +25,14 @@
 
 namespace polaris {
 
-class Config;
-class Context;
-
 struct RandomLbCacheKey {
   InstancesSet* prior_data_;
+  uint64_t version_;
 
-  bool operator<(const RandomLbCacheKey& rhs) const { return this->prior_data_ < rhs.prior_data_; }
+  bool operator<(const RandomLbCacheKey& rhs) const {
+    return this->prior_data_ < rhs.prior_data_ ||
+           (this->prior_data_ == rhs.prior_data_ && this->version_ < rhs.version_);
+  }
 };
 
 struct WeightInstance {
@@ -41,16 +42,16 @@ struct WeightInstance {
   bool operator<(const WeightInstance& rhs) const { return this->weight_ < rhs.weight_; }
 };
 
-class RandomLbCacheValue : public CacheValueBase {
-public:
+class RandomLbCacheValue : public ServiceBase {
+ public:
   virtual ~RandomLbCacheValue() {
     prior_date_->DecrementRef();
-    prior_date_ = NULL;
+    prior_date_ = nullptr;
     sum_weight_ = 0;
     weight_instances_.clear();
   }
 
-public:
+ public:
   InstancesSet* prior_date_;
   std::set<Instance*> half_open_instances_;
   int sum_weight_;
@@ -58,22 +59,25 @@ public:
 };
 
 class RandomLoadBalancer : public LoadBalancer {
-public:
+ public:
   RandomLoadBalancer();
 
   virtual ~RandomLoadBalancer();
 
   virtual ReturnCode Init(Config* config, Context* context);
 
+  virtual RandomLbCacheKey GenCacheKey(ServiceInstances* service_instances);
+
   virtual LoadBalanceType GetLoadBalanceType() { return kLoadBalanceTypeWeightedRandom; }
 
-  virtual ReturnCode ChooseInstance(ServiceInstances* instances, const Criteria& criteria,
-                                    Instance*& next);
+  virtual ReturnCode ChooseInstance(ServiceInstances* instances, const Criteria& criteria, Instance*& next);
 
-private:
+ protected:
   bool enable_dynamic_weight_;
   Context* context_;
-  ServiceCache<RandomLbCacheKey>* data_cache_;
+
+ private:
+  ServiceCache<RandomLbCacheKey, RandomLbCacheValue>* data_cache_;
 };
 
 }  // namespace polaris

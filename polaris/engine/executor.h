@@ -25,7 +25,7 @@ class Context;
 
 /// @brief 任务执行线程虚基类
 class Executor {
-public:
+ public:
   explicit Executor(Context* context);
 
   virtual ~Executor();
@@ -49,7 +49,7 @@ public:
 
   static void* ThreadFunction(void* arg);
 
-protected:
+ protected:
   Context* context_;
   Reactor reactor_;
   pthread_t tid_;

@@ -30,7 +30,7 @@ HashManager::~HashManager() {}
 
 ReturnCode HashManager::RegisterHashFunction(const std::string& name, Hash64Func func) {
   ReturnCode code = kReturnOk;
-  sync::MutexGuard mutex_guard(lock_);
+  const std::lock_guard<std::mutex> mutex_guard(lock_);
   std::map<std::string, Hash64Func>::iterator it = mapHash64Func_.find(name);
   if (it == mapHash64Func_.end()) {
     mapHash64Func_[name] = func;
@@ -42,7 +42,7 @@ ReturnCode HashManager::RegisterHashFunction(const std::string& name, Hash64Func
 
 ReturnCode HashManager::GetHashFunction(const std::string& name, Hash64Func& func) {
   ReturnCode code = kReturnOk;
-  sync::MutexGuard mutex_guard(lock_);
+  const std::lock_guard<std::mutex> mutex_guard(lock_);
   std::map<std::string, Hash64Func>::iterator it = mapHash64Func_.find(name);
   if (it != mapHash64Func_.end()) {
     func = it->second;

@@ -20,9 +20,9 @@
 #include <map>
 #include <string>
 
-#include "grpc/client.h"
-#include "grpc/status.h"
 #include "model/return_code.h"
+#include "network/grpc/client.h"
+#include "network/grpc/status.h"
 #include "polaris/defs.h"
 #include "reactor/task.h"
 
@@ -37,35 +37,54 @@ class RateLimitConnection;
 
 enum WindowSyncTaskType {
   kWindowSyncInitTask,    // Init任务
-  kWindowSyncReportTask,  // Reprot任务
+  kWindowSyncReportTask,  // Report任务
+
+  kWindowBatchInitTask,    // 批量Init任务
+  kWindowBatchReportTask,  // 批量Report任务
 };
 
 // 定时同步任务
 class WindowSyncTask : public TimingTask {
-public:
+ public:
   WindowSyncTask(RateLimitWindow* window, RateLimitConnector* connector, uint64_t timeout = 0);
 
   ~WindowSyncTask();
 
   virtual void Run();
 
-private:
+ private:
   RateLimitWindow* window_;
   RateLimitConnector* connector_;
 };
 
+// 定时批量同步任务
+class WindowSyncTaskSet : public TimingTask {
+ public:
+  WindowSyncTaskSet(RateLimitConnector* connector, uint64_t timeout);
+
+  virtual ~WindowSyncTaskSet();
+
+  virtual void Run();
+
+  void AddWindow(RateLimitWindow* windows);
+
+ private:
+  RateLimitConnector* connector_;
+  std::set<RateLimitWindow*> window_set_;
+};
+
 // 同步任务超时检查
 class WindowSyncTimeoutCheck : public TimingTask {
-public:
-  WindowSyncTimeoutCheck(RateLimitWindow* window, RateLimitConnection* connection,
-                         WindowSyncTaskType task_type, uint64_t timeout)
+ public:
+  WindowSyncTimeoutCheck(RateLimitWindow* window, RateLimitConnection* connection, WindowSyncTaskType task_type,
+                         uint64_t timeout)
       : TimingTask(timeout), window_(window), connection_(connection), task_type_(task_type) {}
 
   virtual ~WindowSyncTimeoutCheck() {}
 
   virtual void Run();
 
-private:
+ private:
   RateLimitWindow* window_;
   RateLimitConnection* connection_;
   WindowSyncTaskType task_type_;
@@ -86,26 +105,29 @@ struct WindowReportInfo {
 // 通过一致性hash方式选择的限流Server并建立连接，并管理连接上的请求
 class RateLimitConnection : public grpc::RequestCallback<metric::v2::TimeAdjustResponse>,
                             public grpc::StreamCallback<metric::v2::RateLimitResponse> {
-public:
-  RateLimitConnection(RateLimitConnector& connector, const uint64_t& request_timeout,
-                      Instance* instance, const ServiceKey& cluster, const std::string& id);
+ public:
+  RateLimitConnection(RateLimitConnector& connector, const uint64_t& request_timeout, Instance* instance,
+                      const ServiceKey& cluster, const std::string& id);
   virtual ~RateLimitConnection();
 
   // 提供给连接回调对象使用
-  void OnConnectSuccess();
-  void OnConnectFailed();
-  void OnConnectTimeout();
+  void OnConnect(ReturnCode return_code);
 
   // Unary 请求回调
   virtual void OnSuccess(metric::v2::TimeAdjustResponse* response);
-  virtual void OnFailure(grpc::GrpcStatusCode status, const std::string& message);
+  virtual void OnFailure(const std::string& message);
 
   // Stream 请求回调
   virtual void OnReceiveMessage(metric::v2::RateLimitResponse* response);
-  virtual void OnRemoteClose(grpc::GrpcStatusCode status, const std::string& message);
+  virtual void OnRemoteClose(const std::string& message);
 
   void DoSyncTask(RateLimitWindow* window);
   void RemoveWindow(RateLimitWindow* window);
+
+  void SetReportTask(RateLimitWindow* window, uint64_t next_report_interval, bool batch_report = true);
+
+  void SendBatchReport();
+  static void SendBatchReport(RateLimitConnection* connection);
 
   void DoSyncTimeTask();
   void OnSyncTimeTimeout();
@@ -114,23 +136,31 @@ public:
   void OnReportResponse(const metric::v2::RateLimitReportResponse& response);
   void OnResponseTimeout(RateLimitWindow* window, WindowSyncTaskType task_type);
 
+  void OnBatchInitResponse(const metric::v2::RateLimitBatchInitResponse& response);
+  void OnBatchReportResponse(const metric::v2::RateLimitReportResponse& response);
+
   // 检查连接是否空闲
   bool IsIdle(uint64_t idle_check_time) const { return last_used_time_ < idle_check_time; }
 
   // 获取建立连接所用的服务实例ID，标示连接
   const std::string& GetId() const { return connection_id_; }
 
-private:
+ private:
   // 请求出错关闭连接
-  void CloseForError();
+  void CloseForError(PolarisServerCode server_code);
 
   void ClearTaskAndWindow();
 
+  void SendPendingInit();  // 首次连接成功时发送待初始化请求
+
   void SendInit(RateLimitWindow* window);
 
-  void SendReprot(RateLimitWindow* window);
+  void SendReport(RateLimitWindow* window);
 
-private:
+  // 计算发送请求到接收应答的耗时
+  uint64_t CalculateRequestDelay(const TimingTaskIter& iter);
+
+ private:
   RateLimitConnector& connector_;
   Reactor& reactor_;
   const uint64_t& request_timeout_;
@@ -145,22 +175,27 @@ private:
 
   TimingTaskIter sync_time_task_;  // 同步时间定时任务
   int64_t time_diff_;
+  grpc::GrpcStream* sync_time_stream_;
 
   uint32_t client_key_;
   std::map<LimitTargetKey, RateLimitWindow*> limit_target_map_;
   std::map<RateLimitWindow*, TimingTaskIter> init_task_map_;
   std::map<uint32_t, RateLimitWindow*> counter_key_map_;  // 同步结果映射到window索引
   std::map<RateLimitWindow*, WindowReportInfo> report_task_map_;
+
+  TimingTaskIter batch_task_;
+  std::vector<RateLimitWindow*> batch_report_pending_;   // 等待批量上报的窗口
+  std::vector<RateLimitWindow*> batch_report_inflight_;  // 已发送等待应答的窗口
 };
 
 // 同步时间定时任务/超时检查任务
 enum TimeSyncTaskType {
-  kTimeSyncTaskTiming,       // 定时同步任务
-  kTimeSyncTaskTimoutCheck,  // 定时同步任务超时检查
+  kTimeSyncTaskTiming,        // 定时同步任务
+  kTimeSyncTaskTimeoutCheck,  // 定时同步任务超时检查
 };
 
 class TimeSyncTask : public TimingTask {
-public:
+ public:
   TimeSyncTask(RateLimitConnection* connection, TimeSyncTaskType task_type, uint64_t timeout)
       : TimingTask(timeout), task_type_(task_type), connection_(connection) {}
 
@@ -174,15 +209,15 @@ public:
     }
   }
 
-private:
+ private:
   TimeSyncTaskType task_type_;
   RateLimitConnection* connection_;
 };
 
 /// @brief 负责与限流服务器同步限流数据
 class RateLimitConnector {
-public:
-  RateLimitConnector(Reactor& reactor, Context* context, uint64_t message_timeout);
+ public:
+  RateLimitConnector(Reactor& reactor, Context* context, uint64_t message_timeout, uint64_t batch_interval);
 
   virtual ~RateLimitConnector();
 
@@ -190,13 +225,14 @@ public:
 
   void SyncTask(RateLimitWindow* window);
 
+  bool IsConnectionChange(RateLimitWindow* window);
+
   // 定时检查空闲连接
   static void ConnectionIdleCheck(RateLimitConnector* connector);
 
   Reactor& GetReactor() { return reactor_; }
 
-  void UpdateCallResult(const ServiceKey& cluster, Instance* instance, uint64_t delay,
-                        PolarisServerCode server_code);
+  void UpdateCallResult(const ServiceKey& cluster, Instance* instance, uint64_t delay, PolarisServerCode server_code);
 
   void EraseConnection(const std::string& connection_id) { connection_mgr_.erase(connection_id); }
 
@@ -204,21 +240,23 @@ public:
 
   const std::string& GetContextId();
 
-private:
+  uint64_t GetBatchInterval() const { return batch_interval_; }
+
+ private:
   ReturnCode SelectConnection(const ServiceKey& metric_cluster, const std::string& metric_id,
                               RateLimitConnection*& connection);
 
-private:
+ private:
   Reactor& reactor_;
   Context* context_;
   uint64_t idle_check_interval_;
   uint64_t remove_after_idle_time_;
   ServiceKey rate_limit_service_;
   uint64_t message_timeout_;
+  uint64_t batch_interval_;
 
-protected:  // protected for test
-  virtual ReturnCode SelectInstance(const ServiceKey& metric_cluster, const std::string& hash_key,
-                                    Instance** instance);
+ protected:  // protected for test
+  virtual ReturnCode SelectInstance(const ServiceKey& metric_cluster, const std::string& hash_key, Instance** instance);
 
   // 通过限流服务实例ID索引的限流连接
   std::map<std::string, RateLimitConnection*> connection_mgr_;

@@ -23,16 +23,16 @@
 #include "mock/mock_local_registry.h"
 #include "mock/mock_server_connector.h"
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 
 namespace polaris {
 
 extern std::string g_test_persist_dir_;
 
 class TestContext {
-public:
+ public:
   static Context *CreateContext(std::string server_address = "['Fake:42']",
-                                ContextMode mode           = kShareContextWithoutEngine) {
+                                ContextMode mode = kShareContextWithoutEngine) {
     std::string err_msg, content =
                              "global:\n"
                              "  serverConnector:\n"
@@ -42,13 +42,8 @@ public:
                              "  localCache:\n"
                              "    persistDir: " +
                              g_test_persist_dir_;
-    if (mode == kLimitContext) {
-      content +=
-          "\nrateLimiter:\n"
-          "  mode: local\n";
-    }
     Config *config = Config::CreateFromString(content, err_msg);
-    POLARIS_ASSERT(config != NULL && err_msg.empty());
+    POLARIS_ASSERT(config != nullptr && err_msg.empty());
     Context *context = Context::Create(config, mode);
     if (mode == kShareContextWithoutEngine) {
       Time::TryShutdomClock();  // 停止clock线程
@@ -60,22 +55,22 @@ public:
   static Context *CreateContext(ContextMode mode) { return CreateContext("['Fake:42']", mode); }
 
   static MockLocalRegistry *SetupMockLocalRegistry(Context *context) {
-    ContextImpl *context_impl              = context->GetContextImpl();
-    LocalRegistry *old_local_registry      = context_impl->local_registry_;
+    ContextImpl *context_impl = context->GetContextImpl();
+    LocalRegistry *old_local_registry = context_impl->local_registry_;
     MockLocalRegistry *mock_local_registry = new MockLocalRegistry();
-    context_impl->local_registry_          = mock_local_registry;
+    context_impl->local_registry_ = mock_local_registry;
     delete old_local_registry;
-    old_local_registry = NULL;
+    old_local_registry = nullptr;
     return mock_local_registry;
   }
 
   static MockServerConnector *SetupMockServerConnector(Context *context) {
-    ContextImpl *context_impl                  = context->GetContextImpl();
-    ServerConnector *old_server_connector      = context_impl->server_connector_;
+    ContextImpl *context_impl = context->GetContextImpl();
+    ServerConnector *old_server_connector = context_impl->server_connector_;
     MockServerConnector *mock_server_connector = new MockServerConnector();
-    context_impl->server_connector_            = mock_server_connector;
+    context_impl->server_connector_ = mock_server_connector;
     delete old_server_connector;
-    old_server_connector = NULL;
+    old_server_connector = nullptr;
     return mock_server_connector;
   }
 };

@@ -18,32 +18,23 @@
 #include <string>
 #include <vector>
 
-#include "polaris/defs.h"
-#include "polaris/plugin.h"
+#include "cache/service_cache.h"
+#include "model/location.h"
+#include "plugin/service_router/service_router.h"
 
 namespace polaris {
 
-class Config;
-class Context;
-class Instance;
-class RouteInfo;
-class RouteResult;
-struct NearbyCacheKey;
-
-template <typename K>
-class ServiceCache;
-
 // 就近路由匹配级别
 enum NearbyMatchLevel {
-  kNearbyMatchNone   = 0,  // 全部不匹配
+  kNearbyMatchNone = 0,    // 全部不匹配
   kNearbyMatchRegion = 1,  // 只匹配Region
-  kNearbyMatchZone   = 2,  // 匹配Regin和Zone，默认级别
+  kNearbyMatchZone = 2,    // 匹配Regin和Zone，默认级别
   kNearbyMatchCampus = 3   // 匹配Regin、Zone和Campus
 };
 
 // 就近路由插件配置
 class NearbyRouterConfig {
-public:
+ public:
   NearbyRouterConfig();
 
   ~NearbyRouterConfig() {}
@@ -63,7 +54,7 @@ public:
 
   bool IsEnableRecoverAll() const { return enable_recover_all_; }
 
-private:
+ private:
   bool InitNearbyMatchLevel(Config* config);  // 初始化就近级别配置
 
   bool InitStrictNearby(Config* config);  // 初始化严格就近配置
@@ -74,7 +65,7 @@ private:
 
   static bool StrToMatchLevel(const std::string& str, NearbyMatchLevel& match_level);
 
-private:
+ private:
   NearbyMatchLevel match_level_;              // 就近路由匹配级别
   NearbyMatchLevel max_match_level_;          // 允许降级的最大就近级别
   bool strict_nearby_;                        // 是否严格就近
@@ -91,7 +82,7 @@ struct NearbyRouterSet {
 
 // 用于存储各个就近级别的匹配结果
 class NearbyRouterCluster {
-public:
+ public:
   explicit NearbyRouterCluster(const NearbyRouterConfig& nearby_router_config);
 
   // 通过位置信息按就近级别计算就近结果
@@ -99,13 +90,12 @@ public:
                     const std::set<Instance*>& unhealthy_set);
 
   // 直接将实例按健康和不健康分到同一个就近级别
-  void CalculateSet(const std::vector<Instance*>& instances,
-                    const std::set<Instance*>& unhealthy_set);
+  void CalculateSet(const std::vector<Instance*>& instances, const std::set<Instance*>& unhealthy_set);
 
   // 按照就近级别计算最终结果，并返回是否降级
   bool CalculateResult(std::vector<Instance*>& result, int& match_level);
 
-private:
+ private:
   friend class NearbyRouterClusterTest_CalculateLocation_Test;
 
   const NearbyRouterConfig& config_;   // 就近配置
@@ -114,7 +104,7 @@ private:
 
 // 就近路由的实现
 class NearbyServiceRouter : public ServiceRouter {
-public:
+ public:
   NearbyServiceRouter();
 
   virtual ~NearbyServiceRouter();
@@ -125,16 +115,16 @@ public:
 
   virtual RouterStatData* CollectStat();
 
-private:
+ private:
   bool CheckLocation();
 
-  static void GetLocationByMatchLevel(const Location& location, int match_level,
-                                      std::string& level_key, std::string& level_value);
+  static void GetLocationByMatchLevel(const Location& location, int match_level, std::string& level_key,
+                                      std::string& level_value);
 
-private:
+ private:
   NearbyRouterConfig nearby_router_config_;  // 就近路由配置
   Context* context_;
-  ServiceCache<NearbyCacheKey>* router_cache_;  // 路由结果缓存
+  ServiceCache<NearbyCacheKey, RouterSubsetCache>* router_cache_;  // 路由结果缓存
 };
 
 }  // namespace polaris

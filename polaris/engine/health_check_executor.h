@@ -25,7 +25,7 @@ class Context;
 /// 执行如下任务：
 ///   - 执行熔断任务
 class HealthCheckExecutor : public Executor {
-public:
+ public:
   explicit HealthCheckExecutor(Context* context);
 
   virtual ~HealthCheckExecutor() {}

@@ -30,20 +30,26 @@
 namespace polaris {
 
 class UdpHealthCheckerTest : public ::testing::Test {
-protected:
+ protected:
+  static std::string FakeResponseGenerator() {
+    resp_gen_flag_ = !resp_gen_flag_;
+    if (resp_gen_flag_) {
+      return "OK";
+    } else {
+      return "0x987654321";
+    }
+  }
+
   static void SetUpTestCase() {
-    upd_server_list_.push_back(
-        NetServerParam(TestUtils::PickUnusedPort(), "OK", kNetServerInit, 0));
-    upd_server_list_.push_back(
-        NetServerParam(TestUtils::PickUnusedPort(), "0x987654321", kNetServerInit, 0));
+    upd_server_list_.push_back(NetServerParam(TestUtils::PickUnusedPort(), "OK", kNetServerInit, 0));
+    upd_server_list_.push_back(NetServerParam(TestUtils::PickUnusedPort(), "0x987654321", kNetServerInit, 0));
     upd_server_list_.push_back(NetServerParam(TestUtils::PickUnusedPort(), "", kNetServerInit, 0));
-    upd_server_list_.push_back(
-        NetServerParam(TestUtils::PickUnusedPort(), "0x123456789", kNetServerInit, 0));
-    upd_server_list_.push_back(
-        NetServerParam(TestUtils::PickUnusedPort(), "0x987654321", kNetServerInit, 0));
+    upd_server_list_.push_back(NetServerParam(TestUtils::PickUnusedPort(), "0x123456789", kNetServerInit, 0));
+    upd_server_list_.push_back(NetServerParam(TestUtils::PickUnusedPort(), "0x987654321", kNetServerInit, 0));
+    upd_server_list_.push_back(NetServerParam(TestUtils::PickUnusedPort(), FakeResponseGenerator, kNetServerInit, 0));
+
     for (std::size_t i = 0; i < upd_server_list_.size(); ++i) {
-      pthread_create(&upd_server_list_[i].tid_, NULL, FakeNetServer::StartUdp,
-                     &upd_server_list_[i]);
+      pthread_create(&upd_server_list_[i].tid_, nullptr, FakeNetServer::StartUdp, &upd_server_list_[i]);
     }
     bool all_server_start = false;
     while (!all_server_start) {
@@ -62,48 +68,50 @@ protected:
   static void TearDownTestCase() {
     for (std::size_t i = 0; i < upd_server_list_.size(); ++i) {
       upd_server_list_[i].status_ = kNetServerStop;
-      pthread_join(upd_server_list_[i].tid_, NULL);
+      pthread_join(upd_server_list_[i].tid_, nullptr);
     }
   }
 
   static std::vector<NetServerParam> upd_server_list_;
+  static volatile bool resp_gen_flag_;
 
   virtual void SetUp() {
-    default_config_ = NULL;
-    udp_detector_   = new UdpHealthChecker();
+    resp_gen_flag_ = true;
+    default_config_ = nullptr;
+    udp_detector_ = new UdpHealthChecker();
   }
 
   virtual void TearDown() {
-    if (default_config_ != NULL) {
+    if (default_config_ != nullptr) {
       delete default_config_;
-      default_config_ = NULL;
+      default_config_ = nullptr;
     }
-    if (udp_detector_ != NULL) {
+    if (udp_detector_ != nullptr) {
       delete udp_detector_;
-      udp_detector_ = NULL;
+      udp_detector_ = nullptr;
     }
   }
 
   void DetectingLocalPortCaseMap(const std::map<int, ReturnCode> &case_map) {
     DetectResult detect_result;
-    for (std::map<int, ReturnCode>::const_iterator it = case_map.begin(); it != case_map.end();
-         ++it) {
+    for (std::map<int, ReturnCode>::const_iterator it = case_map.begin(); it != case_map.end(); ++it) {
       Instance instance("instance_id", "0.0.0.0", it->first, 0);
       ASSERT_EQ(udp_detector_->DetectInstance(instance, detect_result), it->second);
       ASSERT_EQ(detect_result.detect_type, kPluginUdpHealthChecker);
     }
   }
 
-protected:
+ protected:
   UdpHealthChecker *udp_detector_;
   Config *default_config_;
 };
 
 std::vector<NetServerParam> UdpHealthCheckerTest::upd_server_list_;
+volatile bool UdpHealthCheckerTest::resp_gen_flag_(true);
 
 TEST_F(UdpHealthCheckerTest, DetectInstanceResponseCode) {
   default_config_ = Config::CreateEmptyConfig();
-  ASSERT_EQ(udp_detector_->Init(default_config_, NULL), kReturnInvalidConfig);
+  ASSERT_EQ(udp_detector_->Init(default_config_, nullptr), kReturnInvalidConfig);
 
   std::map<int, ReturnCode> port_testing_case_map;
   port_testing_case_map[upd_server_list_[0].port_] = kReturnInvalidConfig;
@@ -113,12 +121,12 @@ TEST_F(UdpHealthCheckerTest, DetectInstanceResponseCode) {
   delete default_config_;
   std::string err_msg, content = "send:\n  0x12345566";
   default_config_ = Config::CreateFromString(content, err_msg);
-  POLARIS_ASSERT(default_config_ != NULL && err_msg.empty());
-  ASSERT_EQ(udp_detector_->Init(default_config_, NULL), kReturnOk);
+  POLARIS_ASSERT(default_config_ != nullptr && err_msg.empty());
+  ASSERT_EQ(udp_detector_->Init(default_config_, nullptr), kReturnOk);
   port_testing_case_map.clear();
-  port_testing_case_map[upd_server_list_[0].port_]   = kReturnOk;
-  port_testing_case_map[upd_server_list_[1].port_]   = kReturnOk;
-  port_testing_case_map[upd_server_list_[2].port_]   = kReturnNetworkFailed;
+  port_testing_case_map[upd_server_list_[0].port_] = kReturnOk;
+  port_testing_case_map[upd_server_list_[1].port_] = kReturnOk;
+  port_testing_case_map[upd_server_list_[2].port_] = kReturnNetworkFailed;
   port_testing_case_map[TestUtils::PickUnusedPort()] = kReturnNetworkFailed;
   port_testing_case_map[TestUtils::PickUnusedPort()] = kReturnNetworkFailed;
   DetectingLocalPortCaseMap(port_testing_case_map);
@@ -128,15 +136,17 @@ TEST_F(UdpHealthCheckerTest, DetectInstanceWithConfig) {
   std::string err_msg, content =
                            "send:\n  0x12345678\n"
                            "receive:\n  0x4f4b\n"  // 0x4f4b为OK的二进制表示
-                           "timeout:\n  1000";
+                           "timeout:\n  1000\n"
+                           "retry:\n  0";
   default_config_ = Config::CreateFromString(content, err_msg);
-  POLARIS_ASSERT(default_config_ != NULL && err_msg.empty());
-  ASSERT_EQ(udp_detector_->Init(default_config_, NULL), kReturnOk);
+  POLARIS_ASSERT(default_config_ != nullptr && err_msg.empty());
+  ASSERT_EQ(udp_detector_->Init(default_config_, nullptr), kReturnOk);
 
   std::map<int, ReturnCode> port_testing_case_map;
   port_testing_case_map[upd_server_list_[0].port_] = kReturnOk;
   port_testing_case_map[upd_server_list_[1].port_] = kReturnServerError;
   port_testing_case_map[upd_server_list_[2].port_] = kReturnNetworkFailed;
+  port_testing_case_map[upd_server_list_[5].port_] = kReturnServerError;
   DetectingLocalPortCaseMap(port_testing_case_map);
 }
 
@@ -146,8 +156,8 @@ TEST_F(UdpHealthCheckerTest, DetectInstanceWithTimeout) {
                            "receive:\n  0x4f4b\n"  // 0x4f4b为OK的二进制表示
                            "timeout:\n  3";
   default_config_ = Config::CreateFromString(content, err_msg);
-  POLARIS_ASSERT(default_config_ != NULL && err_msg.empty());
-  ASSERT_EQ(udp_detector_->Init(default_config_, NULL), kReturnOk);
+  POLARIS_ASSERT(default_config_ != nullptr && err_msg.empty());
+  ASSERT_EQ(udp_detector_->Init(default_config_, nullptr), kReturnOk);
 
   std::map<int, ReturnCode> port_testing_case_map;
   port_testing_case_map[upd_server_list_[0].port_] = kReturnNetworkFailed;
@@ -162,13 +172,31 @@ TEST_F(UdpHealthCheckerTest, DetectInstanceWithoutResponse) {
                            "receive:\n  ''\n"  // 0x4f4b为OK的二进制表示
                            "timeout:\n  3";
   default_config_ = Config::CreateFromString(content, err_msg);
-  POLARIS_ASSERT(default_config_ != NULL && err_msg.empty());
-  ASSERT_EQ(udp_detector_->Init(default_config_, NULL), kReturnOk);
+  POLARIS_ASSERT(default_config_ != nullptr && err_msg.empty());
+  ASSERT_EQ(udp_detector_->Init(default_config_, nullptr), kReturnOk);
 
   std::map<int, ReturnCode> port_testing_case_map;
   port_testing_case_map[upd_server_list_[0].port_] = kReturnNetworkFailed;
   port_testing_case_map[upd_server_list_[1].port_] = kReturnNetworkFailed;
   port_testing_case_map[upd_server_list_[2].port_] = kReturnNetworkFailed;
+  DetectingLocalPortCaseMap(port_testing_case_map);
+}
+
+TEST_F(UdpHealthCheckerTest, DetectInstanceWithRetry) {
+  std::string err_msg, content =
+                           "send:\n  0x12345678\n"
+                           "receive:\n  0x4f4b\n"  // 0x4f4b为OK的二进制表示
+                           "timeout:\n  1000\n"
+                           "retry:\n  2";
+  default_config_ = Config::CreateFromString(content, err_msg);
+  POLARIS_ASSERT(default_config_ != nullptr && err_msg.empty());
+  ASSERT_EQ(udp_detector_->Init(default_config_, nullptr), kReturnOk);
+
+  std::map<int, ReturnCode> port_testing_case_map;
+  port_testing_case_map[upd_server_list_[0].port_] = kReturnOk;
+  port_testing_case_map[upd_server_list_[1].port_] = kReturnServerError;
+  port_testing_case_map[upd_server_list_[2].port_] = kReturnNetworkFailed;
+  port_testing_case_map[upd_server_list_[5].port_] = kReturnOk;
   DetectingLocalPortCaseMap(port_testing_case_map);
 }
 

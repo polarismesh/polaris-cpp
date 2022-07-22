@@ -22,15 +22,12 @@
 #include "logger.h"
 #include "quota/adjuster/climb_config.h"
 #include "quota/model/rate_limit_rule.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
 
-HealthMetricClimb::HealthMetricClimb(ClimbTriggerPolicy& trigger_policy,
-                                     ClimbThrottling& throttling)
-    : trigger_policy_(trigger_policy), throttling_(throttling), status_(kThrottlingKeeping),
-      trigger_count_(0) {}
+HealthMetricClimb::HealthMetricClimb(ClimbTriggerPolicy& trigger_policy, ClimbThrottling& throttling)
+    : trigger_policy_(trigger_policy), throttling_(throttling), status_(kThrottlingKeeping), trigger_count_(0) {}
 
 HealthMetricClimb::~HealthMetricClimb() {}
 
@@ -69,9 +66,8 @@ void HealthMetricClimb::Update(const v1::MetricResponse& response) {
 }
 
 bool HealthMetricClimb::IsUnhealthy() {
-  uint64_t normal_count = metric_data_.total_count_ > metric_data_.limit_count_
-                              ? metric_data_.total_count_ - metric_data_.limit_count_
-                              : 0;
+  uint64_t normal_count =
+      metric_data_.total_count_ > metric_data_.limit_count_ ? metric_data_.total_count_ - metric_data_.limit_count_ : 0;
   if (normal_count * trigger_policy_.slow_rate_.slow_rate_ < metric_data_.slow_count_ * 100) {
     reason_ << "slow/normal:" << metric_data_.slow_count_ << "/" << normal_count
             << " > rate:" << trigger_policy_.slow_rate_.slow_rate_ << "%";
@@ -103,7 +99,7 @@ bool HealthMetricClimb::TryAdjust(std::vector<RateLimitAmount>& limit_amounts) {
   reason_.str("");      // 重置调整原因
   if (IsUnhealthy()) {  // 不健康，需要触发下调
     if (status_ != kThrottlingTuneDown) {
-      status_        = kThrottlingTuneDown;
+      status_ = kThrottlingTuneDown;
       trigger_count_ = 0;
     }
     trigger_count_++;
@@ -111,7 +107,7 @@ bool HealthMetricClimb::TryAdjust(std::vector<RateLimitAmount>& limit_amounts) {
   } else if (metric_data_.limit_count_ > 0) {  // 健康度正常，且请求被限流
     reason_ << "healthy with limit count:" << metric_data_.limit_count_;
     if (status_ != kThrottlingTuneUp) {
-      status_        = kThrottlingTuneUp;
+      status_ = kThrottlingTuneUp;
       trigger_count_ = 0;
     }
     return TuneUp(limit_amounts);
@@ -122,10 +118,8 @@ bool HealthMetricClimb::TryAdjust(std::vector<RateLimitAmount>& limit_amounts) {
 }
 
 bool HealthMetricClimb::TuneUp(std::vector<RateLimitAmount>& limit_amounts) {
-  bool adjust  = false;
-  bool limited = metric_data_.limit_count_ * 100 >
-                 metric_data_.total_count_ * throttling_.limit_threshold_to_tune_up_;
-  uint64_t current_time  = Time::GetCurrentTimeMs();
+  bool adjust = false;
+  bool limited = metric_data_.limit_count_ * 100 > metric_data_.total_count_ * throttling_.limit_threshold_to_tune_up_;
   uint32_t before_adjust = 0;
   if (limited) {  // 软限以上需要达到一定比例才算被限流
     trigger_count_++;
@@ -133,23 +127,22 @@ bool HealthMetricClimb::TuneUp(std::vector<RateLimitAmount>& limit_amounts) {
   for (std::size_t i = 0; i < limit_amounts.size(); ++i) {
     RateLimitAmount& amount = limit_amounts[i];
     if (amount.max_amount_ < amount.start_amount_) {  // 软限以下调整
-      before_adjust      = amount.max_amount_;
-      amount.max_amount_ = static_cast<uint32_t>(
-          ceil(amount.max_amount_ * 100.0 / throttling_.cold_below_tune_up_rate_));
+      before_adjust = amount.max_amount_;
+      amount.max_amount_ =
+          static_cast<uint32_t>(ceil(amount.max_amount_ * 100.0 / throttling_.cold_below_tune_up_rate_));
       if (amount.max_amount_ > amount.start_amount_) {
         amount.max_amount_ = amount.start_amount_;
       }
-      RecordChange(current_time, before_adjust, amount);
+      RecordChange(before_adjust, amount);
       adjust = true;
-    } else if (amount.max_amount_ < amount.end_amount_ &&
-               trigger_count_ >= throttling_.tune_up_period_) {
-      before_adjust      = amount.max_amount_;
-      amount.max_amount_ = static_cast<uint32_t>(
-          ceil(amount.max_amount_ * 100.0 / throttling_.cold_above_tune_up_rate_));
+    } else if (amount.max_amount_ < amount.end_amount_ && trigger_count_ >= throttling_.tune_up_period_) {
+      before_adjust = amount.max_amount_;
+      amount.max_amount_ =
+          static_cast<uint32_t>(ceil(amount.max_amount_ * 100.0 / throttling_.cold_above_tune_up_rate_));
       if (amount.max_amount_ > amount.end_amount_) {
         amount.max_amount_ = amount.end_amount_;
       }
-      RecordChange(current_time, before_adjust, amount);
+      RecordChange(before_adjust, amount);
       adjust = true;
     }
   }
@@ -160,29 +153,27 @@ bool HealthMetricClimb::TuneUp(std::vector<RateLimitAmount>& limit_amounts) {
 }
 
 bool HealthMetricClimb::TuneDown(std::vector<RateLimitAmount>& limit_amounts) {
-  bool adjust            = false;
-  uint64_t current_time  = Time::GetCurrentTimeMs();
+  bool adjust = false;
   uint32_t before_adjust = 0;
   for (std::size_t i = 0; i < limit_amounts.size(); ++i) {
     RateLimitAmount& amount = limit_amounts[i];
     if (amount.max_amount_ <= amount.min_amount_) {
       continue;
     } else if (amount.max_amount_ <= amount.start_amount_) {
-      before_adjust      = amount.max_amount_;
+      before_adjust = amount.max_amount_;
       amount.max_amount_ = amount.max_amount_ * throttling_.cold_below_tune_down_rate_ / 100;
       if (amount.max_amount_ < amount.min_amount_) {
         amount.max_amount_ = amount.min_amount_;
       }
-      RecordChange(current_time, before_adjust, amount);
+      RecordChange(before_adjust, amount);
       adjust = true;
-    } else if (amount.max_amount_ <= amount.end_amount_ &&
-               trigger_count_ >= throttling_.tune_down_period_) {
-      before_adjust      = amount.max_amount_;
+    } else if (amount.max_amount_ <= amount.end_amount_ && trigger_count_ >= throttling_.tune_down_period_) {
+      before_adjust = amount.max_amount_;
       amount.max_amount_ = amount.max_amount_ * throttling_.cold_above_tune_down_rate_ / 100;
       if (amount.max_amount_ < amount.start_amount_) {
         amount.max_amount_ = amount.start_amount_;  // 不要直接降到软限以下
       }
-      RecordChange(current_time, before_adjust, amount);
+      RecordChange(before_adjust, amount);
       adjust = true;
     }
   }
@@ -192,20 +183,18 @@ bool HealthMetricClimb::TuneDown(std::vector<RateLimitAmount>& limit_amounts) {
   return adjust;
 }
 
-void HealthMetricClimb::RecordChange(uint64_t current_time, uint32_t before,
-                                     RateLimitAmount& amount) {
-  sync::MutexGuard mutex_guard(changes_lock_);
+void HealthMetricClimb::RecordChange(uint32_t before, RateLimitAmount& amount) {
+  const std::lock_guard<std::mutex> mutex_guard(changes_lock_);
   v1::ThresholdChange* change = threshold_changes_.Add();
-  Time::Uint64ToTimestamp(current_time, change->mutable_time());
-  change->set_oldthreshold(StringUtils::TypeToStr(before) + "/" +
-                           StringUtils::TypeToStr(amount.valid_duration_ / 1000) + "s");
-  change->set_newthreshold(StringUtils::TypeToStr(amount.max_amount_) + "/" +
-                           StringUtils::TypeToStr(amount.valid_duration_ / 1000) + "s");
+  Time::Uint64ToTimestamp(Time::GetSystemTimeMs(), change->mutable_time());
+  change->set_oldthreshold(std::to_string(before) + "/" + std::to_string(amount.valid_duration_ / 1000) + "s");
+  change->set_newthreshold(std::to_string(amount.max_amount_) + "/" + std::to_string(amount.valid_duration_ / 1000) +
+                           "s");
   change->set_reason(reason_.str());
 }
 
 void HealthMetricClimb::CollectRecord(v1::RateLimitRecord& rate_limit_record) {
-  sync::MutexGuard mutex_guard(changes_lock_);
+  const std::lock_guard<std::mutex> mutex_guard(changes_lock_);
   threshold_changes_.Swap(rate_limit_record.mutable_threshold_changes());
 }
 

@@ -20,14 +20,13 @@
 #include <pthread.h>
 
 #include "sync/cond_var.h"
-#include "utils/time_clock.h"
 
 namespace polaris {
 
 namespace sync {
 
 class CondVarNotifyTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {}
 
   virtual void TearDown() {}
@@ -38,7 +37,7 @@ TEST_F(CondVarNotifyTest, SingleThreadTest1) {
   ASSERT_FALSE(notify1.IsNotified());
   notify1.Notify();
   ASSERT_TRUE(notify1.IsNotified());
-  ASSERT_TRUE(notify1.Wait(0));
+  ASSERT_TRUE(notify1.WaitFor(0));
 }
 
 TEST_F(CondVarNotifyTest, SingleThreadTest2) {
@@ -46,8 +45,7 @@ TEST_F(CondVarNotifyTest, SingleThreadTest2) {
   ASSERT_FALSE(notify2.IsNotified());
   notify2.NotifyAll();
   ASSERT_TRUE(notify2.IsNotified());
-  timespec ts = Time::CurrentTimeAddWith(0);
-  ASSERT_TRUE(notify2.Wait(ts));
+  ASSERT_TRUE(notify2.WaitUntil(std::chrono::steady_clock::now()));
 }
 
 struct CircuitNotify {
@@ -59,14 +57,14 @@ struct CircuitNotify {
 void *ThreadNotify(void *args) {
   CircuitNotify *data = static_cast<CircuitNotify *>(args);
   while (!data->notify_in_.IsNotified()) {
-    data->notify_in_.Wait(1000);
+    data->notify_in_.WaitFor(1000);
   }
   {
-    MutexGuard mutex_guard(data->notify_out_.GetMutex());
+    std::lock_guard<std::mutex> mutex_guard(data->notify_out_.GetMutex());
     data->out_count_++;
   }
   data->notify_out_.Notify();
-  return NULL;
+  return nullptr;
 }
 
 TEST_F(CondVarNotifyTest, MultiThreadTest) {
@@ -75,18 +73,18 @@ TEST_F(CondVarNotifyTest, MultiThreadTest) {
   CircuitNotify data;
   data.out_count_ = 0;
   for (int i = 0; i < 10; ++i) {
-    pthread_create(&tid, NULL, ThreadNotify, &data);
+    pthread_create(&tid, nullptr, ThreadNotify, &data);
     thread_list.push_back(tid);
   }
   data.notify_in_.NotifyAll();
   while (true) {
-    data.notify_out_.Wait(1000);
+    data.notify_out_.WaitFor(1000);
     if (data.out_count_ == 10) {
       break;
     }
   }
   for (std::size_t i = 0; i < thread_list.size(); ++i) {
-    pthread_join(thread_list[i], NULL);
+    pthread_join(thread_list[i], nullptr);
   }
   ASSERT_EQ(data.out_count_, 10);
 }

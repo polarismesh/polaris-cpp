@@ -23,10 +23,9 @@
 
 namespace polaris {
 
-class QuotaRequestImpl;
 /// @brief 限流配额请求
 class QuotaRequest {
-public:
+ public:
   /// @brief 构造配额限流请求
   QuotaRequest();
 
@@ -57,9 +56,11 @@ public:
   /// @param subset 服务子集
   void SetSubset(const std::map<std::string, std::string>& subset);
 
-private:
-  friend class QuotaRequestAccessor;
-  QuotaRequestImpl* impl_;
+  class Impl;
+  Impl& GetImpl() const;
+
+ private:
+  Impl* impl_;
 };
 
 /// @brief 配额获取结果
@@ -69,6 +70,7 @@ enum QuotaResultCode {
   kQuotaResultWait      // 需求需要等待重试
 };
 
+/// @brief 配额分配信息，sidecar模式下暂时不支持获取这些信息
 struct QuotaResultInfo {
   int64_t left_quota_;  // 剩余配额
   int64_t all_quota_;   // 配置的配额
@@ -76,12 +78,11 @@ struct QuotaResultInfo {
   bool is_degrade_;     // 是否降级
 };
 
-class QuotaResponseImpl;
 /// @brief 限流配额应答
 class QuotaResponse {
-public:
+ public:
   /// @brief 构造配额应答
-  explicit QuotaResponse(QuotaResponseImpl* impl);
+  QuotaResponse();
 
   /// @brief 析构配额应答
   ~QuotaResponse();
@@ -101,8 +102,11 @@ public:
   /// @return uint64_t 等待时间，单位ms
   uint64_t GetWaitTime() const;
 
-private:
-  QuotaResponseImpl* impl_;
+  class Impl;
+  Impl& GetImpl() const;
+
+ private:
+  Impl* impl_;
 };
 
 enum LimitCallResultType {
@@ -111,10 +115,9 @@ enum LimitCallResultType {
   kLimitCallResultOk        // 配额使用成功
 };
 
-class LimitCallResultImpl;
 /// @brief 配额使用结果
 class LimitCallResult {
-public:
+ public:
   /// @brief 构造配额使用结果
   LimitCallResult();
 
@@ -144,14 +147,16 @@ public:
   /// @brief 设置应答返回码
   void SetResponseCode(int response_code);
 
-private:
-  friend class LimitCallResultAccessor;
-  LimitCallResultImpl* impl_;
+  class Impl;
+  Impl& GetImpl() const;
+
+ private:
+  Impl* impl_;
 };
 
 class LimitApiImpl;
 class LimitApi : Noncopyable {
-public:
+ public:
   ~LimitApi();
 
   /// @brief 预拉取服务配置的限流规则，默认超时时间1000ms
@@ -198,8 +203,7 @@ public:
   /// @param quota_result   获取配额结果
   /// @param quota_info     当前配额信息
   /// @return ReturnCode    获取返回码
-  ReturnCode GetQuota(const QuotaRequest& quota_request, QuotaResultCode& quota_result,
-                      QuotaResultInfo& quota_info);
+  ReturnCode GetQuota(const QuotaRequest& quota_request, QuotaResultCode& quota_result, QuotaResultInfo& quota_info);
 
   /// @brief 获取配额
   ///
@@ -207,14 +211,7 @@ public:
   /// @param quota_result   获取配额结果
   /// @param wait_time      等待时间，单位ms，请求需要排队时间，匀速排队时使用
   /// @return ReturnCode    获取返回码
-  ReturnCode GetQuota(const QuotaRequest& quota_request, QuotaResultCode& quota_result,
-                      uint64_t& wait_time);
-
-  /// @brief 更新请求配额调用结果
-  ///
-  /// @param call_result  配额调用结果
-  /// @return ReturnCode  返回码
-  ReturnCode UpdateCallResult(const LimitCallResult& call_result);
+  ReturnCode GetQuota(const QuotaRequest& quota_request, QuotaResultCode& quota_result, uint64_t& wait_time);
 
   /// @brief 初始化配额窗口，可选调用，用于提前初始化配窗口减小首次配额延迟
   ///
@@ -285,7 +282,7 @@ public:
   /// @return LimitApi*   创建失败返回NULL
   static LimitApi* CreateWithDefaultFile(std::string& err_msg);
 
-private:
+ private:
   explicit LimitApi(LimitApiImpl* impl);
 
   LimitApiImpl* impl_;

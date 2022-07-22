@@ -17,9 +17,9 @@
 #include "polaris/limit.h"
 
 int main(int argc, char** argv) {
-  std::string address              = argc >= 2 ? argv[3] : "127.0.0.1:8081";
+  std::string address = argc >= 2 ? argv[3] : "127.0.0.1:8081";
   std::string rate_limit_namespace = "Polaris";
-  std::string rate_limit_service   = "polaris.metric.xxx";
+  std::string rate_limit_service = "polaris.metric.xxx";
   std::string config =
       "global:\n"
       "  serverConnector:\n"
@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
       rate_limit_service;
 
   polaris::LimitApi* limit_api = polaris::LimitApi::CreateFromString(config);
-  assert(limit_api != NULL);
+  assert(limit_api != nullptr);
 
   delete limit_api;
   return 0;

@@ -26,45 +26,48 @@
 #include <vector>
 
 #include "model/model_impl.h"
-#include "polaris/plugin.h"
+#include "plugin/service_router/service_router.h"
 
 namespace polaris {
 
 class MockServiceRouter : public ServiceRouter {
-public:
+ public:
+  ~MockServiceRouter() {
+    for (auto item : instance_set_cache_) {
+      item->DecrementRef();
+    }
+  }
+
   MOCK_METHOD2(Init, ReturnCode(Config *config, Context *context));
 
   MOCK_METHOD2(DoRoute, ReturnCode(RouteInfo &route_info, RouteResult *route_result));
 
   MOCK_METHOD0(CollectStat, RouterStatData *());
 
-  static Plugin *MockServiceRouterFactory() {
-    return mock_service_router_list_[mock_service_router_index_++];
-  }
+  static Plugin *MockServiceRouterFactory() { return mock_service_router_list_[mock_service_router_index_++]; }
 
-  static void RegisterMockPlugin() {
-    RegisterPlugin("mockRouter", kPluginServiceRouter, MockServiceRouterFactory);
-  }
+  static void RegisterMockPlugin() { RegisterPlugin("mockRouter", kPluginServiceRouter, MockServiceRouterFactory); }
 
   static int mock_service_router_index_;
   static std::vector<MockServiceRouter *> mock_service_router_list_;
 
-  void DropFirstInstance(RouteInfo &route_info, RouteResult *result) {
+  void DropFirstInstance(RouteInfo &route_info, RouteResult *) {
     ServiceInstances *service_instances = route_info.GetServiceInstances();
-    ASSERT_TRUE(service_instances != NULL);
-    InstancesSet *instances_set     = service_instances->GetAvailableInstances();
+    ASSERT_TRUE(service_instances != nullptr);
+    InstancesSet *instances_set = service_instances->GetAvailableInstances();
     std::vector<Instance *> old_set = instances_set->GetInstances();
     std::vector<Instance *> new_set;
     for (std::size_t i = 1; i < old_set.size(); i++) {
       new_set.push_back(old_set[i]);
     }
     InstancesSet *new_instances_set = new InstancesSet(new_set);
-    new_instances_set->GetInstancesSetImpl()->count_++;
+    new_instances_set->GetImpl()->count_++;
     service_instances->UpdateAvailableInstances(new_instances_set);
-    new_instances_set->DecrementRef();
-    result->SetServiceInstances(service_instances);
-    route_info.SetServiceInstances(NULL);
+    instance_set_cache_.push_back(new_instances_set);
   }
+
+ private:
+  std::vector<InstancesSet *> instance_set_cache_;
 };
 
 int MockServiceRouter::mock_service_router_index_ = 0;

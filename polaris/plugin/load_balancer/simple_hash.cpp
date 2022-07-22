@@ -23,17 +23,17 @@
 
 namespace polaris {
 
-ReturnCode SimpleHashLoadBalancer::ChooseInstance(ServiceInstances* service_instances,
-                                                  const Criteria& criteria, Instance*& next) {
-  next                             = NULL;
-  InstancesSet* instances_set      = service_instances->GetAvailableInstances();
+ReturnCode SimpleHashLoadBalancer::ChooseInstance(ServiceInstances* service_instances, const Criteria& criteria,
+                                                  Instance*& next) {
+  next = nullptr;
+  InstancesSet* instances_set = service_instances->GetAvailableInstances();
   std::vector<Instance*> instances = instances_set->GetInstances();
   std::set<Instance*> half_open_instances;
   service_instances->GetHalfOpenInstances(half_open_instances);
 
   if (!criteria.ignore_half_open_) {
     service_instances->GetService()->TryChooseHalfOpenInstance(half_open_instances, next);
-    if (next != NULL) {
+    if (next != nullptr) {
       return kReturnOk;
     }
   }
@@ -42,8 +42,16 @@ ReturnCode SimpleHashLoadBalancer::ChooseInstance(ServiceInstances* service_inst
     return kReturnInstanceNotFound;
   }
 
-  std::size_t index = criteria.hash_key_ % instances.size();
-  next              = instances[index];
+  next = instances[criteria.hash_key_ % instances.size()];
+  if (half_open_instances.count(next) > 0 && instances.size() != half_open_instances.size()) {
+    // 选到了半开节点，且有正常的节点，则查找到正常的节点
+    for (std::size_t i = 1; i < instances.size(); ++i) {
+      next = instances[(criteria.hash_key_ + i) % instances.size()];
+      if (half_open_instances.count(next) == 0) {
+        return kReturnOk;
+      }
+    }
+  }
   return kReturnOk;
 }
 

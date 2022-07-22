@@ -28,23 +28,49 @@ class LocalRegistry;
 class HealthChecker;
 
 namespace HealthCheckerConfig {
-static const char kChainWhenKey[]       = "when";
-static const char kChainWhenNever[]     = "never";
-static const char kChainWhenAlways[]    = "always";
+static const char kChainEnableKey[] = "enable";
+static const bool kChainEnableDefault = false;
+
+static const char kChainWhenKey[] = "when";
+static const char kChainWhenNever[] = "never";
+static const char kChainWhenAlways[] = "always";
 static const char kChainWhenOnRecover[] = "on_recover";
 
-static const char kChainPluginListKey[]     = "chain";
+static const char kChainPluginListKey[] = "chain";
 static const char kChainPluginListDefault[] = "tcp";
 
-static const char kCheckerIntervalKey[]        = "interval";
+static const char kDetectorIntervalKey[] = "checkPeriod";
+static const char kCheckerIntervalKey[] = "interval";
 static const uint64_t kDetectorIntervalDefault = 10 * 1000;  // 探活默认时间间隔10s
 
-static const char kTimeoutKey[]       = "timeout";  // 超时时间毫秒
-static const uint64_t kTimeoutDefault = 500;        // 默认500ms
+static const char kTimeoutKey[] = "timeout";  // 超时时间毫秒
+static const uint64_t kTimeoutDefault = 500;  // 默认500ms
+
+static const char kRetryKey[] = "retry";  // 探测的重试次数
+static const uint64_t kRetryDefault = 2;  // 默认重试两次
 }  // namespace HealthCheckerConfig
 
+class BaseHealthChecker : public HealthChecker {
+ public:
+  BaseHealthChecker();
+
+  virtual ~BaseHealthChecker();
+
+  virtual ReturnCode Init(Config* config, Context* context);
+
+  virtual ReturnCode DetectInstance(Instance& instance, DetectResult& detect_result);
+
+ protected:
+  virtual ReturnCode DetectInstanceOnce(Instance& instance, DetectResult& detect_result) = 0;
+
+  virtual const char* Name() = 0;
+
+  uint64_t timeout_ms_;
+  int retry_;
+};
+
 class HealthCheckerChainImpl : public HealthCheckerChain {
-public:
+ public:
   HealthCheckerChainImpl(const ServiceKey& service_key, LocalRegistry* local_registry);
 
   virtual ~HealthCheckerChainImpl();
@@ -55,10 +81,12 @@ public:
 
   virtual std::vector<HealthChecker*> GetHealthCheckers();
 
-private:
+  virtual const std::string& GetWhen() const { return when_; }
+
+ private:
   ServiceKey service_key_;
   uint64_t health_check_ttl_ms_;  // 服务探测周期ms
-  uint64_t last_detect_time_ms_;  //  上一次探测时间
+  uint64_t next_detect_time_ms_;  //  下一次探测时间
   std::string when_;
   LocalRegistry* local_registry_;
   std::vector<HealthChecker*> health_checker_list_;

@@ -25,7 +25,7 @@
 namespace polaris {
 
 class BM_LocalRegistry : public benchmark::Fixture {
-public:
+ public:
   void SetUp(const ::benchmark::State &state) {
     if (state.thread_index != 0) {
       return;
@@ -47,28 +47,28 @@ public:
                              "    persistDir: " +
                              persist_dir_;
     Config *config = Config::CreateFromString(content, err_msg);
-    if (config == NULL) {
+    if (config == nullptr) {
       std::cout << "create config with error: " << err_msg << std::endl;
       exit(-1);
     }
     context_ = Context::Create(config);
     delete config;
-    if (context_ == NULL) {
+    if (context_ == nullptr) {
       std::cout << "create context failed" << std::endl;
       exit(-1);
     }
     local_registry_ = context_->GetLocalRegistry();
-    srand(Time::GetCurrentTimeMs());
+    srand(Time::GetCoarseSteadyTimeMs());
   }
 
   void TearDown(const ::benchmark::State &state) {
     if (state.thread_index != 0) {
       return;
     }
-    local_registry_ = NULL;
-    if (context_ != NULL) {
+    local_registry_ = nullptr;
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
     TestUtils::RemoveDir(log_dir_);
     TestUtils::RemoveDir(persist_dir_);
@@ -98,12 +98,10 @@ static ServiceData *CreateService(const ServiceKey &service_key) {
 static ReturnCode InitServices(LocalRegistry *local_registry, int64_t service_num) {
   ReturnCode ret_code;
   for (int64_t i = 0; i < service_num; i++) {
-    ServiceKey service_key         = {"benchmark_namespace",
-                              "benchmark_service_" + StringUtils::TypeToStr<int>(i)};
-    ServiceDataNotify *data_notify = NULL;
-    ServiceData *service_data      = NULL;
-    ret_code = local_registry->LoadServiceDataWithNotify(service_key, kServiceDataInstances,
-                                                         service_data, data_notify);
+    ServiceKey service_key = {"benchmark_namespace", "benchmark_service_" + std::to_string(i)};
+    ServiceDataNotify *data_notify = nullptr;
+    ServiceData *service_data = nullptr;
+    ret_code = local_registry->LoadServiceDataWithNotify(service_key, kServiceDataInstances, service_data, data_notify);
     if (ret_code != kReturnOk) {
       return ret_code;
     }
@@ -120,21 +118,18 @@ BENCHMARK_DEFINE_F(BM_LocalRegistry, GetServiceData)(benchmark::State &state) {
   if (state.thread_index == 0) {
     InitServices(local_registry_, state.range(0));
   }
-  static __thread unsigned int thread_local_seed = time(NULL) ^ pthread_self();
+  static __thread unsigned int thread_local_seed = time(nullptr) ^ pthread_self();
   while (state.KeepRunning()) {
-    ServiceKey service_key = {
-        "benchmark_namespace",
-        "benchmark_service_" +
-            StringUtils::TypeToStr<int>(rand_r(&thread_local_seed) % state.range(0))};
-    ServiceData *service_data = NULL;
-    ReturnCode ret_code =
-        local_registry_->GetServiceDataWithRef(service_key, kServiceDataInstances, service_data);
-    if (ret_code != kReturnOk || service_data == NULL) {
+    ServiceKey service_key = {"benchmark_namespace",
+                              "benchmark_service_" + std::to_string(rand_r(&thread_local_seed) % state.range(0))};
+    ServiceData *service_data = nullptr;
+    ReturnCode ret_code = local_registry_->GetServiceDataWithRef(service_key, kServiceDataInstances, service_data);
+    if (ret_code != kReturnOk || service_data == nullptr) {
       state.SkipWithError("get service data return error");
       break;
     }
     service_data->DecrementRef();
-    service_data = NULL;
+    service_data = nullptr;
   }
   state.SetItemsProcessed(state.iterations());
 }

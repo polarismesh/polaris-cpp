@@ -42,21 +42,18 @@ polaris::ReturnCode Send(const std::string& host, int port, const std::string& d
     return polaris::kReturnNetworkFailed;
   }
   struct sockaddr_in dst_addr;
-  dst_addr.sin_family      = AF_INET;
-  dst_addr.sin_port        = htons(port);
+  dst_addr.sin_family = AF_INET;
+  dst_addr.sin_port = htons(port);
   dst_addr.sin_addr.s_addr = inet_addr(host.c_str());
   struct timeval timeout_val;
-  timeout_val.tv_sec  = 1;
+  timeout_val.tv_sec = 1;
   timeout_val.tv_usec = 0;
-  if (setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, (const void*)&timeout_val,
-                 sizeof(timeout_val)) < 0) {
-    std::cout << "setsockopt SO_SNDTIMEO error:" << errno << " msg:" << strerror(errno)
-              << std::endl;
+  if (setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, (const void*)&timeout_val, sizeof(timeout_val)) < 0) {
+    std::cout << "setsockopt SO_SNDTIMEO error:" << errno << " msg:" << strerror(errno) << std::endl;
     close(socket_fd);
     return polaris::kReturnNetworkFailed;
   }
-  ssize_t bytes = sendto(socket_fd, data.c_str(), data.size(), 0, (struct sockaddr*)&dst_addr,
-                         sizeof(dst_addr));
+  ssize_t bytes = sendto(socket_fd, data.c_str(), data.size(), 0, (struct sockaddr*)&dst_addr, sizeof(dst_addr));
   if (bytes < 0) {
     std::cout << "send failed to " << host.c_str() << ":" << port << ",  errno:" << errno
               << ", errmsg:" << strerror(errno) << std::endl;
@@ -65,16 +62,14 @@ polaris::ReturnCode Send(const std::string& host, int port, const std::string& d
   } else {
     std::cout << "send to " << host << ":" << port << ", data:" << data << std::endl;
   }
-  if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const void*)&timeout_val,
-                 sizeof(timeout_val)) < 0) {
-    std::cout << "setsockopt SO_RCVTIMEO error:" << errno << " msg:" << strerror(errno)
-              << std::endl;
+  if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const void*)&timeout_val, sizeof(timeout_val)) < 0) {
+    std::cout << "setsockopt SO_RCVTIMEO error:" << errno << " msg:" << strerror(errno) << std::endl;
     close(socket_fd);
     return polaris::kReturnNetworkFailed;
   }
   char buffer[1024];
   memset(buffer, 0, sizeof(buffer));
-  if ((bytes = recvfrom(socket_fd, buffer, sizeof(buffer), 0, NULL, NULL)) < 0) {
+  if ((bytes = recvfrom(socket_fd, buffer, sizeof(buffer), 0, nullptr, nullptr)) < 0) {
     std::cout << "recv failed from " << host.c_str() << ":" << port << ",  errno:" << errno
               << ", errmsg:" << strerror(errno) << std::endl;
     close(socket_fd);
@@ -92,21 +87,21 @@ int main(int argc, char** argv) {
     return -1;
   }
   std::string service_namespace = argv[1];
-  std::string service_name      = argv[2];
+  std::string service_name = argv[2];
 
   // 注册信号
   signal(SIGINT, SignalHandler);
 
   // 设置Logger目录和日志级别
   char temp_dir[] = "/tmp/polaris_log_XXXXXX";
-  char* dir_name  = mkdtemp(temp_dir);
+  char* dir_name = mkdtemp(temp_dir);
   std::cout << "set log dir to " << dir_name << std::endl;
   polaris::SetLogDir(dir_name);
   polaris::GetLogger()->SetLogLevel(polaris::kTraceLogLevel);
 
   // 创建Consumer对象
   polaris::ConsumerApi* consumer = polaris::ConsumerApi::CreateWithDefaultFile();
-  if (consumer == NULL) {
+  if (consumer == nullptr) {
     std::cout << "create consumer api failed" << std::endl;
     return -1;
   }
@@ -129,8 +124,7 @@ int main(int argc, char** argv) {
     begin = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 
     if ((ret = consumer->GetOneInstance(request, instance)) != polaris::kReturnOk) {
-      std::cout << "get one instance for service with error: "
-                << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+      std::cout << "get one instance for service with error: " << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
     }
 
     if (ret != polaris::kReturnOk) {
@@ -163,17 +157,15 @@ int main(int argc, char** argv) {
     result.SetServiceNamespace(service_namespace);
     result.SetServiceName(service_name);
     result.SetInstanceId(instance.GetId());
-    result.SetDelay(end - begin);  // 以微秒计
-    result.SetLocalityAwareInfo(
-        instance.GetLocalityAwareInfo());  // 将Instance中LocalityAware的信息上报
+    result.SetDelay(end - begin);                                  // 以微秒计
+    result.SetLocalityAwareInfo(instance.GetLocalityAwareInfo());  // 将Instance中LocalityAware的信息上报
 
     if (ret == polaris::kReturnOk) {
       result.SetRetCode(0);
       result.SetRetStatus(polaris::kCallRetOk);
     } else {
       result.SetRetCode(ret);
-      result.SetRetStatus(ret == polaris::kReturnTimeout ? polaris::kCallRetTimeout
-                                                         : polaris::kCallRetError);
+      result.SetRetStatus(ret == polaris::kReturnTimeout ? polaris::kCallRetTimeout : polaris::kCallRetError);
     }
     if ((ret = consumer->UpdateServiceCallResult(result)) != polaris::kReturnOk) {
       std::cout << "update call result for instance with error:" << ret

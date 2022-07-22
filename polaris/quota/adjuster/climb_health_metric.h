@@ -20,11 +20,10 @@
 #include <v1/request.pb.h>
 
 #include <map>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
-
-#include "sync/mutex.h"
 
 namespace polaris {
 
@@ -49,7 +48,7 @@ struct HealthMetricData {
 };
 
 class HealthMetricClimb {
-public:
+ public:
   HealthMetricClimb(ClimbTriggerPolicy& trigger_policy, ClimbThrottling& throttling);
   ~HealthMetricClimb();
 
@@ -61,22 +60,22 @@ public:
 
   void CollectRecord(v1::RateLimitRecord& rate_limit_record);
 
-private:
+ private:
   bool IsUnhealthy();  // 是否不健康
 
   bool TuneUp(std::vector<RateLimitAmount>& limit_amounts);
 
   bool TuneDown(std::vector<RateLimitAmount>& limit_amounts);
 
-  void RecordChange(uint64_t current_time, uint32_t before, RateLimitAmount& amount);
+  void RecordChange(uint32_t before, RateLimitAmount& amount);
 
-private:
+ private:
   ClimbTriggerPolicy& trigger_policy_;
   ClimbThrottling& throttling_;
   HealthMetricData metric_data_;
   ThrottlingStatus status_;
   int trigger_count_;  // 触发次数
-  sync::Mutex changes_lock_;
+  std::mutex changes_lock_;
   std::ostringstream reason_;
   google::protobuf::RepeatedPtrField<v1::ThresholdChange> threshold_changes_;
 };

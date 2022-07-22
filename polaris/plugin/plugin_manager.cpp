@@ -27,38 +27,37 @@
 #include "plugin/health_checker/http_detector.h"
 #include "plugin/health_checker/tcp_detector.h"
 #include "plugin/health_checker/udp_detector.h"
-#include "plugin/load_balancer/l5_csthash.h"
 #include "plugin/load_balancer/locality_aware/locality_aware.h"
 #include "plugin/load_balancer/maglev/maglev.h"
+#include "plugin/load_balancer/ringhash/l5_csthash.h"
 #include "plugin/load_balancer/ringhash/ringhash.h"
 #include "plugin/load_balancer/simple_hash.h"
 #include "plugin/load_balancer/weighted_random.h"
 #include "plugin/local_registry/local_registry.h"
-#include "plugin/server_connector/server_connector.h"
+#include "plugin/server_connector/grpc_server_connector.h"
 #include "plugin/service_router/canary_router.h"
 #include "plugin/service_router/metadata_router.h"
 #include "plugin/service_router/nearby_router.h"
 #include "plugin/service_router/rule_router.h"
 #include "plugin/service_router/set_division_router.h"
 #include "plugin/stat_reporter/stat_reporter.h"
+#include "plugin/weight_adjuster/slow_start.h"
 #include "plugin/weight_adjuster/weight_adjuster.h"
 #include "polaris/model.h"
 #include "polaris/plugin.h"
 #include "utils/indestructible.h"
-#include "utils/static_assert.h"
 
 namespace polaris {
 
 #define TO_STR(value) #value
 
-static const char* g_PluginTypeString[] = {
-    TO_STR(kPluginServerConnector), TO_STR(kPluginLocalRegistry), TO_STR(kPluginServiceRouter),
-    TO_STR(kPluginLoadBalancer),    TO_STR(kPluginHealthChecker), TO_STR(kPluginCircuitBreaker),
-    TO_STR(kPluginWeightAdjuster),  TO_STR(kPluginStatReporter),  TO_STR(kPluginAlertReporter),
-    TO_STR(kPluginServerMetric)};
+static const char* g_PluginTypeString[] = {TO_STR(kPluginServerConnector), TO_STR(kPluginLocalRegistry),
+                                           TO_STR(kPluginServiceRouter),   TO_STR(kPluginLoadBalancer),
+                                           TO_STR(kPluginHealthChecker),   TO_STR(kPluginCircuitBreaker),
+                                           TO_STR(kPluginWeightAdjuster),  TO_STR(kPluginStatReporter),
+                                           TO_STR(kPluginAlertReporter),   TO_STR(kPluginServerMetric)};
 
-STATIC_ASSERT(sizeof(g_PluginTypeString) / sizeof(const char*) == kPluginTypeMaxCount,
-              "plugin type define error");
+static_assert(sizeof(g_PluginTypeString) / sizeof(const char*) == kPluginTypeMaxCount, "plugin type define error");
 
 ReturnCode RegisterPlugin(std::string name, PluginType plugin_type, PluginFactory plugin_factory) {
   return PluginManager::Instance().RegisterPlugin(name, plugin_type, plugin_factory);
@@ -87,6 +86,7 @@ Plugin* SimpleHashLoadBalancerFactory() { return new SimpleHashLoadBalancer(); }
 Plugin* CMurmurHashLoadBalancerFactory() { return new L5CstHashLoadBalancer(true); }
 Plugin* LocalityAwareLoadBalancerFactory() { return new LocalityAwareLoadBalancer(); }
 Plugin* DefaultWeightAdjusterFactory() { return new DefaultWeightAdjuster(); }
+Plugin* SlowStartWeightAdjusterFactory() { return new SlowStartWeightAdjuster(); }
 
 Plugin* RuleServiceRouterFactory() { return new RuleServiceRouter(); }
 Plugin* NearbyServiceRouterFactory() { return new NearbyServiceRouter(); }
@@ -112,23 +112,20 @@ PluginManager::PluginManager() {
   RegisterPlugin(kLoadBalanceTypeMaglevHash, kPluginLoadBalancer, MaglevLoadBalancerFactory);
   RegisterPlugin(kLoadBalanceTypeL5CstHash, kPluginLoadBalancer, L5CstHashLoadBalancerFactory);
   RegisterPlugin(kLoadBalanceTypeSimpleHash, kPluginLoadBalancer, SimpleHashLoadBalancerFactory);
-  RegisterPlugin(kLoadBalanceTypeLocalityAware, kPluginLoadBalancer,
-                 LocalityAwareLoadBalancerFactory);
+  RegisterPlugin(kLoadBalanceTypeLocalityAware, kPluginLoadBalancer, LocalityAwareLoadBalancerFactory);
   RegisterPlugin(kLoadBalanceTypeCMurmurHash, kPluginLoadBalancer, CMurmurHashLoadBalancerFactory);
 
   RegisterPlugin(kPluginDefaultWeightAdjuster, kPluginWeightAdjuster, DefaultWeightAdjusterFactory);
+  RegisterPlugin(kPluginSlowStartWeightAdjuster, kPluginWeightAdjuster, SlowStartWeightAdjusterFactory);
 
   RegisterPlugin(kPluginRuleServiceRouter, kPluginServiceRouter, RuleServiceRouterFactory);
   RegisterPlugin(kPluginNearbyServiceRouter, kPluginServiceRouter, NearbyServiceRouterFactory);
-  RegisterPlugin(kPluginSetDivisionServiceRouter, kPluginServiceRouter,
-                 SetDivisionServiceRouterFactory);
+  RegisterPlugin(kPluginSetDivisionServiceRouter, kPluginServiceRouter, SetDivisionServiceRouterFactory);
   RegisterPlugin(kPluginCanaryServiceRouter, kPluginServiceRouter, CanaryServiceRouterFactory);
   RegisterPlugin(kPluginMetadataServiceRouter, kPluginServiceRouter, MetadataServiceRouterFactory);
 
-  RegisterPlugin(kPluginErrorCountCircuitBreaker, kPluginCircuitBreaker,
-                 ErrorCountCircuitBreakerFactory);
-  RegisterPlugin(kPluginErrorRateCircuitBreaker, kPluginCircuitBreaker,
-                 ErrorRateCircuitBreakerFactory);
+  RegisterPlugin(kPluginErrorCountCircuitBreaker, kPluginCircuitBreaker, ErrorCountCircuitBreakerFactory);
+  RegisterPlugin(kPluginErrorRateCircuitBreaker, kPluginCircuitBreaker, ErrorRateCircuitBreakerFactory);
 
   RegisterPlugin(kPluginHttpHealthChecker, kPluginHealthChecker, HttpHealthCheckerFactory);
   RegisterPlugin(kPluginTcpHealthChecker, kPluginHealthChecker, TcpHealthCheckerFactory);
@@ -140,7 +137,7 @@ PluginManager::~PluginManager() {}
 ReturnCode PluginManager::RegisterPlugin(const std::string& name, PluginType plugin_type,
                                          PluginFactory plugin_factory) {
   std::string name_with_type = name + PluginTypeToString(plugin_type);
-  sync::MutexGuard mutex_guard(lock_);
+  const std::lock_guard<std::mutex> mutex_guard(lock_);
   std::map<std::string, PluginFactory>::iterator it = plugin_factory_map_.find(name_with_type);
   if (it != plugin_factory_map_.end() && it->second != plugin_factory) {
     POLARIS_LOG(LOG_ERROR, "register plugin failed: plugin type %s with name %s already exist",
@@ -151,26 +148,24 @@ ReturnCode PluginManager::RegisterPlugin(const std::string& name, PluginType plu
   return kReturnOk;
 }
 
-ReturnCode PluginManager::GetPlugin(const std::string& name, PluginType plugin_type,
-                                    Plugin*& plugin) {
+ReturnCode PluginManager::GetPlugin(const std::string& name, PluginType plugin_type, Plugin*& plugin) {
   std::string name_with_type = name + PluginTypeToString(plugin_type);
-  lock_.Lock();
+  lock_.lock();
   std::map<std::string, PluginFactory>::iterator it = plugin_factory_map_.find(name_with_type);
   if (it == plugin_factory_map_.end()) {
-    POLARIS_LOG(LOG_ERROR, "get plugin error: plugin type %s with name %s not exist",
-                PluginTypeToString(plugin_type), name.c_str());
-    lock_.Unlock();
+    POLARIS_LOG(LOG_ERROR, "get plugin error: plugin type %s with name %s not exist", PluginTypeToString(plugin_type),
+                name.c_str());
+    lock_.unlock();
     return kReturnPluginError;
   }
   PluginFactory plugin_factory = it->second;
-  lock_.Unlock();
+  lock_.unlock();
   plugin = plugin_factory();
   return kReturnOk;
 }
 
-ReturnCode PluginManager::RegisterInstancePreUpdateHandler(InstancePreUpdateHandler handler,
-                                                           bool bFront /* = false*/) {
-  sync::MutexGuard mutex_guard(instancePreUpdatelock_);
+ReturnCode PluginManager::RegisterInstancePreUpdateHandler(InstancePreUpdateHandler handler, bool bFront /* = false*/) {
+  const std::lock_guard<std::mutex> mutex_guard(instancePreUpdatelock_);
   std::vector<InstancePreUpdateHandler>::iterator it = instancePreUpdateHandlers_.begin();
   for (; it != instancePreUpdateHandlers_.end(); ++it) {
     if (*it == handler) {
@@ -186,7 +181,7 @@ ReturnCode PluginManager::RegisterInstancePreUpdateHandler(InstancePreUpdateHand
 }
 
 ReturnCode PluginManager::DeregisterInstancePreUpdateHandler(InstancePreUpdateHandler handler) {
-  sync::MutexGuard mutex_guard(instancePreUpdatelock_);
+  const std::lock_guard<std::mutex> mutex_guard(instancePreUpdatelock_);
   std::vector<InstancePreUpdateHandler>::iterator it = instancePreUpdateHandlers_.begin();
   for (; it != instancePreUpdateHandlers_.end(); ++it) {
     if (*it == handler) {
@@ -198,17 +193,15 @@ ReturnCode PluginManager::DeregisterInstancePreUpdateHandler(InstancePreUpdateHa
 }
 
 void PluginManager::OnPreUpdateServiceData(ServiceData* oldData, ServiceData* newData) {
-  if (NULL == newData || NULL == oldData || 0 == instancePreUpdateHandlers_.size()) {
+  if (nullptr == newData || nullptr == oldData || 0 == instancePreUpdateHandlers_.size()) {
     return;
   }
-  instancePreUpdatelock_.Lock();
-  std::vector<InstancePreUpdateHandler> handlers(instancePreUpdateHandlers_.begin(),
-                                                 instancePreUpdateHandlers_.end());
-  instancePreUpdatelock_.Unlock();
+  instancePreUpdatelock_.lock();
+  std::vector<InstancePreUpdateHandler> handlers(instancePreUpdateHandlers_.begin(), instancePreUpdateHandlers_.end());
+  instancePreUpdatelock_.unlock();
   std::vector<InstancePreUpdateHandler>::iterator it = handlers.begin();
   for (; it != handlers.end(); ++it) {
-    (*it)(oldData->GetServiceDataImpl()->data_.instances_,
-          newData->GetServiceDataImpl()->data_.instances_);
+    (*it)(oldData->GetServiceDataImpl()->data_.instances_, newData->GetServiceDataImpl()->data_.instances_);
   }
   return;
 }

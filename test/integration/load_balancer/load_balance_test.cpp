@@ -19,7 +19,6 @@
 #include <pthread.h>
 
 #include "polaris/consumer.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 #include "integration/common/integration_base.h"
@@ -27,25 +26,24 @@
 namespace polaris {
 
 class LoadBalanceTest : public IntegrationBase {
-protected:
-  LoadBalanceTest() : consumer_api_(NULL) {}
+ protected:
+  LoadBalanceTest() : consumer_api_(nullptr) {}
 
   virtual void SetUp() {
     service_.mutable_namespace_()->set_value("Test");
-    service_.mutable_name()->set_value("cpp.integration.load.balance.type" +
-                                       StringUtils::TypeToStr(Time::GetCurrentTimeMs()));
+    service_.mutable_name()->set_value("cpp.integration.load.balance.type" + std::to_string(Time::GetSystemTimeMs()));
     IntegrationBase::SetUp();
     consumer_api_ = ConsumerApi::Create(context_);
-    ASSERT_TRUE(consumer_api_ != NULL);
-    srand(time(NULL));
+    ASSERT_TRUE(consumer_api_ != nullptr);
+    srand(time(nullptr));
     CreateInstances(15 + random() % 5);
     sleep(3);  // 等待Discover服务器获取到服务信息
   }
 
   virtual void TearDown() {
-    if (consumer_api_ != NULL) {
+    if (consumer_api_ != nullptr) {
       delete consumer_api_;
-      consumer_api_ = NULL;
+      consumer_api_ = nullptr;
     }
     DeleteInstances();
     IntegrationBase::TearDown();
@@ -55,7 +53,7 @@ protected:
 
   void DeleteInstances();
 
-protected:
+ protected:
   ConsumerApi* consumer_api_;
   std::vector<std::string> instances_;
 };
@@ -105,19 +103,19 @@ void* LoadBalanceTypeFunc(void* arg) {
       key_instance_map[hash_key] = instance.GetId();
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 TEST_F(LoadBalanceTest, CheckSetLoadBalanceType) {
   int thread_size = 4;
   ServiceKey service_key;
   service_key.namespace_ = service_.namespace_().value();
-  service_key.name_      = service_.name().value();
+  service_key.name_ = service_.name().value();
   LoadBalanceTestArg thread_arg[thread_size];
   for (int i = 0; i < thread_size; ++i) {
     thread_arg[i].consumer_api = consumer_api_;
-    thread_arg[i].service_key  = &service_key;
-    int rc = pthread_create(&thread_arg[i].tid, NULL, LoadBalanceTypeFunc, &thread_arg[i]);
+    thread_arg[i].service_key = &service_key;
+    int rc = pthread_create(&thread_arg[i].tid, nullptr, LoadBalanceTypeFunc, &thread_arg[i]);
     ASSERT_EQ(rc, 0);
   }
   GetOneInstanceRequest request(service_key);
@@ -126,7 +124,7 @@ TEST_F(LoadBalanceTest, CheckSetLoadBalanceType) {
     EXPECT_EQ(consumer_api_->GetOneInstance(request, instance), kReturnOk);
   }
   for (int i = 0; i < thread_size; ++i) {
-    int rc = pthread_join(thread_arg[i].tid, NULL);
+    int rc = pthread_join(thread_arg[i].tid, nullptr);
     ASSERT_EQ(rc, 0);
   }
 }
@@ -134,7 +132,7 @@ TEST_F(LoadBalanceTest, CheckSetLoadBalanceType) {
 TEST_F(LoadBalanceTest, CheckSimpleHash) {
   ServiceKey service_key;
   service_key.namespace_ = service_.namespace_().value();
-  service_key.name_      = service_.name().value();
+  service_key.name_ = service_.name().value();
   GetOneInstanceRequest request(service_key);
   request.SetLoadBalanceType(kLoadBalanceTypeSimpleHash);
   Instance instance;

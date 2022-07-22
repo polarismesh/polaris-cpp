@@ -17,7 +17,13 @@
 #include <stdint.h>
 #include <string>
 
+#include "context/context_impl.h"
+#include "context/service_context.h"
+#include "model/requests.h"
+#include "model/responses.h"
 #include "model/return_code.h"
+#include "monitor/api_stat.h"
+#include "polaris/consumer.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
 #include "polaris/plugin.h"
@@ -25,91 +31,72 @@
 
 namespace polaris {
 
-class ApiStat;
-class Context;
-class ContextImpl;
-class ConsumerApiImpl;
-class GetInstancesRequest;
-class GetInstancesRequestAccessor;
-class GetOneInstanceRequest;
-class GetOneInstanceRequestAccessor;
-class InstancesFuture;
-class InstancesResponse;
-class RouteInfoNotify;
-class ServiceContext;
-struct InstanceGauge;
-
-class InstancesFutureImpl : public AtomicRefCount {
-public:
-  InstancesFutureImpl(const ServiceKey& service_key, ServiceInfo* source_service_info);
+class InstancesFuture::Impl : public AtomicRefCount {
+ public:
+  Impl(const ServiceKey& service_key, ApiStat* api_stat, ContextImpl* context_impl, ServiceInfo* source_service_info);
 
   static InstancesFuture* CreateInstancesFuture(ApiStat* api_stat, ContextImpl* context_impl,
-                                                ServiceContext* service_context,
-                                                GetOneInstanceRequest* req);
+                                                ServiceContext* service_context, GetOneInstanceRequest::Impl& req_impl);
 
   static InstancesFuture* CreateInstancesFuture(ApiStat* api_stat, ContextImpl* context_impl,
-                                                ServiceContext* service_context,
-                                                GetInstancesRequest* req);
+                                                ServiceContext* service_context, GetInstancesRequest::Impl& req_impl);
 
   ReturnCode CheckReady();
 
-private:
-  virtual ~InstancesFutureImpl();
+ private:
+  virtual ~Impl();
 
-private:
+ private:
   friend class InstancesFuture;
   friend class CacheManager;
   friend class TimeoutWatcher;
   ApiStat* api_stat_;
-  ContextImpl* context_impl_;
-  ServiceContext* service_context_;
-  GetOneInstanceRequest* one_instance_req_;
-  GetInstancesRequest* instances_req_;
+  ContextImpl* const context_impl_;
+  GetOneInstanceRequest::Impl* one_instance_req_;
+  GetInstancesRequest::Impl* instances_req_;
   uint64_t request_timeout_;
+  // 保存ServiceInfo结构数据，RouteInfo内部不维护
+  ServiceInfo* source_service_info_;
   RouteInfo route_info_;
   RouteInfoNotify* route_info_notify_;
 };
 
 // POLARIS 客户端API的主接口
 class ConsumerApiImpl {
-public:
+ public:
   explicit ConsumerApiImpl(Context* context);
   ~ConsumerApiImpl();
 
-  static ReturnCode PrepareRouteInfo(ServiceContext* service_context, RouteInfo& route_info,
-                                     const char* action, uint64_t request_timeout);
+  static ReturnCode PrepareRouteInfo(ServiceContext* service_context, RouteInfo& route_info, const char* action,
+                                     uint64_t request_timeout);
 
   static ReturnCode GetOneInstance(ServiceContext* service_context, RouteInfo& route_info,
-                                   GetOneInstanceRequestAccessor& request, Instance& instance);
+                                   GetOneInstanceRequest::Impl& req_impl, Instance& instance);
 
   static ReturnCode GetOneInstance(ServiceContext* service_context, RouteInfo& route_info,
-                                   GetOneInstanceRequestAccessor& request,
-                                   InstancesResponse*& resp);
+                                   GetOneInstanceRequest::Impl& req_impl, InstancesResponse*& resp);
 
   static ReturnCode GetInstances(ServiceContext* service_context, RouteInfo& route_info,
-                                 GetInstancesRequestAccessor& request, InstancesResponse*& resp);
+                                 GetInstancesRequest::Impl& req_impl, InstancesResponse*& resp);
 
   static ReturnCode UpdateServiceCallResult(Context* context, const InstanceGauge& gauge);
 
-  static ReturnCode GetSystemServer(Context* context, const ServiceKey& service_key,
-                                    const Criteria& criteria, Instance*& instance, uint64_t timeout,
-                                    const std::string& protocol = "grpc");
+  static ReturnCode GetSystemServer(Context* context, const ServiceKey& service_key, const Criteria& criteria,
+                                    Instance*& instance, uint64_t timeout, const std::string& protocol = "grpc");
 
-  static void UpdateServerResult(Context* context, const ServiceKey& service_key,
-                                 const Instance& instance, PolarisServerCode code,
-                                 CallRetStatus status, uint64_t delay);
+  static void UpdateServerResult(Context* context, const ServiceKey& service_key, const Instance& instance,
+                                 PolarisServerCode code, CallRetStatus status, uint64_t delay);
 
-private:
+
+  Context* GetContext() const { return context_; }
+
+ private:
   static void GetBackupInstances(ServiceInstances* service_instances, LoadBalancer* load_balancer,
-                                 GetOneInstanceRequestAccessor& request,
+                                 uint32_t backup_instance_num, const Criteria& criteria,
                                  std::vector<Instance*>& backup_instances);
 
-private:
-  friend class ConsumerApi;
-  friend class InstancesFuture;
-  friend class InstancesFutureImpl;
-
-  Context* context_;
+ private:
+  Context* const context_;
 };
 
 }  // namespace polaris

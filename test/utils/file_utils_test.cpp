@@ -49,28 +49,26 @@ TEST(FileUtilsTest, TestExpandPath) {
 
 TEST(FileUtilsTest, TestHomePathExpand) {
   char* home_path = getenv("HOME");
-  EXPECT_TRUE(home_path != NULL);
+  EXPECT_TRUE(home_path != nullptr);
   std::string home_str(home_path);
   std::string expand_path = FileUtils::ExpandPath("$HOME/test");
   EXPECT_EQ(expand_path, home_str + "/test");
 
   unsetenv("HOME");
   home_path = getenv("HOME");
-  ASSERT_TRUE(home_path == NULL);
+  ASSERT_TRUE(home_path == nullptr);
   expand_path = FileUtils::ExpandPath("$HOME/test");
   EXPECT_EQ(expand_path, home_str + "/test");
 }
 
 TEST(FileUtilsTest, TestCreatePath) {
-  uint64_t current_time = Time::GetCurrentTimeMs();
-  std::string path =
-      "/tmp/polaris_test/" + StringUtils::TypeToStr<uint64_t>(current_time) + "/create_path/test";
+  uint64_t current_time = Time::GetSystemTimeMs();
+  std::string path = "/tmp/polaris_test/" + std::to_string(current_time) + "/create_path/test";
   bool result = FileUtils::CreatePath(path);
   ASSERT_EQ(result, true);
   ASSERT_TRUE(FileUtils::FileExists(path));
 
-  path =
-      "/tmp/polaris_test//" + StringUtils::TypeToStr<uint64_t>(current_time) + "//create_path/test";
+  path = "/tmp/polaris_test//" + std::to_string(current_time) + "//create_path/test";
   result = FileUtils::CreatePath(path);
   ASSERT_EQ(result, true);
   ASSERT_TRUE(FileUtils::FileExists(path));

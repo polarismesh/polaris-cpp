@@ -25,29 +25,29 @@
 namespace polaris {
 
 class IntegrationBase : public ::testing::Test {
-protected:
-  IntegrationBase() : context_(NULL) {}
+ protected:
+  IntegrationBase() : context_(nullptr) {}
 
   virtual void SetUp();
 
+  // 走trpc协议
+  virtual void SetUpWithTrpc();
+
   virtual void TearDown();
 
-public:
+ public:
   // 创建服务
   static void CreateService(v1::Service &service, std::string &out_tokens);
   // 删除服务
-  static void DeleteService(const std::string &name, const std::string &space,
-                            const std::string &token);
+  static void DeleteService(const std::string &name, const std::string &space, const std::string &token);
   static void DeleteService(v1::Service &service);
 
-  static void SendRequestAndAssertResponse(std::string &request, const std::string &path,
-                                           v1::BatchWriteResponse &bwr);
+  static void SendRequestAndAssertResponse(std::string &request, const std::string &path, v1::BatchWriteResponse &bwr);
 
   //添加实例
-  static void AddPolarisServiceInstance(const std::string &service, const std::string &space,
-                                        const std::string &token, const std::string &host, int port,
-                                        std::map<std::string, std::string> &meta, bool isolate,
-                                        std::string &out_id);
+  static void AddPolarisServiceInstance(const std::string &service, const std::string &space, const std::string &token,
+                                        const std::string &host, int port, std::map<std::string, std::string> &meta,
+                                        bool isolate, std::string &out_id);
 
   static void AddPolarisServiceInstance(v1::Instance &instance, std::string &out_id);
   //删除实例
@@ -63,18 +63,14 @@ public:
   static void UpdatePolarisRouteRule(v1::Routing &route_rule);
 
   //添加熔断规则
-  static void AddPolarisSetBreakerRule(v1::CircuitBreaker &circuit_breaker,
-                                       const std::string &service_token, const std::string &version,
-                                       std::string &out_token, std::string &out_id);
+  static void AddPolarisSetBreakerRule(v1::CircuitBreaker &circuit_breaker, const std::string &service_token,
+                                       const std::string &version, std::string &out_token, std::string &out_id);
   //删除熔断规则
-  static void DeletePolarisSetBreakerRule(const std::string &name, const std::string &version,
-                                          const std::string &token,
-                                          const std::string &breaker_space,
-                                          const std::string &service_token,
+  static void DeletePolarisSetBreakerRule(const std::string &name, const std::string &version, const std::string &token,
+                                          const std::string &breaker_space, const std::string &service_token,
                                           const std::string &service, const std::string &space);
 
-  static void DeletePolarisSetBreakerRule(v1::CircuitBreaker &circuit_breaker,
-                                          const std::string &service_token);
+  static void DeletePolarisSetBreakerRule(v1::CircuitBreaker &circuit_breaker, const std::string &service_token);
 
   // 创建服务限流规则
   static void CreateRateLimitRule(v1::Rule &rate_limit_rule, std::string &rule_id);
@@ -86,7 +82,7 @@ public:
 
   static void ParseMessageFromJsonFile(const std::string &file, google::protobuf::Message *proto);
 
-protected:
+ protected:
   v1::Service service_;
   std::string service_token_;
   Context *context_;

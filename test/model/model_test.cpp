@@ -21,78 +21,85 @@
 #include "model/model_impl.h"
 #include "polaris/plugin.h"
 #include "test_utils.h"
-#include "utils/string_utils.h"
 
 namespace polaris {
 
 class ModelTest : public ::testing::Test {
-protected:
+ protected:
   void SetUp() {
     service_key_.namespace_ = "test_namespace";
-    service_key_.name_      = "test_service";
+    service_key_.name_ = "test_service";
     TestUtils::SetUpFakeTime();
   }
 
   void TearDown() { TestUtils::TearDownFakeTime(); }
 
-protected:
+ protected:
   ServiceKey service_key_;
 };
+
+TEST_F(ModelTest, TestInstanceType) {
+  // ipv4
+  Instance instance_ipv4("Ipv4", "127.0.0.1", 8000, 100);
+  ASSERT_FALSE(instance_ipv4.IsIpv6());
+
+  // ipv6
+  Instance instance_ipv6("Ipv6", "0:0:0:0:0:0:0:1", 8000, 100);
+  ASSERT_TRUE(instance_ipv6.IsIpv6());
+}
 
 TEST_F(ModelTest, TryChooseHalfOpenInstance) {
   Service *service = new Service(service_key_, 0);
   std::set<Instance *> service_instances;
   for (int i = 0; i < 10; i++) {
-    std::string instance_id = "instance_" + StringUtils::TypeToStr<int>(i);
-    Instance *instance      = new Instance(instance_id, "host", 8000, 100);
+    std::string instance_id = "instance_" + std::to_string(i);
+    Instance *instance = new Instance(instance_id, "host", 8000, 100);
     service_instances.insert(instance);
   }
   CircuitBreakerData circuit_breaker_data;
-  circuit_breaker_data.version                           = 1;
+  circuit_breaker_data.version = 1;
   circuit_breaker_data.half_open_instances["instance_0"] = 1;
   circuit_breaker_data.half_open_instances["instance_x"] = 2;
   service->SetCircuitBreakerData(circuit_breaker_data);
 
-  Instance *instance = NULL;
+  Instance *instance = nullptr;
   for (int i = 1; i <= 60; i++) {
-    instance       = NULL;
+    instance = nullptr;
     ReturnCode ret = service->TryChooseHalfOpenInstance(service_instances, instance);
     if (i == 20) {
       ASSERT_EQ(ret, kReturnOk) << i;
-      ASSERT_TRUE(instance != NULL);
+      ASSERT_TRUE(instance != nullptr);
       ASSERT_EQ(instance->GetId(), "instance_0");
     } else {
       ASSERT_EQ(ret, kReturnInstanceNotFound);
-      ASSERT_TRUE(instance == NULL);
+      ASSERT_TRUE(instance == nullptr);
     }
     TestUtils::FakeNowIncrement(1500);
   }
 
-  circuit_breaker_data.version                           = 2;
+  circuit_breaker_data.version = 2;
   circuit_breaker_data.half_open_instances["instance_0"] = 1;
   circuit_breaker_data.half_open_instances["instance_x"] = 2;
   circuit_breaker_data.half_open_instances["instance_1"] = 5;
   service->SetCircuitBreakerData(circuit_breaker_data);
   for (int i = 1; i <= 100; i++) {
-    instance = NULL;
+    instance = nullptr;
     TestUtils::FakeNowIncrement(1500);
     ReturnCode ret = service->TryChooseHalfOpenInstance(service_instances, instance);
     if (i % 20 == 0) {
       ASSERT_EQ(ret, kReturnOk) << i;
-      ASSERT_TRUE(instance != NULL);
+      ASSERT_TRUE(instance != nullptr);
       ASSERT_EQ(instance->GetId(), "instance_1");
     } else {
       ASSERT_EQ(ret, kReturnInstanceNotFound);
     }
   }
-  instance = NULL;
+  instance = nullptr;
   TestUtils::FakeNowIncrement(10000);
-  ASSERT_EQ(service->TryChooseHalfOpenInstance(service_instances, instance),
-            kReturnInstanceNotFound);
-  ASSERT_TRUE(instance == NULL);
+  ASSERT_EQ(service->TryChooseHalfOpenInstance(service_instances, instance), kReturnInstanceNotFound);
+  ASSERT_TRUE(instance == nullptr);
 
-  for (std::set<Instance *>::iterator it = service_instances.begin(); it != service_instances.end();
-       ++it) {
+  for (std::set<Instance *>::iterator it = service_instances.begin(); it != service_instances.end(); ++it) {
     delete *it;
   }
   delete service;
@@ -107,8 +114,8 @@ TEST_F(ModelTest, TryChooseHalfOpenInstanceRand) {
   service->SetCircuitBreakerData(circuit_breaker_data);
   circuit_breaker_data.version = 2;
   for (int i = 0; i < 10; i++) {
-    std::string instance_id = "instance_" + StringUtils::TypeToStr<int>(i);
-    instance                = new Instance(instance_id, "host", 8000, 100);
+    std::string instance_id = "instance_" + std::to_string(i);
+    instance = new Instance(instance_id, "host", 8000, 100);
     circuit_breaker_data.half_open_instances[instance_id] = 10;
     instances.insert(instance);
   }
@@ -149,6 +156,117 @@ TEST_F(ModelTest, TestInstanceLocalId) {
       local_id_set.insert(instance_it->second->GetLocalId());
     }
     ASSERT_EQ(local_id_set.size(), (i == 0 ? 9 : 10) + i) << i;
+    service_data->DecrementRef();
+  }
+}
+
+TEST_F(ModelTest, TestUpdateDynamicWeight) {
+  Service service(service_key_, 0);
+
+  // init
+  {
+    DynamicWeightData new_data;
+    new_data.version = 0;
+    new_data.status = kDynamicWeightNoInit;
+    new_data.sync_interval = 1000;
+    new_data.dynamic_weights["instance1"] = 1;
+    new_data.dynamic_weights["instance2"] = 2;
+    bool states_change = false;
+    EXPECT_EQ(service.GetDynamicWeightData().size(), 0);
+    service.SetDynamicWeightData(new_data, states_change);
+    EXPECT_EQ(service.GetDynamicWeightData().size(), 0);  // status == kDynamicWeightNoInit
+  }
+
+  // update status and version change nothing
+  {
+    DynamicWeightData new_data;
+    new_data.version = 0;
+    new_data.status = kDynamicWeightUpdating;
+    new_data.sync_interval = 1000;
+    new_data.dynamic_weights["instance1"] = 1;
+    new_data.dynamic_weights["instance2"] = 2;
+    bool states_change = false;
+
+    uint64_t old_version = service.GetDynamicWeightDataVersion();
+    EXPECT_EQ(old_version, 1);
+    service.SetDynamicWeightData(new_data, states_change);
+    uint64_t new_version = service.GetDynamicWeightDataVersion();
+    EXPECT_EQ(states_change, true);
+    EXPECT_EQ(new_version, 1);
+    EXPECT_EQ(service.GetDynamicWeightData().size(), 2);
+  }
+
+  // add instance and version add 1
+  {
+    DynamicWeightData new_data;
+    new_data.version = 0;
+    new_data.status = kDynamicWeightUpdating;
+    new_data.sync_interval = 1000;
+    new_data.dynamic_weights["instance1"] = 1;
+    new_data.dynamic_weights["instance2"] = 2;
+    new_data.dynamic_weights["instance3"] = 3;
+    bool states_change = false;
+
+    uint64_t old_version = service.GetDynamicWeightDataVersion();
+    service.SetDynamicWeightData(new_data, states_change);
+    uint64_t new_version = service.GetDynamicWeightDataVersion();
+    EXPECT_EQ(states_change, false);
+    EXPECT_EQ(new_version, old_version + 1);
+    EXPECT_EQ(service.GetDynamicWeightData().size(), 3);
+  }
+
+  // del instance and version add 1
+  {
+    DynamicWeightData new_data;
+    new_data.version = 0;
+    new_data.status = kDynamicWeightUpdating;
+    new_data.sync_interval = 1000;
+    new_data.dynamic_weights["instance1"] = 1;
+    new_data.dynamic_weights["instance2"] = 2;
+    bool states_change = false;
+
+    uint64_t old_version = service.GetDynamicWeightDataVersion();
+    service.SetDynamicWeightData(new_data, states_change);
+    uint64_t new_version = service.GetDynamicWeightDataVersion();
+    EXPECT_EQ(states_change, false);
+    EXPECT_EQ(new_version, old_version + 1);
+    EXPECT_EQ(service.GetDynamicWeightData().size(), 2);
+  }
+
+  // update instance and version add 1
+  {
+    DynamicWeightData new_data;
+    new_data.version = 0;
+    new_data.status = kDynamicWeightUpdating;
+    new_data.sync_interval = 1000;
+    new_data.dynamic_weights["instance1"] = 1;
+    new_data.dynamic_weights["instance2"] = 3;
+    bool states_change = false;
+
+    uint64_t old_version = service.GetDynamicWeightDataVersion();
+    service.SetDynamicWeightData(new_data, states_change);
+    uint64_t new_version = service.GetDynamicWeightDataVersion();
+    EXPECT_EQ(states_change, false);
+    EXPECT_EQ(new_version, old_version + 1);
+    EXPECT_EQ(service.GetDynamicWeightData().size(), 2);
+  }
+
+  // update instance and version add 1
+  {
+    DynamicWeightData new_data;
+    new_data.version = 0;
+    new_data.status = kDynamicWeightUpdating;
+    new_data.sync_interval = 1000;
+    new_data.dynamic_weights["instance1"] = 1;
+    new_data.dynamic_weights["instance3"] = 3;
+    bool states_change = false;
+
+    uint64_t old_version = service.GetDynamicWeightDataVersion();
+    service.SetDynamicWeightData(new_data, states_change);
+    uint64_t new_version = service.GetDynamicWeightDataVersion();
+    EXPECT_EQ(states_change, false);
+    EXPECT_EQ(new_version, old_version + 1);
+    EXPECT_EQ(service.GetDynamicWeightData().size(), 2);
   }
 }
 

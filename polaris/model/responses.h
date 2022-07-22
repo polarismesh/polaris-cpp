@@ -20,13 +20,12 @@
 #include <string>
 #include <vector>
 
-#include "polaris/defs.h"
-#include "polaris/model.h"
+#include "polaris/consumer.h"
 
 namespace polaris {
 
-class InstancesResponseImpl {
-public:
+class InstancesResponse::Impl {
+ public:
   uint64_t flow_id_;
   std::string service_name_;
   std::string service_namespace_;

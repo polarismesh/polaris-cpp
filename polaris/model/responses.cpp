@@ -13,65 +13,31 @@
 
 #include "model/responses.h"
 
-#include <stddef.h>
-
-#include "polaris/accessors.h"
-#include "polaris/consumer.h"
-
 namespace polaris {
 
-InstancesResponse::InstancesResponse() { impl = new InstancesResponseImpl(); }
+InstancesResponse::InstancesResponse() : impl_(new InstancesResponse::Impl()) {}
 
 InstancesResponse::~InstancesResponse() {
-  if (impl != NULL) delete impl;
+  delete impl_;
+  impl_ = nullptr;
 }
 
-uint64_t InstancesResponse::GetFlowId() { return impl->flow_id_; }
+uint64_t InstancesResponse::GetFlowId() { return impl_->flow_id_; }
 
-std::string& InstancesResponse::GetServiceName() { return impl->service_name_; }
+std::string& InstancesResponse::GetServiceName() { return impl_->service_name_; }
 
-std::string& InstancesResponse::GetServiceNamespace() { return impl->service_namespace_; }
+std::string& InstancesResponse::GetServiceNamespace() { return impl_->service_namespace_; }
 
-std::map<std::string, std::string>& InstancesResponse::GetMetadata() { return impl->metadata_; }
+std::map<std::string, std::string>& InstancesResponse::GetMetadata() { return impl_->metadata_; }
 
-WeightType InstancesResponse::GetWeightType() { return impl->weight_type_; }
+WeightType InstancesResponse::GetWeightType() { return impl_->weight_type_; }
 
-std::string& InstancesResponse::GetRevision() { return impl->revision_; }
+std::string& InstancesResponse::GetRevision() { return impl_->revision_; }
 
-std::vector<Instance>& InstancesResponse::GetInstances() { return impl->instances_; }
+std::vector<Instance>& InstancesResponse::GetInstances() { return impl_->instances_; }
 
-const std::map<std::string, std::string>& InstancesResponse::GetSubset() { return impl->subset_; }
+const std::map<std::string, std::string>& InstancesResponse::GetSubset() { return impl_->subset_; }
 
-void InstancesResponseSetter::SetFlowId(const uint64_t flow_id) {
-  response_.impl->flow_id_ = flow_id;
-}
-
-void InstancesResponseSetter::SetServiceName(const std::string& service_name) {
-  response_.impl->service_name_ = service_name;
-}
-
-void InstancesResponseSetter::SetServiceNamespace(const std::string& service_namespace) {
-  response_.impl->service_namespace_ = service_namespace;
-}
-
-void InstancesResponseSetter::SetMetadata(const std::map<std::string, std::string>& metadata) {
-  response_.impl->metadata_ = metadata;
-}
-
-void InstancesResponseSetter::SetWeightType(WeightType weight_type) {
-  response_.impl->weight_type_ = weight_type;
-}
-
-void InstancesResponseSetter::SetRevision(const std::string& revision) {
-  response_.impl->revision_ = revision;
-}
-
-void InstancesResponseSetter::AddInstance(const Instance& instance) {
-  response_.impl->instances_.push_back(instance);
-}
-
-void InstancesResponseSetter::SetSubset(const std::map<std::string, std::string>& subset) {
-  response_.impl->subset_ = subset;
-}
+InstancesResponse::Impl& InstancesResponse::GetImpl() const { return *impl_; }
 
 }  // namespace polaris

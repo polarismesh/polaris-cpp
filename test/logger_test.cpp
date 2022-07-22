@@ -28,17 +28,17 @@
 namespace polaris {
 
 class LoggerTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
     TestUtils::CreateTempDir(log_path_);
     log_file_name_ = "test.log";
     max_file_size_ = 100;
-    max_file_no_   = 2;
+    max_file_no_ = 2;
   }
 
   virtual void TearDown() { TestUtils::RemoveDir(log_path_); }
 
-protected:
+ protected:
   std::string log_path_;
   std::string log_file_name_;
   int max_file_size_;
@@ -63,7 +63,7 @@ TEST_F(LoggerTest, TestLogLevel) {
   ASSERT_TRUE(logger->isLevelEnabled(kFatalLogLevel));
 
   delete logger;
-  logger = NULL;
+  logger = nullptr;
 }
 
 TEST_F(LoggerTest, TestFileShift) {
@@ -74,15 +74,15 @@ TEST_F(LoggerTest, TestFileShift) {
   logger->Log(LOG_INFO, "%s\n", text);
 
   ASSERT_TRUE(FileUtils::FileExists(log_path_ + "/" + log_file_name_));
-  ASSERT_TRUE(logger->log_file_ != NULL);
+  ASSERT_TRUE(logger->log_file_ != nullptr);
   ASSERT_TRUE(logger->cur_file_size_ > 0);
 
   int text_log_size = logger->cur_file_size_;
-  int log_count     = max_file_size_ / text_log_size + 1;
+  int log_count = max_file_size_ / text_log_size + 1;
   for (int i = 0; i < log_count; ++i) {
     logger->Log(LOG_INFO, "%s\n", text);
   }
-  ASSERT_TRUE(logger->log_file_ != NULL);
+  ASSERT_TRUE(logger->log_file_ != nullptr);
   ASSERT_TRUE(logger->cur_file_size_ <= max_file_size_ + text_log_size);
   ASSERT_TRUE(FileUtils::FileExists(log_path_ + "/" + log_file_name_ + ".0"));
 
@@ -90,7 +90,7 @@ TEST_F(LoggerTest, TestFileShift) {
   for (int i = 0; i < log_count; ++i) {
     logger->Log(LOG_INFO, "%s\n", text);
   }
-  ASSERT_TRUE(logger->log_file_ != NULL);
+  ASSERT_TRUE(logger->log_file_ != nullptr);
   ASSERT_TRUE(logger->cur_file_size_ <= max_file_size_ + text_log_size);
   // 三个文件都存在
   ASSERT_TRUE(FileUtils::FileExists(log_path_ + "/" + log_file_name_));
@@ -98,7 +98,7 @@ TEST_F(LoggerTest, TestFileShift) {
   ASSERT_TRUE(FileUtils::FileExists(log_path_ + "/" + log_file_name_ + ".1"));
 
   delete logger;
-  logger = NULL;
+  logger = nullptr;
 }
 
 struct WriteLogParam {
@@ -108,11 +108,11 @@ struct WriteLogParam {
 
 void *WriteLogThread(void *args) {
   WriteLogParam *param = static_cast<WriteLogParam *>(args);
-  Logger *logger       = param->logger;
+  Logger *logger = param->logger;
   while (!param->stop) {
     logger->Log(LOG_INFO, "check multi thread write log is safe");
   }
-  return NULL;
+  return nullptr;
 }
 
 TEST_F(LoggerTest, MultiThreadWriteLog) {
@@ -120,25 +120,25 @@ TEST_F(LoggerTest, MultiThreadWriteLog) {
   logger->SetLogLevel(kTraceLogLevel);
   WriteLogParam param;
   param.logger = logger;
-  param.stop   = false;
+  param.stop = false;
   std::vector<pthread_t> thread_list;
   pthread_t tid;
   for (int i = 0; i < 6; ++i) {
-    pthread_create(&tid, NULL, WriteLogThread, &param);
+    pthread_create(&tid, nullptr, WriteLogThread, &param);
     ASSERT_TRUE(tid > 0);
     thread_list.push_back(tid);
   }
   sleep(1);
   param.stop = true;
   for (std::size_t i = 0; i < thread_list.size(); ++i) {
-    pthread_join(thread_list[i], NULL);
+    pthread_join(thread_list[i], nullptr);
   }
   delete logger;
 }
 
 TEST_F(LoggerTest, TestChangeLogDir) {
   LoggerImpl *logger = new LoggerImpl(log_path_, log_file_name_, max_file_size_, max_file_no_);
-  ASSERT_TRUE(logger != NULL);
+  ASSERT_TRUE(logger != nullptr);
   ASSERT_FALSE(FileUtils::FileExists(log_path_ + "/" + log_file_name_));
 
   std::string new_log_dir;
@@ -149,20 +149,20 @@ TEST_F(LoggerTest, TestChangeLogDir) {
   ASSERT_FALSE(FileUtils::FileExists(log_path_ + "/" + log_file_name_));
 
   delete logger;
-  logger = NULL;
+  logger = nullptr;
   TestUtils::RemoveDir(new_log_dir);
 }
 
 TEST_F(LoggerTest, TestChangeLog) {
   LoggerImpl *logger = new LoggerImpl(log_path_, log_file_name_, max_file_size_, max_file_no_);
-  ASSERT_TRUE(logger != NULL);
+  ASSERT_TRUE(logger != nullptr);
 
   Logger *polaris_log = GetLogger();
   ASSERT_NE(polaris_log, logger);
   SetLogger(logger);
   Logger *get_log = GetLogger();
   ASSERT_EQ(get_log, logger);
-  SetLogger(NULL);
+  SetLogger(nullptr);
   get_log = GetLogger();
   ASSERT_EQ(get_log, polaris_log);
 
@@ -171,12 +171,12 @@ TEST_F(LoggerTest, TestChangeLog) {
   SetStatLogger(logger);
   get_log = GetStatLogger();
   ASSERT_EQ(get_log, logger);
-  SetStatLogger(NULL);
+  SetStatLogger(nullptr);
   get_log = GetStatLogger();
   ASSERT_EQ(get_log, polaris_log);
 
   delete logger;
-  logger = NULL;
+  logger = nullptr;
 }
 
 }  // namespace polaris

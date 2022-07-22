@@ -23,6 +23,7 @@
 #include <string>
 
 #include "mock/fake_server_response.h"
+#include "model/instance.h"
 #include "model/model_impl.h"
 #include "test_context.h"
 #include "utils/utils.h"
@@ -34,38 +35,45 @@ namespace polaris {
 class RuleServiceRouterTest : public ::testing::Test {
   virtual void SetUp() {
     context_ = TestContext::CreateContext();
-    ASSERT_TRUE(context_ != NULL);
+    ASSERT_TRUE(context_ != nullptr);
     service_router_ = new RuleServiceRouter();
-    Config *config  = Config::CreateEmptyConfig();
+    Config *config = Config::CreateEmptyConfig();
     ASSERT_EQ(service_router_->Init(config, context_), kReturnOk);
     delete config;
   }
 
   virtual void TearDown() {
-    if (service_router_ != NULL) {
+    if (service_router_ != nullptr) {
       delete service_router_;
-      service_router_ = NULL;
+      service_router_ = nullptr;
     }
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
   }
 
-protected:
+ protected:
   RuleServiceRouter *service_router_;
   Context *context_;
 };
+
+static const uint32_t kRuleDefaultPriority = 9;
+static const uint32_t kRuleDefaultWeight = 0;
 
 TEST_F(RuleServiceRouterTest, CalculateByRoute) {
   std::vector<Instance *> instances;
   std::set<Instance *> unhealthy_instances;
   for (int i = 0; i < 10; i++) {
-    std::string instance_id = "instance_" + StringUtils::TypeToStr<int>(i);
-    Instance *instance      = new Instance(instance_id, "host", 8000, 100);
-    InstanceSetter setter(*instance);
-    setter.AddMetadataItem("key2", "v" + StringUtils::TypeToStr<int>(i % 2));
-    setter.AddMetadataItem("key4", "v" + StringUtils::TypeToStr<int>(i % 4));
+    v1::Instance instance_pb;
+    instance_pb.mutable_id()->set_value("instance_" + std::to_string(i));
+    instance_pb.mutable_host()->set_value("host");
+    instance_pb.mutable_port()->set_value(8000);
+    instance_pb.mutable_weight()->set_value(100);
+    (*instance_pb.mutable_metadata())["key2"] = "v" + std::to_string(i % 2);
+    (*instance_pb.mutable_metadata())["key4"] = "v" + std::to_string(i % 4);
+    Instance *instance = new Instance();
+    instance->GetImpl().InitFromPb(instance_pb);
     instances.push_back(instance);
   }
   // id   0   1   2   3   4   5   6   7   8   9
@@ -88,29 +96,28 @@ TEST_F(RuleServiceRouterTest, CalculateByRoute) {
   RouteRule route_rule;
   ASSERT_TRUE(route_rule.InitFromPb(route));
   ServiceKey service_key = {"other_service_namespace", "other_service_name"};
-  ASSERT_TRUE(rule_router_cluster->CalculateByRoute(route_rule, service_key, true, instances,
-                                                    unhealthy_instances, parameters));
+  ASSERT_TRUE(
+      rule_router_cluster->CalculateByRoute(route_rule, service_key, true, instances, unhealthy_instances, parameters));
   ASSERT_TRUE(rule_router_cluster->data_.empty());
 
   service_key.namespace_ = "service_namespace";
-  service_key.name_      = "other_service_name";
-  ASSERT_TRUE(rule_router_cluster->CalculateByRoute(route_rule, service_key, true, instances,
-                                                    unhealthy_instances, parameters));
+  service_key.name_ = "other_service_name";
+  ASSERT_TRUE(
+      rule_router_cluster->CalculateByRoute(route_rule, service_key, true, instances, unhealthy_instances, parameters));
   ASSERT_TRUE(rule_router_cluster->data_.empty());
 
   service_key.namespace_ = "other_service_namespace";
-  service_key.name_      = "service_name";
-  ASSERT_TRUE(rule_router_cluster->CalculateByRoute(route_rule, service_key, true, instances,
-                                                    unhealthy_instances, parameters));
+  service_key.name_ = "service_name";
+  ASSERT_TRUE(
+      rule_router_cluster->CalculateByRoute(route_rule, service_key, true, instances, unhealthy_instances, parameters));
   ASSERT_TRUE(rule_router_cluster->data_.empty());
 
   service_key.namespace_ = "service_namespace";
-  service_key.name_      = "service_name";
-  ASSERT_TRUE(rule_router_cluster->CalculateByRoute(route_rule, service_key, true, instances,
-                                                    unhealthy_instances, parameters));
+  service_key.name_ = "service_name";
+  ASSERT_TRUE(
+      rule_router_cluster->CalculateByRoute(route_rule, service_key, true, instances, unhealthy_instances, parameters));
   ASSERT_EQ(rule_router_cluster->data_.size(), 1);
-  ASSERT_TRUE(rule_router_cluster->data_.find(ServiceRouterConfig::kRuleDefaultPriority) !=
-              rule_router_cluster->data_.end());
+  ASSERT_TRUE(rule_router_cluster->data_.find(kRuleDefaultPriority) != rule_router_cluster->data_.end());
 
   delete rule_router_cluster;
   rule_router_cluster = new RuleRouterCluster();
@@ -146,23 +153,22 @@ TEST_F(RuleServiceRouterTest, CalculateByRoute) {
   dest->mutable_priority()->set_value(5);
 
   service_key.namespace_ = "service_namespace";
-  service_key.name_      = "other_service_name";
+  service_key.name_ = "other_service_name";
   RouteRule route_rule2;
   ASSERT_TRUE(route_rule2.InitFromPb(route));
-  ASSERT_TRUE(rule_router_cluster->CalculateByRoute(route_rule2, service_key, false, instances,
-                                                    unhealthy_instances, parameters));
+  ASSERT_TRUE(rule_router_cluster->CalculateByRoute(route_rule2, service_key, false, instances, unhealthy_instances,
+                                                    parameters));
   ASSERT_EQ(rule_router_cluster->data_.size(), 2);  // 两个优先级
-  std::map<uint32_t, std::vector<RuleRouterSet *> >::iterator priority_one =
-      rule_router_cluster->data_.find(1);
+  std::map<uint32_t, std::vector<RuleRouterSet *> >::iterator priority_one = rule_router_cluster->data_.find(1);
   std::map<uint32_t, std::vector<RuleRouterSet *> >::iterator priority_default =
-      rule_router_cluster->data_.find(ServiceRouterConfig::kRuleDefaultPriority);
+      rule_router_cluster->data_.find(kRuleDefaultPriority);
   ASSERT_TRUE(priority_one != rule_router_cluster->data_.end());
   ASSERT_TRUE(priority_default != rule_router_cluster->data_.end());
 
   // 优先级1 两个分组
   ASSERT_EQ(priority_one->second.size(), 2);
   ASSERT_EQ(priority_one->second[0]->healthy_.size(), 5);
-  ASSERT_EQ(priority_one->second[0]->weight_, ServiceRouterConfig::kRuleDefaultWeight);
+  ASSERT_EQ(priority_one->second[0]->weight_, kRuleDefaultWeight);
   std::set<std::string> expect_set;
   expect_set.insert("instance_0");
   expect_set.insert("instance_2");
@@ -191,8 +197,7 @@ TEST_F(RuleServiceRouterTest, CalculateByRoute) {
   expect_set.insert("instance_5");
   expect_set.insert("instance_9");
   for (std::size_t i = 0; i < priority_default->second[0]->healthy_.size(); ++i) {
-    ASSERT_TRUE(expect_set.find(priority_default->second[0]->healthy_[i]->GetId()) !=
-                expect_set.end());
+    ASSERT_TRUE(expect_set.find(priority_default->second[0]->healthy_[i]->GetId()) != expect_set.end());
   }
 
   // 释放数据
@@ -211,18 +216,18 @@ TEST_F(RuleServiceRouterTest, CalculateRouteResult) {
   ASSERT_TRUE(result.empty());
 
   RuleRouterSet *set_data = new RuleRouterSet();
-  set_data->weight_       = 10;
+  set_data->weight_ = 10;
   set_data->healthy_.push_back(base_id++);
   set_data->healthy_.push_back(base_id++);
   set_data->unhealthy_.push_back(base_id++);
   rule_router_cluster.data_[1].push_back(set_data);
-  set_data          = new RuleRouterSet();
+  set_data = new RuleRouterSet();
   set_data->weight_ = 20;
   set_data->healthy_.push_back(base_id++);
   set_data->unhealthy_.push_back(base_id++);
   set_data->unhealthy_.push_back(base_id++);
   rule_router_cluster.data_[1].push_back(set_data);
-  set_data          = new RuleRouterSet();
+  set_data = new RuleRouterSet();
   set_data->weight_ = 30;
   set_data->unhealthy_.push_back(base_id++);
   set_data->unhealthy_.push_back(base_id++);
@@ -255,7 +260,7 @@ TEST_F(RuleServiceRouterTest, TestNoRuleRoute) {
   FakeServer::InstancesResponse(response, service_key);
   for (int i = 0; i < 5; ++i) {
     v1::Instance *instance = response.add_instances();
-    instance->mutable_id()->set_value("instance_" + StringUtils::TypeToStr<int>(i));
+    instance->mutable_id()->set_value("instance_" + std::to_string(i));
     instance->mutable_host()->set_value("host");
     instance->mutable_port()->set_value(8000 + i);
     instance->mutable_weight()->set_value(100);
@@ -264,22 +269,20 @@ TEST_F(RuleServiceRouterTest, TestNoRuleRoute) {
   response.mutable_routing()->Clear();
   FakeServer::RoutingResponse(response, service_key);
   ServiceData *service_route = ServiceData::CreateFromPb(&response, kDataIsSyncing);
-  Service *service           = new Service(service_key, 0);
+  Service *service = new Service(service_key, 0);
   do {
     service->UpdateData(service_data);
-    RouteInfo route_info(service_key, NULL);
-    service_data->IncrementRef();
-    service_route->IncrementRef();
+    RouteInfo route_info(service_key, nullptr);
     route_info.SetServiceInstances(new ServiceInstances(service_data));
     route_info.SetServiceRouteRule(new ServiceRouteRule(service_route));
     RouteResult route_result;
     ASSERT_EQ(service_router_->DoRoute(route_info, &route_result), kReturnOk);
-    ServiceInstances *service_instances = route_result.GetServiceInstances();
-    ASSERT_TRUE(service_instances != NULL);
+    ServiceInstances *service_instances = route_info.GetServiceInstances();
+    ASSERT_TRUE(service_instances != nullptr);
     std::map<std::string, Instance *> instances = service_instances->GetInstances();
     ASSERT_EQ(instances.size(), 5);
     for (int i = 0; i < 5; ++i) {
-      ASSERT_TRUE(instances.find("instance_" + StringUtils::TypeToStr<int>(i)) != instances.end());
+      ASSERT_TRUE(instances.find("instance_" + std::to_string(i)) != instances.end());
     }
   } while (false);
   delete service;

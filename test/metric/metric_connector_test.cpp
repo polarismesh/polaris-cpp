@@ -25,7 +25,7 @@
 namespace polaris {
 
 class MetricConnectorForTest : public MetricConnector {
-public:
+ public:
   MetricConnectorForTest(Reactor& reactor, Context* context) : MetricConnector(reactor, context) {}
 
   std::map<std::string, MetricConnection*>& GetConnectionMgr() { return connection_mgr_; }
@@ -34,7 +34,7 @@ public:
     MetricConnector::ConnectionIdleCheck(connector);
   }
 
-protected:
+ protected:
   virtual ReturnCode SelectInstance(const std::string& hash_key, Instance** instance) {
     if (hash_key == ":") {
       return kReturnTimeout;
@@ -45,7 +45,7 @@ protected:
 };
 
 class MetricRequestCallbackForTest : public grpc::RpcCallback<v1::MetricResponse> {
-public:
+ public:
   explicit MetricRequestCallbackForTest(bool result, int called = 1)
       : result_(result), called_(called), real_called_(0) {}
 
@@ -63,7 +63,7 @@ public:
     real_called_++;
   }
 
-private:
+ private:
   bool result_;
   int called_;
   int real_called_;
@@ -71,29 +71,29 @@ private:
 
 class MetricConnectorTest : public ::testing::Test {
   virtual void SetUp() {
-    context_                = TestContext::CreateContext();
-    connector_              = new MetricConnectorForTest(reactor_, context_);
+    context_ = TestContext::CreateContext();
+    connector_ = new MetricConnectorForTest(reactor_, context_);
     service_key_.namespace_ = "test";
-    service_key_.name_      = "metric";
-    hash_key_               = service_key_.namespace_ + ":" + service_key_.name_;
-    msg_id_                 = 123456;
+    service_key_.name_ = "metric";
+    hash_key_ = service_key_.namespace_ + ":" + service_key_.name_;
+    msg_id_ = 123456;
     metric_key_.set_namespace_(service_key_.namespace_);
     metric_key_.set_service(service_key_.name_);
   }
 
   virtual void TearDown() {
     reactor_.Stop();
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
-    if (connector_ != NULL) {
+    if (connector_ != nullptr) {
       delete connector_;
-      connector_ = NULL;
+      connector_ = nullptr;
     }
   }
 
-protected:
+ protected:
   Reactor reactor_;
   Context* context_;
   MetricConnectorForTest* connector_;
@@ -104,8 +104,7 @@ protected:
 };
 
 TEST_F(MetricConnectorTest, SelectConnectionError) {
-  connector_->Initialize(new v1::MetricInitRequest(), 1000,
-                         new MetricRequestCallbackForTest(false));
+  connector_->Initialize(new v1::MetricInitRequest(), 1000, new MetricRequestCallbackForTest(false));
   connector_->Report(new v1::MetricRequest(), 1000, new MetricRequestCallbackForTest(false));
   connector_->Query(new v1::MetricQueryRequest(), 1000, new MetricRequestCallbackForTest(false));
 }
@@ -117,7 +116,7 @@ TEST_F(MetricConnectorTest, ConnectionFailed) {
   connector_->Initialize(init_request, 1000, new MetricRequestCallbackForTest(false));
   ASSERT_TRUE(connector_->GetConnectionMgr().count(hash_key_) == 1);
   MetricConnection* connection = connector_->GetConnectionMgr()[hash_key_];
-  connection->OnConnectFailed();
+  connection->OnConnect(kReturnNetworkFailed);
   ASSERT_TRUE(connector_->GetConnectionMgr().count(hash_key_) == 0);
   ASSERT_FALSE(connector_->IsMetricInit(&metric_key_));
 }
@@ -129,8 +128,8 @@ TEST_F(MetricConnectorTest, MetricInitRequestFailed) {
   connector_->Initialize(init_request, 1000, new MetricRequestCallbackForTest(false));
   ASSERT_TRUE(connector_->GetConnectionMgr().count(hash_key_) == 1);
   MetricConnection* connection = connector_->GetConnectionMgr()[hash_key_];
-  connection->OnConnectSuccess();
-  connection->OnFailure(grpc::kGrpcStatusUnavailable, "unavailable");
+  connection->OnConnect(kReturnOk);
+  connection->OnFailure("unavailable");
   ASSERT_TRUE(connector_->GetConnectionMgr().count(hash_key_) == 0);
   ASSERT_FALSE(connector_->IsMetricInit(&metric_key_));
 }
@@ -143,7 +142,7 @@ TEST_F(MetricConnectorTest, MetricInitSuccess) {
   connector_->Initialize(init_request, 1000, new MetricRequestCallbackForTest(true));
   ASSERT_TRUE(connector_->GetConnectionMgr().count(hash_key_) == 1);
   MetricConnection* connection = connector_->GetConnectionMgr()[hash_key_];
-  connection->OnConnectSuccess();
+  connection->OnConnect(kReturnOk);
   connection->OnSuccess(new v1::MetricResponse());  // 无效应答
   v1::MetricResponse* response = new v1::MetricResponse();
   response->mutable_msgid()->set_value(msg_id_);
@@ -160,7 +159,7 @@ TEST_F(MetricConnectorTest, MetricReport) {
   connector_->Initialize(init_request, 1000, new MetricRequestCallbackForTest(true));
   ASSERT_TRUE(connector_->GetConnectionMgr().count(hash_key_) == 1);
   MetricConnection* connection = connector_->GetConnectionMgr()[hash_key_];
-  connection->OnConnectSuccess();
+  connection->OnConnect(kReturnOk);
   v1::MetricResponse* response = new v1::MetricResponse();
   response->mutable_code()->set_value(v1::ExecuteSuccess);
   response->mutable_msgid()->set_value(msg_id_);
@@ -180,7 +179,7 @@ TEST_F(MetricConnectorTest, MetricReport) {
       connector_->Report(request, 1000, new MetricRequestCallbackForTest(false));
       v1::MetricResponse* response = new v1::MetricResponse();
       connection->OnReceiveMessage(response);
-      connection->OnRemoteClose(grpc::kGrpcStatusUnavailable, "unavailable");
+      connection->OnRemoteClose("unavailable");
     }
   }
 }
@@ -194,7 +193,7 @@ TEST_F(MetricConnectorTest, CheckIdleConnection) {
   connector_->Initialize(init_request, 1000, new MetricRequestCallbackForTest(true));
   ASSERT_TRUE(connector_->GetConnectionMgr().count(hash_key_) == 1);
   MetricConnection* connection = connector_->GetConnectionMgr()[hash_key_];
-  connection->OnConnectSuccess();
+  connection->OnConnect(kReturnOk);
   v1::MetricResponse* response = new v1::MetricResponse();
   response->mutable_msgid()->set_value(msg_id_);
   response->mutable_code()->set_value(v1::ExecuteSuccess);
@@ -234,7 +233,7 @@ TEST_F(MetricConnectorTest, MetricQuery) {
   connector_->Query(query_request, 1000, new MetricRequestCallbackForTest(true));
   ASSERT_TRUE(connector_->GetConnectionMgr().count(hash_key_) == 1);
   MetricConnection* connection = connector_->GetConnectionMgr()[hash_key_];
-  connection->OnConnectSuccess();
+  connection->OnConnect(kReturnOk);
   v1::MetricResponse* response = new v1::MetricResponse();
   response->mutable_msgid()->set_value(msg_id_);
   connection->OnReceiveMessage(response);
@@ -252,7 +251,7 @@ TEST_F(MetricConnectorTest, MetricQuery) {
       connector_->Query(query_request, 1000, new MetricRequestCallbackForTest(false));
       v1::MetricResponse* response = new v1::MetricResponse();
       connection->OnReceiveMessage(response);
-      connection->OnRemoteClose(grpc::kGrpcStatusUnavailable, "unavailable");
+      connection->OnRemoteClose("unavailable");
     }
   }
 }

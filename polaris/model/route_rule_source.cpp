@@ -16,8 +16,10 @@
 namespace polaris {
 
 bool RouteRuleSource::InitFromPb(const v1::Source& source) {
-  service_key_.namespace_ = source.namespace_().value();
-  service_key_.name_      = source.service().value();
+  src_service_.namespace_ = MatchString::WildcardOrValue(source.namespace_().value());
+  src_service_.name_ = MatchString::WildcardOrValue(source.service().value());
+  dst_service_.namespace_ = MatchString::WildcardOrValue(source.to_namespace().value());
+  dst_service_.name_ = MatchString::WildcardOrValue(source.to_service().value());
   google::protobuf::Map<std::string, v1::MatchString>::const_iterator it;
   for (it = source.metadata().begin(); it != source.metadata().end(); ++it) {
     if (!metadata_[it->first].Init(it->second)) {
@@ -28,8 +30,7 @@ bool RouteRuleSource::InitFromPb(const v1::Source& source) {
 }
 
 bool RouteRuleSource::FillSystemVariables(const SystemVariables& variables) {
-  for (std::map<std::string, MatchString>::iterator it = metadata_.begin(); it != metadata_.end();
-       ++it) {
+  for (std::map<std::string, MatchString>::iterator it = metadata_.begin(); it != metadata_.end(); ++it) {
     if (it->second.IsVariable()) {
       const std::string& variable_value = it->second.GetString();
       std::string value;
@@ -43,19 +44,19 @@ bool RouteRuleSource::FillSystemVariables(const SystemVariables& variables) {
   return true;
 }
 
-bool RouteRuleSource::Match(const ServiceKey& service_key,
-                            const std::map<std::string, std::string>& metadata,
-                            std::string& parameter) const {
-  return (service_key_.namespace_ == service_key.namespace_ ||
-          service_key_.namespace_ == MatchString::Wildcard()) &&
-         (service_key_.name_ == service_key.name_ ||
-          service_key_.name_ == MatchString::Wildcard()) &&
+static bool MatchService(const ServiceKey& rule_service, const ServiceKey& input_service) {
+  return (rule_service.namespace_.empty() || rule_service.namespace_ == input_service.namespace_) &&
+         (rule_service.name_.empty() || rule_service.name_ == input_service.name_);
+}
+
+bool RouteRuleSource::Match(const ServiceKey& src_service, const ServiceKey& dst_service,
+                            const std::map<std::string, std::string>& metadata, std::string& parameter) const {
+  return MatchService(src_service_, src_service) && MatchService(dst_service_, dst_service) &&
          MatchString::MapMatch(metadata_, metadata, parameter);
 }
 
 bool RouteRuleSource::IsWildcardRule() const {
-  return service_key_.namespace_ == MatchString::Wildcard() &&
-         service_key_.name_ == MatchString::Wildcard() && metadata_.empty();
+  return src_service_.namespace_.empty() && src_service_.name_.empty() && metadata_.empty();
 }
 
 }  // namespace polaris

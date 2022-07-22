@@ -6,6 +6,8 @@ package polaris.metric.v2;
 enum RateLimitCmd {
   INIT = 0;
   ACQUIRE = 1;
+  BATCH_INIT = 2;
+  BATCH_ACQUIRE = 3;
 }
 
 //限流请求
@@ -13,19 +15,23 @@ message RateLimitRequest {
   //命令字
   RateLimitCmd cmd = 1;
   //初始化请求
-  RateLimitInitRequest rateLimitInitRequest  = 2;
+  RateLimitInitRequest rateLimitInitRequest = 2;
   //上报请求
   RateLimitReportRequest rateLimitReportRequest = 3;
+  //批量初始化请求
+  RateLimitBatchInitRequest rateLimitBatchInitRequest = 4;
 }
 
 //限流应答
 message RateLimitResponse {
   //命令字
   RateLimitCmd cmd = 1;
-  //初始化请求
-  RateLimitInitResponse rateLimitInitResponse  = 2;
-  //上报请求
+  //初始化应答
+  RateLimitInitResponse rateLimitInitResponse = 2;
+  //上报应答
   RateLimitReportResponse rateLimitReportResponse = 3;
+  //批量初始化应答
+  RateLimitBatchInitResponse rateLimitBatchInitResponse = 4;
 }
 
 //限频模式
@@ -42,7 +48,7 @@ enum Mode {
 message RateLimitInitRequest {
   //限流目标对象数据
   LimitTarget target = 1;
-  //客户端唯一标识
+  //客户端唯一标识，批量初始化时为空
   string clientId = 2;
   //限流规则信息
   repeated QuotaTotal totals = 3;
@@ -66,6 +72,44 @@ message RateLimitInitResponse {
   uint32 slideCount = 6;
   //限流server绝对时间，单位ms
   int64 timestamp = 7;
+}
+
+//批量初始化请求
+message RateLimitBatchInitRequest {
+  //每条规则汇总成一个Init请求
+  repeated RateLimitInitRequest request = 1;
+  //客户端唯一标识
+  string clientId = 2;
+}
+
+message LabeledQuotaCounter {
+  //自定义标签
+  string labels = 1;
+  //计数器的标识
+  repeated QuotaCounter counters = 2;
+}
+
+message BatchInitResult {
+  //应答错误码
+  uint32 code = 1;
+  //限流目标对象，回传给客户端，labels为规则
+  LimitTarget target = 2;
+  //计数器的标识
+  repeated LabeledQuotaCounter counters = 3;
+  //实际滑窗个数
+  uint32 slideCount = 4;
+}
+
+//批量初始化应答
+message RateLimitBatchInitResponse {
+  //应答错误码
+  uint32 code = 1;
+  //客户端的标识，与clientId对应，一个server全局唯一，上报时候带入
+  uint32 clientKey = 2;
+  //限流server绝对时间，单位ms
+  int64 timestamp = 3;
+  //批量初始化结果
+  repeated BatchInitResult result = 4;
 }
 
 //限流上报请求
@@ -93,8 +137,10 @@ message LimitTarget {
   string namespace = 1;
   //服务名
   string service = 2;
-  //自定义标签
+  //单窗口初始化时，自定义标签
   string labels = 3;
+  //批量初始化时，匹配同一个规则的多个限流自定义标签
+  repeated string labels_list = 4;
 }
 
 //阈值模式
@@ -119,7 +165,7 @@ message QuotaTotal {
 message QuotaCounter {
   //单位秒
   uint32 duration = 1;
-  //bucket的标识，上报时候带入
+  // bucket的标识，上报时候带入
   uint32 counterKey = 2;
   //剩余配额数，应答返回，允许为负数
   int64 left = 3;
@@ -152,9 +198,7 @@ message QuotaLeft {
 }
 
 //时间点对齐的请求
-message TimeAdjustRequest {
-
-}
+message TimeAdjustRequest {}
 
 //时间点对齐的应答
 message TimeAdjustResponse {

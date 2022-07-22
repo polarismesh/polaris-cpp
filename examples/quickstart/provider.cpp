@@ -30,7 +30,7 @@
 #include "polaris/provider.h"
 
 class ProviderServer {
-public:
+ public:
   ProviderServer(const std::string& service_namespace, const std::string& service_name,
                  const std::string& service_token, const std::string& host, int port);
 
@@ -48,7 +48,7 @@ public:
   // 停止服务
   void Stop();
 
-private:
+ private:
   std::string service_namespace_;
   std::string service_name_;
   std::string service_token_;
@@ -73,8 +73,7 @@ constexpr auto kHeartbeatTtl = 5;
 
 int main(int argc, char** argv) {
   if (argc < 6) {
-    std::cout << "usage: " << argv[0] << " service_namespace service_name service_token host port"
-              << std::endl;
+    std::cout << "usage: " << argv[0] << " service_namespace service_name service_token host port" << std::endl;
     return -1;
   }
   // 注册信号
@@ -106,11 +105,14 @@ int main(int argc, char** argv) {
   return 0;
 }
 
-ProviderServer::ProviderServer(const std::string& service_namespace,
-                               const std::string& service_name, const std::string& service_token,
-                               const std::string& host, int port)
-    : service_namespace_(service_namespace), service_name_(service_name),
-      service_token_(service_token), host_(host), port_(port), stop_(false) {}
+ProviderServer::ProviderServer(const std::string& service_namespace, const std::string& service_name,
+                               const std::string& service_token, const std::string& host, int port)
+    : service_namespace_(service_namespace),
+      service_name_(service_name),
+      service_token_(service_token),
+      host_(host),
+      port_(port),
+      stop_(false) {}
 
 ProviderServer::~ProviderServer() { Stop(); }
 
@@ -129,17 +131,15 @@ int ProviderServer::Start() {
   server_addr.sin_port = htons(port_);
 
   // bind socket
-  if (bind(sock_listener, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-    std::cerr << "bind to " << host_ << ":" << port_ << " failed with error: " << errno
-              << std::endl;
+  if (bind(sock_listener, reinterpret_cast<sockaddr*>(&server_addr), sizeof(server_addr)) < 0) {
+    std::cerr << "bind to " << host_ << ":" << port_ << " failed with error: " << errno << std::endl;
     close(sock_listener);
     return -2;
   }
 
   // start listening
   if (listen(sock_listener, SOMAXCONN) < 0) {
-    std::cerr << "listen to " << host_ << ":" << port_ << " failed with error: " << errno
-              << std::endl;
+    std::cerr << "listen to " << host_ << ":" << port_ << " failed with error: " << errno << std::endl;
     close(sock_listener);
     return -3;
   }
@@ -152,16 +152,16 @@ int ProviderServer::Start() {
       FD_ZERO(&set);
       FD_SET(sock_listener, &set);
       struct timeval timeout;
-      timeout.tv_sec  = 2;
+      timeout.tv_sec = 2;
       timeout.tv_usec = 0;
-      int ret         = select(sock_listener + 1, &set, NULL, NULL, &timeout);
+      int ret = select(sock_listener + 1, &set, NULL, NULL, &timeout);
       if (ret <= 0) {
         continue;
       }
       sockaddr_in client_addr;
       socklen_t client_addr_size = sizeof(client_addr);
       int sock_client;
-      if ((sock_client = accept(sock_listener, (sockaddr*)&client_addr, &client_addr_size)) < 0) {
+      if ((sock_client = accept(sock_listener, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_size)) < 0) {
         std::cerr << "accept connection failed with error:" << errno << std::endl;
         continue;
       }
@@ -176,8 +176,7 @@ int ProviderServer::Start() {
           return;
         }
 
-        std::string response =
-            "response form " + host_ + ":" + std::to_string(port_) + " echo " + buffer;
+        std::string response = "response form " + host_ + ":" + std::to_string(port_) + " echo " + buffer;
 
         bytes = send(sock_client, response.data(), response.size(), 0);
         close(sock_client);
@@ -198,8 +197,7 @@ int ProviderServer::Register() {
   if (provider_ == nullptr) {
     return -1;
   }
-  polaris::InstanceRegisterRequest register_req(service_namespace_, service_name_, service_token_,
-                                                host_, port_);
+  polaris::InstanceRegisterRequest register_req(service_namespace_, service_name_, service_token_, host_, port_);
   // 开启健康检查
   register_req.SetHealthCheckFlag(true);
   register_req.SetHealthCheckType(polaris::kHeartbeatHealthCheck);
@@ -208,8 +206,7 @@ int ProviderServer::Register() {
   // 注册实例
   auto ret_code = provider_->Register(register_req, instance_id_);
   if (ret_code != polaris::kReturnOk && ret_code != polaris::kReturnExistedResource) {
-    std::cout << "register instance with error:" << polaris::ReturnCodeToMsg(ret_code).c_str()
-              << std::endl;
+    std::cout << "register instance with error:" << polaris::ReturnCodeToMsg(ret_code).c_str() << std::endl;
     return ret_code;
   }
 
@@ -219,8 +216,7 @@ int ProviderServer::Register() {
       polaris::InstanceHeartbeatRequest heartbeat_req(service_token_, instance_id_);
       auto ret_code = provider_->Heartbeat(heartbeat_req);
       if (ret_code != polaris::kReturnOk) {
-        std::cout << "instance heartbeat with error:" << polaris::ReturnCodeToMsg(ret_code).c_str()
-                  << std::endl;
+        std::cout << "instance heartbeat with error:" << polaris::ReturnCodeToMsg(ret_code).c_str() << std::endl;
         sleep(1);
         continue;
       }
@@ -238,8 +234,7 @@ void ProviderServer::Deregister() {
   polaris::InstanceDeregisterRequest deregister_req(service_token_, instance_id_);
   auto ret_code = provider_->Deregister(deregister_req);
   if (ret_code != polaris::kReturnOk) {
-    std::cout << "instance deregister with error:" << polaris::ReturnCodeToMsg(ret_code).c_str()
-              << std::endl;
+    std::cout << "instance deregister with error:" << polaris::ReturnCodeToMsg(ret_code).c_str() << std::endl;
   }
 }
 

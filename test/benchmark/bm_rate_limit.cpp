@@ -20,7 +20,6 @@
 #include <iostream>
 
 #include "polaris/limit.h"
-#include "utils/string_utils.h"
 
 // 本文件用于限流API的性能测试，包括以下方面的测试：
 //   - LimitApi获取配额接口QPS测试
@@ -30,32 +29,28 @@
 namespace polaris {
 
 class BM_RateLimit : public ContextFixture {
-public:
+ public:
   void SetUp(::benchmark::State &state) {
     if (state.thread_index != 0) return;
-
-    if (config_.find("rateLimiter") == std::string::npos) {
-      config_.append("\nrateLimiter:\n  mode: local");
-    }
     context_mode_ = kLimitContext;
     ContextFixture::SetUp(state);
     limit_api_ = LimitApi::Create(context_);
-    if (limit_api_ == NULL) {
+    if (limit_api_ == nullptr) {
       std::cout << "create limit api failed" << std::endl;
       abort();
     }
-    srand(time(NULL));
+    srand(time(nullptr));
 
     service_key_.namespace_ = "Test";
-    service_key_.name_      = "rate.limit.rule.match";
+    service_key_.name_ = "rate.limit.rule.match";
   }
 
   void TearDown(::benchmark::State &state) {
     if (state.thread_index != 0) return;
 
-    if (limit_api_ != NULL) {
+    if (limit_api_ != nullptr) {
       delete limit_api_;
-      limit_api_ = NULL;
+      limit_api_ = nullptr;
     }
     ContextFixture::TearDown(state);
   }
@@ -83,15 +78,15 @@ public:
     rate_limit->mutable_revision()->set_value("version_one");
     for (int i = 0; i < uin_count; ++i) {
       v1::Rule *rule = rate_limit->add_rules();
-      rule->mutable_id()->set_value(StringUtils::TypeToStr(i));
+      rule->mutable_id()->set_value(std::to_string(i));
       rule->mutable_namespace_()->set_value(service_key.namespace_);
       rule->mutable_service()->set_value(service_key.name_);
       rule->set_type(v1::Rule::LOCAL);
       v1::MatchString match_string;
       match_string.set_type(v1::MatchString::EXACT);
-      match_string.mutable_value()->set_value(StringUtils::TypeToStr(123456789 + i));
+      match_string.mutable_value()->set_value(std::to_string(123456789 + i));
       (*rule->mutable_labels())["uin"] = match_string;
-      v1::Amount *amount               = rule->add_amounts();
+      v1::Amount *amount = rule->add_amounts();
       amount->mutable_maxamount()->set_value(100000);
       amount->mutable_validduration()->set_seconds(1);
     }
@@ -103,7 +98,7 @@ public:
     return ContextFixture::LoadData(response);
   }
 
-protected:
+ protected:
   LimitApi *limit_api_;
   ServiceKey service_key_;
 };
@@ -222,7 +217,7 @@ BENCHMARK_DEFINE_F(BM_RateLimit, LimitRuleMatch)(benchmark::State &state) {
     request.SetServiceNamespace(service_key_.namespace_);
     request.SetServiceName(service_key_.name_);
     std::map<std::string, std::string> labels;
-    labels.insert(std::make_pair("uin", StringUtils::TypeToStr(123456789 + rand() % uin_count)));
+    labels.insert(std::make_pair("uin", std::to_string(123456789 + rand() % uin_count)));
     request.SetLabels(labels);
     QuotaResultCode quota_result;
     if ((ret_code = limit_api_->GetQuota(request, quota_result)) != kReturnOk) {

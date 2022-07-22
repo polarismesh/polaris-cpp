@@ -20,7 +20,7 @@
 #include <pthread.h>
 #include <stdint.h>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "mock/fake_server_response.h"
 #include "mock/mock_server_connector.h"
 #include "test_utils.h"
@@ -32,9 +32,9 @@
 namespace polaris {
 
 class SetCbUsrApiMockServerConnectorTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
-    context_ = NULL;
+    context_ = nullptr;
     std::string err_msg, content =
                              "global:\n"
                              "  serverConnector:\n"
@@ -45,12 +45,12 @@ protected:
                              "    setCircuitBreaker:\n"
                              "      enable: true\n";
     config_ = Config::CreateFromString(content, err_msg);
-    POLARIS_ASSERT(config_ != NULL && err_msg.empty());
-    context_  = Context::Create(config_, kShareContextWithoutEngine);
+    POLARIS_ASSERT(config_ != nullptr && err_msg.empty());
+    context_ = Context::Create(config_, kShareContextWithoutEngine);
     registry_ = TestContext::SetupMockLocalRegistry(context_);
-    ASSERT_TRUE(context_ != NULL);
+    ASSERT_TRUE(context_ != nullptr);
 
-    service_key_.name_      = "cpp_test_service";
+    service_key_.name_ = "cpp_test_service";
     service_key_.namespace_ = "cpp_test_namespace";
 
     SetRegistryData();
@@ -67,7 +67,7 @@ protected:
     cb->mutable_service_namespace()->set_value(service_key_.namespace_);
     cb->mutable_revision()->set_value("v2112");
 
-    v1::CbRule *rule          = cb_pb_response_.mutable_circuitbreaker()->mutable_inbounds()->Add();
+    v1::CbRule *rule = cb_pb_response_.mutable_circuitbreaker()->mutable_inbounds()->Add();
     v1::SourceMatcher *source = rule->mutable_sources()->Add();
     source->mutable_namespace_()->set_value("*");
     source->mutable_service()->set_value("*");
@@ -83,7 +83,7 @@ protected:
     ms1.mutable_value()->set_value("set1");
     ms1.set_type(v1::MatchString_MatchStringType_EXACT);
     (*dst->mutable_metadata())["set_flag"] = ms1;
-    v1::CbPolicy_ErrRateConfig *err_rate   = dst->mutable_policy()->mutable_errorrate();
+    v1::CbPolicy_ErrRateConfig *err_rate = dst->mutable_policy()->mutable_errorrate();
     err_rate->mutable_enable()->set_value(true);
     err_rate->mutable_errorratetopreserved()->set_value(10);
 
@@ -103,34 +103,34 @@ protected:
     dst->mutable_updateinterval()->set_seconds(5);
 
     service_data_ = ServiceData::CreateFromPb(&cb_pb_response_, polaris::kDataIsSyncing, 1);
-    // ASSERT_TRUE(registry_->service_data_ != NULL);
+    // ASSERT_TRUE(registry_->service_data_ != nullptr);
   }
 
   virtual void TearDown() {
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
 
-    if (config_ != NULL) {
+    if (config_ != nullptr) {
       delete config_;
-      config_ = NULL;
+      config_ = nullptr;
     }
 
-    if (service_data_ != NULL) {
+    if (service_data_ != nullptr) {
       service_data_->DecrementAndGetRef();
     }
 
-    if (registry_ != NULL) {
-      registry_ = NULL;
+    if (registry_ != nullptr) {
+      registry_ = nullptr;
     }
   }
 
-public:
+ public:
   void MockRegistryGetServiceDataRef(const ServiceKey &service_key, ServiceDataType /*data_type*/,
                                      ServiceData *&service_data) {
     if (service_key == service_key_) {
-      if (service_data_ == NULL) {
+      if (service_data_ == nullptr) {
       } else {
         service_data = service_data_;
         service_data->IncrementRef();
@@ -138,11 +138,11 @@ public:
     } else {
       printf("------------------not support\n");
       // service_data->IncrementRef();
-      service_data = NULL;
+      service_data = nullptr;
     }
   }
 
-protected:
+ protected:
   Config *config_;
   Context *context_;
   v1::DiscoverResponse cb_pb_response_;
@@ -153,24 +153,23 @@ protected:
 };
 
 TEST_F(SetCbUsrApiMockServerConnectorTest, TestUpdateServiceCallResult1) {
-  EXPECT_CALL(*registry_,
-              GetServiceDataWithRef(::testing::Eq(service_key_), ::testing::_, ::testing::_))
+  EXPECT_CALL(*registry_, GetServiceDataWithRef(::testing::Eq(service_key_), ::testing::_, ::testing::_))
       .Times(::testing::Between(1, 10))
-      .WillRepeatedly(::testing::DoAll(
-          ::testing::Invoke(this,
-                            &SetCbUsrApiMockServerConnectorTest::MockRegistryGetServiceDataRef),
-          ::testing::Return(kReturnOk)));
+      .WillRepeatedly(
+          ::testing::DoAll(::testing::Invoke(this, &SetCbUsrApiMockServerConnectorTest::MockRegistryGetServiceDataRef),
+                           ::testing::Return(kReturnOk)));
 
   InstanceGauge gauge;
-  gauge.source_service_key = service_key_;
-  gauge.service_namespace  = service_key_.namespace_;
-  gauge.service_name       = service_key_.name_;
-  gauge.call_ret_status    = kCallRetOk;
-  gauge.call_ret_code      = 0;
-  gauge.call_daley         = 0;
+  gauge.source_service_key = new ServiceKey(service_key_);
+  gauge.service_key_ = service_key_;
+  gauge.call_ret_status = kCallRetOk;
+  gauge.call_ret_code = 0;
+  gauge.call_daley = 0;
 
-  gauge.subset_["set_flag"] = "set1";
-  gauge.labels_["l1"]       = "v1";
+  gauge.subset_ = new std::map<std::string, std::string>();
+  gauge.subset_->insert(std::make_pair("set_flag", "set1"));
+  gauge.labels_ = new std::map<std::string, std::string>();
+  gauge.labels_->insert(std::make_pair("l1", "v1"));
 
   ReturnCode ret;
   for (int i = 0; i < 5; ++i) {
@@ -179,21 +178,21 @@ TEST_F(SetCbUsrApiMockServerConnectorTest, TestUpdateServiceCallResult1) {
     sleep(1);
   }
 
-  gauge.call_ret_code   = 10102;
+  gauge.call_ret_code = 10102;
   gauge.call_ret_status = kCallRetError;
-  ret                   = polaris::ConsumerApiImpl::UpdateServiceCallResult(context_, gauge);
+  ret = polaris::ConsumerApiImpl::UpdateServiceCallResult(context_, gauge);
   ASSERT_EQ(ret, kReturnOk);
 
-  gauge.call_ret_code   = 0;
+  gauge.call_ret_code = 0;
   gauge.call_ret_status = kCallRetOk;
-  gauge.call_daley      = 5000;
-  ret                   = polaris::ConsumerApiImpl::UpdateServiceCallResult(context_, gauge);
+  gauge.call_daley = 5000;
+  ret = polaris::ConsumerApiImpl::UpdateServiceCallResult(context_, gauge);
   ASSERT_EQ(ret, kReturnOk);
 
-  gauge.call_ret_code   = 1222;
+  gauge.call_ret_code = 1222;
   gauge.call_ret_status = kCallRetError;
-  gauge.call_daley      = 0;
-  ret                   = polaris::ConsumerApiImpl::UpdateServiceCallResult(context_, gauge);
+  gauge.call_daley = 0;
+  ret = polaris::ConsumerApiImpl::UpdateServiceCallResult(context_, gauge);
   ASSERT_EQ(ret, kReturnOk);
 }
 }  // namespace polaris

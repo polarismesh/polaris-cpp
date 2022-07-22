@@ -19,23 +19,13 @@
 #include <string>
 #include <vector>
 
-#include "plugin/plugin_manager.h"
-#include "polaris/defs.h"
-#include "polaris/plugin.h"
+#include "cache/service_cache.h"
+#include "plugin/service_router/service_router.h"
 
 namespace polaris {
 
-class Config;
-class Context;
-class Instance;
-class RouteInfo;
-class RouteResult;
-struct SetDivisionCacheKey;
-template <typename K>
-class ServiceCache;
-
 class SetDivisionServiceRouter : public ServiceRouter {
-public:
+ public:
   // 与set信息相关的key:enable_set_key为是否开启set的key，set_name_key为set名的key
   static const char enable_set_key[];
   static const char enable_set_force[];
@@ -51,8 +41,7 @@ public:
   virtual RouterStatData* CollectStat();
 
   // 根据主调set名和被调set名和metadata判断是否启用set分组
-  bool IsSetDivisionRouterEnable(const std::string& caller_set_name,
-                                 const std::string& callee_set_name,
+  bool IsSetDivisionRouterEnable(const std::string& caller_set_name, const std::string& callee_set_name,
                                  const std::map<std::string, std::string>& callee_metadata);
 
   // 根据主调的set名从被调节点中筛选出满足条件的实例
@@ -69,15 +58,11 @@ public:
 
   // 根据输入节点集input和unhealthy节点集unhealthy_set，筛选出healthy的节点output
   // 如果input全为unhealthy,则output直接取为input
-  int GetHealthyInstances(const std::vector<Instance*>& input,
-                          const std::set<Instance*>& unhealthy_set, std::vector<Instance*>& output);
+  int GetHealthyInstances(const std::vector<Instance*>& input, const std::set<Instance*>& unhealthy_set,
+                          std::vector<Instance*>& output);
 
-  // 返回互斥的路由插件名称
-  const char* GetIncompatibleServiceRouter() { return kPluginNearbyServiceRouter; }
-
-private:
-  Context* context_;
-  ServiceCache<SetDivisionCacheKey>* router_cache_;
+ private:
+  ServiceCache<SetDivisionCacheKey, SetDivisionCacheValue>* router_cache_;
 };
 
 }  // namespace polaris

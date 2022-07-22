@@ -21,7 +21,6 @@
 
 #include "integration/common/environment.h"
 #include "integration/common/integration_base.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 #include "v1/ratelimit.pb.h"
@@ -29,25 +28,23 @@
 namespace polaris {
 
 // TODO 更精准的校验
-#define CHECK_LIMIT(expect, seconds) \
-  ((expect - 3) * seconds <= limit_) && (limit_ <= (expect + 5) * seconds)
+#define CHECK_LIMIT(expect, seconds) ((expect - 3) * seconds <= limit_) && (limit_ <= (expect + 5) * seconds)
 
 #define CHECK_LEAST(expect, seconds) ((expect - 3) * seconds <= limit_)
 
 #define CHECK_MOST(expect, seconds) (limit_ <= (expect + 5) * seconds)
 
-static const int kJudgeInterval  = 2;  // 判断周期
-static const int kTuneUpPeriod   = 2;  // 触发上调周期数
+static const int kJudgeInterval = 2;   // 判断周期
+static const int kTuneUpPeriod = 2;    // 触发上调周期数
 static const int kTuneDownPeriod = 1;  // 触发下调周期数
 
 class ClimbAdjustTest : public IntegrationBase {
-protected:
-  ClimbAdjustTest() : limit_api_(NULL), limit_(0) {}
+ protected:
+  ClimbAdjustTest() : limit_api_(nullptr), limit_(0) {}
 
   virtual void SetUp() {
     service_.mutable_namespace_()->set_value("Test");
-    service_.mutable_name()->set_value("cpp.integration.limit.climb.adjust" +
-                                       StringUtils::TypeToStr(Time::GetCurrentTimeMs()));
+    service_.mutable_name()->set_value("cpp.integration.limit.climb.adjust" + std::to_string(Time::GetSystemTimeMs()));
     IntegrationBase::SetUp();
     CreateRateLimitRule();  // 创建限流规则
     std::string content =
@@ -72,16 +69,16 @@ protected:
         "    service: polaris.metric.test";
     std::string err_msg;
     limit_api_ = LimitApi::CreateFromString(content, err_msg);
-    ASSERT_TRUE(limit_api_ != NULL) << err_msg;
+    ASSERT_TRUE(limit_api_ != nullptr) << err_msg;
     sleep(3);                                   // 等待Discover服务器获取到服务信息
     GetQuota(1, 0, 0, kJudgeInterval, limit_);  // 为了初始化
     ASSERT_EQ(limit_, 0) << limit_;
   }
 
   virtual void TearDown() {
-    if (limit_api_ != NULL) {
+    if (limit_api_ != nullptr) {
       delete limit_api_;
-      limit_api_ = NULL;
+      limit_api_ = nullptr;
     }
     if (!rule_id_.empty()) {  // 删除限流规则
       IntegrationBase::DeleteRateLimitRule(rule_id_, service_token_);
@@ -101,7 +98,7 @@ protected:
   // 获取配额
   void GetQuota(int total, int error, int slow, int seconds, int& limit);
 
-protected:
+ protected:
   LimitApi* limit_api_;
   std::string rule_id_;
   int limit_;
@@ -115,7 +112,7 @@ void ClimbAdjustTest::CreateRateLimitRuleData(v1::Rule& rule) {
   v1::MatchString match_string;
   match_string.set_type(v1::MatchString::REGEX);
   match_string.mutable_value()->set_value("v*");
-  (*rule.mutable_labels())["key"]  = match_string;
+  (*rule.mutable_labels())["key"] = match_string;
   (*rule.mutable_subset())["key1"] = match_string;
 
   v1::Amount* amount = rule.add_amounts();
@@ -133,7 +130,7 @@ void ClimbAdjustTest::CreateRateLimitRuleData(v1::Rule& rule) {
   metric_config->mutable_precision()->set_value(10);
   metric_config->mutable_reportinterval()->set_seconds(1);
 
-  v1::ClimbConfig::TriggerPolicy* policy                = climb_config->mutable_policy();
+  v1::ClimbConfig::TriggerPolicy* policy = climb_config->mutable_policy();
   v1::ClimbConfig::TriggerPolicy::ErrorRate* error_rate = policy->mutable_errorrate();
   // 错误率：至少10个请求才计算错误率，错误率超过40%触发下调
   error_rate->mutable_requestvolumethreshold()->set_value(10);
@@ -146,7 +143,7 @@ void ClimbAdjustTest::CreateRateLimitRuleData(v1::Rule& rule) {
   // 触发上调限流比例2%，判断周期2s， 连续2次触发才上调，连续1次触发就下调
   throttling->mutable_judgeduration()->set_seconds(kJudgeInterval);  // 2s 判断一次
   throttling->mutable_tunedownperiod()->set_value(kTuneDownPeriod);  // 触发1次就下调
-  throttling->mutable_limitthresholdtotuneup()->set_value(2);  // 冷水位以上2%限流上调
+  throttling->mutable_limitthresholdtotuneup()->set_value(2);        // 冷水位以上2%限流上调
 }
 
 void ClimbAdjustTest::CreateRateLimitRule() {
@@ -155,8 +152,7 @@ void ClimbAdjustTest::CreateRateLimitRule() {
   IntegrationBase::CreateRateLimitRule(rule, rule_id_);
 }
 
-void ClimbAdjustTest::UpdateRateLimitRule(uint32_t min_amount, uint32_t start_amount,
-                                          uint32_t max_amount) {
+void ClimbAdjustTest::UpdateRateLimitRule(uint32_t min_amount, uint32_t start_amount, uint32_t max_amount) {
   v1::Rule rule;
   CreateRateLimitRuleData(rule);
   ASSERT_TRUE(!rule_id_.empty());
@@ -186,12 +182,12 @@ void ClimbAdjustTest::GetQuota(int total, int error, int slow, int seconds, int&
   call_result.SetSubset(subset);
 
   int interval = 1000 * 1000 / total;
-  limit        = 0;
+  limit = 0;
   for (int i = 0; i < seconds; ++i) {
     int error_count = error;
-    int slow_count  = slow;
+    int slow_count = slow;
     for (int j = 0; j < total; ++j) {
-      QuotaResponse* response = NULL;
+      QuotaResponse* response = nullptr;
       ASSERT_EQ(limit_api_->GetQuota(request, response), kReturnOk);
       if (response->GetResultCode() == kQuotaResultLimited) {
         call_result.SetResponseResult(kLimitCallResultLimited);

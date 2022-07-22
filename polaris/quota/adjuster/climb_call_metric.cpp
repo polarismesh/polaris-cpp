@@ -16,47 +16,46 @@
 #include <stddef.h>
 #include <v1/metric.pb.h>
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <set>
 #include <utility>
 
 #include "quota/adjuster/climb_config.h"
-#include "sync/atomic.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
 
-MetricBucket::MetricBucket() : size_(0), bucket_(NULL) {}
+MetricBucket::MetricBucket() : size_(0), bucket_(nullptr) {}
 
 MetricBucket::~MetricBucket() {
   for (std::size_t i = 0; i < size_; ++i) {
-    if (bucket_[i] != NULL) {
+    if (bucket_[i] != nullptr) {
       delete bucket_[i];
-      bucket_[i] = NULL;
+      bucket_[i] = nullptr;
     }
   }
-  if (bucket_ != NULL) {
+  if (bucket_ != nullptr) {
     delete[] bucket_;
   }
 }
 
 void MetricBucket::Init(std::size_t size) {
-  size_   = size;
-  bucket_ = new sync::Atomic<uint32_t>*[size_];
+  size_ = size;
+  bucket_ = new std::atomic<uint32_t>*[size_];
   for (std::size_t i = 0; i < size_; ++i) {
-    bucket_[i] = new sync::Atomic<uint32_t>();
+    bucket_[i] = new std::atomic<uint32_t>(0);
   }
 }
 
 void MetricBucket::Increment(std::size_t index) { ++(*bucket_[index]); }
 
-uint32_t MetricBucket::GetAndClear(std::size_t index) { return bucket_[index]->Exchange(0); }
+uint32_t MetricBucket::GetAndClear(std::size_t index) { return bucket_[index]->exchange(0); }
 
-static const std::size_t MetricTypeReqCount   = 0;  // 总请求
+static const std::size_t MetricTypeReqCount = 0;    // 总请求
 static const std::size_t MetricTypeLimitCount = 1;  // 限流数
-static const std::size_t MetricTypeSlowCount  = 2;  // 慢调用数
+static const std::size_t MetricTypeSlowCount = 2;   // 慢调用数
 static const std::size_t MetricTypeErrorCount = 3;  // 错误数
 static const std::size_t MetricTypeBaseLength = 4;  // 基础类型种类
 
@@ -70,16 +69,15 @@ CallMetricData::CallMetricData(ClimbMetricConfig& metric_config, ClimbTriggerPol
     // 支持总请求数、限流数、错误数、慢调用数 + 特殊错误码
     metric_data_[i].Init(MetricTypeBaseLength + trigger_policy.error_specials_.size());
   }
-  last_serialize_time_ = Time::GetCurrentTimeMs();
+  last_serialize_time_ = Time::GetSystemTimeMs();
 }
 
 CallMetricData::~CallMetricData() {}
 
-void CallMetricData::Record(LimitCallResultType result_type, uint64_t response_time,
-                            int response_code) {
-  uint64_t current_time = Time::GetCurrentTimeMs();
+void CallMetricData::Record(LimitCallResultType result_type, uint64_t response_time, int response_code) {
+  uint64_t current_time = Time::GetSystemTimeMs();
   uint64_t bucket_index = (current_time / bucket_time_) % metric_data_.size();
-  MetricBucket& bucket  = metric_data_[bucket_index];
+  MetricBucket& bucket = metric_data_[bucket_index];
   bucket.Increment(MetricTypeReqCount);
   if (result_type == kLimitCallResultLimited) {
     bucket.Increment(MetricTypeLimitCount);
@@ -102,9 +100,9 @@ void CallMetricData::Record(LimitCallResultType result_type, uint64_t response_t
 }
 
 void CallMetricData::Serialize(v1::MetricRequest* metric_request) {
-  uint64_t current_time = Time::GetCurrentTimeMs();
+  uint64_t current_time = Time::GetSystemTimeMs();
   if (current_time < last_serialize_time_) {
-    return;  // 不可能发生
+    return;  // 时间跳变了
   }
   v1::MetricRequest::MetricIncrement* increment = metric_request->add_increments();
   increment->set_duration(metric_config_.window_size_);
@@ -115,14 +113,13 @@ void CallMetricData::Serialize(v1::MetricRequest* metric_request) {
     for (std::size_t type = 0; type < metric_data_[bucket_index].Size(); ++type) {  // 基础类型
       v1::MetricRequest::MetricIncrement::Values* values;
       if (i == 0) {
-        values                     = increment->add_values();
+        values = increment->add_values();
         v1::MetricType metric_type = v1::ReqCount;
         if (type < MetricTypeBaseLength) {
           metric_type = static_cast<v1::MetricType>(type);
           values->mutable_dimension()->set_type(metric_type);
           if (type == MetricTypeSlowCount) {
-            values->mutable_dimension()->set_value(
-                StringUtils::TypeToStr(trigger_policy_.slow_rate_.max_rt_));
+            values->mutable_dimension()->set_value(std::to_string(trigger_policy_.slow_rate_.max_rt_));
           }
         } else {
           values->mutable_dimension()->set_type(v1::ErrorCountByType);

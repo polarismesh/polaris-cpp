@@ -25,16 +25,14 @@
 #include "cache_persist.h"
 #include "engine/executor.h"
 #include "model/model_impl.h"
+#include "polaris/consumer.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
 #include "reactor/task.h"
+#include "report_client.h"
 
 namespace polaris {
 
-class CacheManager;
-class Context;
-class InstancesFutureImpl;
-class ServiceCacheNotify;
 class TimeoutWatcher;
 class Watcher;
 
@@ -52,13 +50,13 @@ struct WatherRegisterTask {
 };
 
 class ServiceDataChangeTask : public Task {
-public:
+ public:
   ServiceDataChangeTask(CacheManager* cache_manager, ServiceData* service_data);
   virtual ~ServiceDataChangeTask();
 
   virtual void Run();
 
-private:
+ private:
   CacheManager* cache_manager_;
   ServiceData* service_data_;
 };
@@ -77,14 +75,14 @@ inline bool operator<(InstanceHostPortKey const& lhs, InstanceHostPortKey const&
 }
 
 class ServiceHostPort : public ServiceBase {
-public:
+ public:
   uint64_t version_;
   std::map<InstanceHostPortKey, std::string> mapping_;
 };
 
 /// @brief 用于管理本地缓存，一个Context初始化一个缓冲管理对象
 class CacheManager : public Executor {
-public:
+ public:
   explicit CacheManager(Context* context);
   virtual ~CacheManager();
 
@@ -93,8 +91,7 @@ public:
   virtual void SetupWork();  // 设置定时任务
 
   /// @brief 提供给Consumer调用的接口，用于注册未就绪的InstancesFuture，线程安全
-  void RegisterTimeoutWatcher(InstancesFutureImpl* future_impl,
-                              ServiceCacheNotify* service_cache_notify);
+  void RegisterTimeoutWatcher(InstancesFuture::Impl* future_impl, ServiceCacheNotify* service_cache_notify);
 
   void RemoveTimeoutWatcher(TimeoutWatcher* timeout_watcher);
 
@@ -107,10 +104,10 @@ public:
   CachePersist& GetCachePersist() { return persist_; }
 
   // 获取服务实例的
-  ReturnCode GetInstanceId(const ServiceKey& service_key, const std::string& host, int port,
+  ReturnCode GetInstanceId(const ServiceKey& service_key, const InstanceHostPortKey& host_port_key,
                            std::string& instance_id);
 
-private:
+ private:
   // 定时清理不使用的插件缓存
   static void TimingClearCache(CacheManager* cache_manager);
 
@@ -119,11 +116,11 @@ private:
   // 在当前线程线程添加Watcher
   static void AddTimeoutWatcher(TimeoutWatcher* timeout_watcher);
 
-  ReturnCode GetOrCreateServiceHostPort(const ServiceKey& service_key,
-                                        ServiceHostPort*& host_port_data);
+  ReturnCode GetOrCreateServiceHostPort(const ServiceKey& service_key, ServiceHostPort*& host_port_data);
 
-private:
+ private:
   CachePersist persist_;
+  ReportClient report_client_;
   std::map<ServiceKeyWithType, ServiceDataWatchers> service_watchers_;
 
   RcuMap<ServiceKey, ServiceHostPort> host_port_cache_;

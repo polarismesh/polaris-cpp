@@ -22,9 +22,9 @@
 #include <string>
 
 #include "engine/executor.h"
-#include "grpc/client.h"
-#include "grpc/status.h"
 #include "model/return_code.h"
+#include "network/grpc/client.h"
+#include "network/grpc/status.h"
 #include "plugin/stat_reporter/stat_reporter.h"
 #include "reactor/task.h"
 
@@ -52,7 +52,7 @@ enum ReportTaskType {
 
 class MonitorReporter;
 class ReportBase {
-public:
+ public:
   ReportBase();
   virtual ~ReportBase();
 
@@ -66,7 +66,7 @@ public:
   // 选择monitor节点，发起连接，并创建grpc client
   bool PrepareGrpcClient();
 
-protected:
+ protected:
   friend class MonitorReporter;
   // 以下5项由Init函数设置
   ReportTaskType task_type_;
@@ -87,7 +87,7 @@ protected:
 
 // Unary 模式的上报，目前只有SDK Config使用
 class UnaryReport : public ReportBase, public grpc::RequestCallback<v1::StatResponse> {
-public:
+ public:
   UnaryReport() {}
   virtual ~UnaryReport() {}
 
@@ -101,15 +101,15 @@ public:
   virtual void OnSuccess(::v1::StatResponse* response);
 
   // RPC失败回调，取消超时检查，提交调用结果
-  virtual void OnFailure(grpc::GrpcStatusCode status, const std::string& message);
+  virtual void OnFailure(const std::string& message);
 
-private:
+ private:
   friend class MonitorReporter;
   static void TimeoutCheck(UnaryReport* unary_report);
 };
 
 class StreamReport : public ReportBase, public grpc::StreamCallback<v1::StatResponse> {
-public:
+ public:
   StreamReport() : request_count_(0), succ_count_(0), fail_count_(0) {}
   virtual ~StreamReport() {}
 
@@ -121,22 +121,22 @@ public:
 
   virtual void OnReceiveMessage(::v1::StatResponse* response);
 
-  virtual void OnRemoteClose(grpc::GrpcStatusCode status, const std::string& message);
+  virtual void OnRemoteClose(const std::string& message);
 
   grpc::GrpcStream* PerpareStream();
 
-private:
+ private:
   friend class MonitorReporter;
   static void TimeoutCheck(StreamReport* stream_report);
 
-private:
+ private:
   int request_count_;
   int succ_count_;
   int fail_count_;
 };
 
 class MonitorReporter : public Executor {
-public:
+ public:
   explicit MonitorReporter(Context* context);
   virtual ~MonitorReporter();
 
@@ -147,6 +147,8 @@ public:
   uint64_t GetConnectTimeout() { return connect_timeout_; }
 
   uint64_t GetMessageTimeout() { return message_timeout_; }
+
+  uint64_t GetMessageTimeout(int request_count);
 
   bool GetInstance(ReportBase* report_data);
 
@@ -176,13 +178,13 @@ public:
   void BuildSetCircuitStat(std::map<ServiceKey, SetRecords>& circuit_stat,
                            google::protobuf::RepeatedField<v1::ServiceCircuitbreak>& report_data);
 
-private:
+ private:
   void BuildSdkConfig(v1::SDKConfig& sdk_config);
 
   void BuildCircuitStat(std::map<ServiceKey, InstanceRecords>& circuit_stat,
                         google::protobuf::RepeatedField<v1::ServiceCircuitbreak>& report_data);
 
-private:
+ private:
   const v1::SDKToken& sdk_token_;
   uint64_t connect_timeout_;
   uint64_t message_timeout_;

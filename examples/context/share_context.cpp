@@ -21,20 +21,20 @@
 int main(int, char**) {
   std::string err_msg;
   polaris::Config* config = polaris::Config::CreateWithDefaultFile(err_msg);
-  if (config == NULL) {
+  if (config == nullptr) {
     std::cout << "create config with error:" << err_msg << std::endl;
     return -1;
   }
 
   polaris::Context* context = polaris::Context::Create(config);
-  assert(context != NULL);
+  assert(context != nullptr);
   std::cout << "create context success" << std::endl;
   delete config;
 
   polaris::ConsumerApi* consumer_api = polaris::ConsumerApi::Create(context);
-  assert(consumer_api != NULL);
+  assert(consumer_api != nullptr);
   polaris::ProviderApi* provider_api = polaris::ProviderApi::Create(context);
-  assert(provider_api != NULL);
+  assert(provider_api != nullptr);
   std::cout << "create api success" << std::endl;
   delete consumer_api;
   delete provider_api;

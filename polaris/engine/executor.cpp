@@ -24,18 +24,18 @@ Executor::Executor(Context* context) : context_(context), tid_(0) {}
 
 Executor::~Executor() {
   StopAndWait();
-  context_ = NULL;
+  context_ = nullptr;
 }
 
 void Executor::WorkLoop() { reactor_.Run(); }
 
 ReturnCode Executor::Start() {
   POLARIS_ASSERT(tid_ == 0);
-  if (pthread_create(&tid_, NULL, ThreadFunction, this) != 0) {
+  if (pthread_create(&tid_, nullptr, ThreadFunction, this) != 0) {
     POLARIS_LOG(LOG_ERROR, "create %s task thread failed", GetName());
     return kReturnInvalidState;
   }
-#if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2, 12)
+#if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2, 12) && !defined(COMPILE_FOR_PRE_CPP11)
   // pthread_setname_np 支持的名字最大长度为16(包括'\0')
   pthread_setname_np(tid_, GetName());  // glibc >=2.12版本才有这个函数
 #endif
@@ -46,13 +46,13 @@ void* Executor::ThreadFunction(void* arg) {
   Executor* executor = static_cast<Executor*>(arg);
   executor->SetupWork();
   executor->WorkLoop();
-  return NULL;
+  return nullptr;
 }
 
 ReturnCode Executor::StopAndWait() {
   reactor_.Stop();
   if (tid_ > 0) {
-    pthread_join(tid_, NULL);
+    pthread_join(tid_, nullptr);
     tid_ = 0;
   }
   return kReturnOk;

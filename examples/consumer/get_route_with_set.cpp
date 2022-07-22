@@ -34,13 +34,12 @@ int main(int argc, char** argv) {
   signal(SIGINT, SignalHandler);  // 注册ctrl+c信号事件用于退出循环
 
   if (argc < 4) {
-    std::cout << "usage: " << argv[0] << " service_namespace service_name set_name [interval]"
-              << std::endl;
+    std::cout << "usage: " << argv[0] << " service_namespace service_name set_name [interval]" << std::endl;
     return -1;
   }
   polaris::ServiceKey service_key = {argv[1], argv[2]};
-  std::string set_name            = argv[3];  // 目标set名字
-  int interval                    = argc > 4 ? atoi(argv[4]) : 1000;
+  std::string set_name = argv[3];  // 目标set名字
+  int interval = argc > 4 ? atoi(argv[4]) : 1000;
 
   // 此处使用配置字符串开启set路由插件，建议将该配置放置在文件中，并通过如下方式创建consumer对象
   // polaris::ConsumerApi* consumer = polaris::ConsumerApi::CreateFromFile(config_file_path);
@@ -52,9 +51,8 @@ int main(int argc, char** argv) {
       "      - setDivisionRouter\n"  // 此行用于通过配置开启set路由插件
       "      - nearbyBasedRouter";
   polaris::ConsumerApi* consumer = polaris::ConsumerApi::CreateFromString(config);
-  if (consumer == NULL) {
-    std::cout << "create consumer api failed, see log (default ~/polaris/log/polaris.log)"
-              << std::endl;
+  if (consumer == nullptr) {
+    std::cout << "create consumer api failed, see log (default ~/polaris/log/polaris.log)" << std::endl;
     return -1;
   }
 
@@ -67,8 +65,7 @@ int main(int argc, char** argv) {
 
     // 调用服务发现接口获取服务实例
     if ((ret = consumer->GetOneInstance(request, instance)) != polaris::kReturnOk) {
-      std::cout << "get instance for service with error:" << polaris::ReturnCodeToMsg(ret).c_str()
-                << std::endl;
+      std::cout << "get instance for service with error:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
       sleep(1);
       continue;
     }

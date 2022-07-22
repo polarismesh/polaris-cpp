@@ -19,7 +19,7 @@ namespace polaris {
 /// @brief 可选字段类型
 template <class T>
 class optional {
-public:
+ public:
   optional() : has_value_(false) {}
 
   bool HasValue() const { return has_value_; }
@@ -30,13 +30,13 @@ public:
 
   T& operator=(T const& value) {
     has_value_ = true;
-    value_     = value;
+    value_ = value;
     return value_;
   }
 
   void SetHasValue() { has_value_ = true; }
 
-private:
+ private:
   bool has_value_;
   T value_;
 };

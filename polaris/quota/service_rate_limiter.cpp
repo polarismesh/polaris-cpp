@@ -33,18 +33,15 @@ ServiceRateLimiter* ServiceRateLimiter::Create(RateLimitActionType action_type) 
     default:
       POLARIS_ASSERT(false);
   }
-  return NULL;
+  return nullptr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // 直接拒绝
 
-QuotaResult* RejectQuotaBucket::GetQuota(int64_t /*acquire_amount*/) {
-  return new QuotaResult(kQuotaResultOk, 0);
-}
+QuotaResult* RejectQuotaBucket::GetQuota(int64_t /*acquire_amount*/) { return new QuotaResult(kQuotaResultOk, 0); }
 
-ReturnCode RejectServiceRateLimiter::InitQuotaBucket(RateLimitRule* /*rate_limit_rule*/,
-                                                     QuotaBucket*& quota_bucket) {
+ReturnCode RejectServiceRateLimiter::InitQuotaBucket(RateLimitRule* /*rate_limit_rule*/, QuotaBucket*& quota_bucket) {
   quota_bucket = new RejectQuotaBucket();
   return kReturnOk;
 }
@@ -53,13 +50,18 @@ ReturnCode RejectServiceRateLimiter::InitQuotaBucket(RateLimitRule* /*rate_limit
 // 匀速排队
 
 UnirateQuotaBucket::UnirateQuotaBucket()
-    : rule_(NULL), max_queuing_duration_(0), effective_amount_(0), effective_duration_(0),
-      effective_rate_(0), last_grant_time_(0), reject_all_(false) {}
+    : rule_(nullptr),
+      max_queuing_duration_(0),
+      effective_amount_(0),
+      effective_duration_(0),
+      effective_rate_(0),
+      last_grant_time_(0),
+      reject_all_(false) {}
 
-UnirateQuotaBucket::~UnirateQuotaBucket() { rule_ = NULL; }
+UnirateQuotaBucket::~UnirateQuotaBucket() { rule_ = nullptr; }
 
 ReturnCode UnirateQuotaBucket::Init(RateLimitRule* rate_limit_rule) {
-  rule_                 = rate_limit_rule;
+  rule_ = rate_limit_rule;
   max_queuing_duration_ = 1000;  // TODO 支持配置，当前默认1s
 
   // 选出允许qps最低的amount和duration组合，作为effective_amount和effective_duration
@@ -69,8 +71,8 @@ ReturnCode UnirateQuotaBucket::Init(RateLimitRule* rate_limit_rule) {
   const std::vector<RateLimitAmount>& amounts = rule_->GetRateLimitAmount();
   POLARIS_ASSERT(amounts.size() > 0);
   std::size_t max_rate_index = 0;
-  float max_rate             = -1;
-  uint64_t max_duration      = 0;
+  float max_rate = -1;
+  uint64_t max_duration = 0;
   for (std::size_t i = 0; i < amounts.size(); ++i) {
     if (amounts[i].max_amount_ == 0) {
       reject_all_ = true;
@@ -78,17 +80,17 @@ ReturnCode UnirateQuotaBucket::Init(RateLimitRule* rate_limit_rule) {
     }
     float new_rate = static_cast<float>(amounts[i].valid_duration_) / amounts[i].max_amount_;
     if (new_rate > max_rate) {
-      max_rate       = new_rate;
+      max_rate = new_rate;
       max_rate_index = i;
     }
     if (amounts[i].valid_duration_ > max_duration) {
       max_duration = amounts[i].valid_duration_;
     }
   }
-  effective_amount_   = amounts[max_rate_index].max_amount_;
+  effective_amount_ = amounts[max_rate_index].max_amount_;
   effective_duration_ = amounts[max_rate_index].valid_duration_;
-  effective_rate_     = static_cast<uint64_t>(max_rate);
-  last_grant_time_    = Time::GetCurrentTimeMs() - max_duration;
+  effective_rate_ = static_cast<uint64_t>(max_rate);
+  last_grant_time_ = Time::GetSystemTimeMs() - max_duration;
   return kReturnOk;
 }
 
@@ -97,14 +99,14 @@ QuotaResult* UnirateQuotaBucket::GetQuota(int64_t acquire_amount) {
     return new QuotaResult(kQuotaResultOk, 0);
   }
   // TODO 多线程支持，原子读写 + CAS实现
-  uint64_t current_time = Time::GetCurrentTimeMs();
-  uint64_t expect_time  = last_grant_time_ + effective_rate_ * acquire_amount;
+  uint64_t current_time = Time::GetSystemTimeMs();
+  uint64_t expect_time = last_grant_time_ + effective_rate_ * acquire_amount;
   if (expect_time < current_time) {
     last_grant_time_ = current_time;
     return new QuotaResult(kQuotaResultOk, 0);
   }
   uint64_t next_grand_time = last_grant_time_ + effective_rate_ * acquire_amount;
-  uint64_t wait_time       = next_grand_time > current_time ? next_grand_time - current_time : 0;
+  uint64_t wait_time = next_grand_time > current_time ? next_grand_time - current_time : 0;
   if (wait_time > max_queuing_duration_) {  // 超过最大等待时间，直接拒绝
     return new QuotaResult(kQuotaResultLimited, 0);
   }
@@ -112,10 +114,9 @@ QuotaResult* UnirateQuotaBucket::GetQuota(int64_t acquire_amount) {
   return new QuotaResult(kQuotaResultOk, wait_time);
 }
 
-ReturnCode UnirateServiceRateLimiter::InitQuotaBucket(RateLimitRule* rate_limit_rule,
-                                                      QuotaBucket*& quota_bucket) {
+ReturnCode UnirateServiceRateLimiter::InitQuotaBucket(RateLimitRule* rate_limit_rule, QuotaBucket*& quota_bucket) {
   UnirateQuotaBucket* unirate_quota_bucket = new UnirateQuotaBucket();
-  ReturnCode ret_code                      = unirate_quota_bucket->Init(rate_limit_rule);
+  ReturnCode ret_code = unirate_quota_bucket->Init(rate_limit_rule);
   if (ret_code == kReturnOk) {
     quota_bucket = unirate_quota_bucket;
   }

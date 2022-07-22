@@ -27,7 +27,7 @@
 namespace polaris {
 
 class MockMetricConnector : public MetricConnector {
-public:
+ public:
   MockMetricConnector(Reactor &reactor, Context *context)
       : MetricConnector(reactor, context), ignore_(false), ret_code_(kReturnOk) {
     response_.mutable_code()->set_value(v1::ExecuteSuccess);

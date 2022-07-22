@@ -18,14 +18,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <map>
+#include <mutex>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "polaris/defs.h"
 #include "polaris/plugin.h"
-#include "sync/mutex.h"
+#include "utils/time_clock.h"
 
 namespace polaris {
 
@@ -42,12 +43,12 @@ struct InstanceCodeStat {
 };
 
 struct InstanceStat {
-  InstanceStat() : service_key_(NULL) {}
+  InstanceStat() : service_key_(nullptr) {}
 
   ~InstanceStat() {
-    if (service_key_ != NULL) {
+    if (service_key_ != nullptr) {
       delete service_key_;
-      service_key_ = NULL;
+      service_key_ = nullptr;
     }
   }
 
@@ -57,16 +58,25 @@ struct InstanceStat {
 };
 
 // 服务统计：每个服务实例统计自己的数据
-typedef std::map<std::string, InstanceStat> ServiceStat;
+typedef std::unordered_map<std::string, InstanceStat> ServiceStat;
 
 struct TlsInstanceStat {
-  ServiceStat* stat_map_;
-  uint64_t access_time_;
-  bool active_;
+  TlsInstanceStat() : stat_map_(new ServiceStat()), access_time_(Time::GetCoarseSteadyTimeMs()), active_(true) {}
+
+  ~TlsInstanceStat() {
+    if (stat_map_ != nullptr) {
+      delete stat_map_;
+      stat_map_ = nullptr;
+    }
+  }
+
+  std::atomic<ServiceStat*> stat_map_;
+  std::atomic<uint64_t> access_time_;
+  std::atomic<bool> active_;
 };
 
 class MonitorStatReporter : public StatReporter {
-public:
+ public:
   MonitorStatReporter();
 
   virtual ~MonitorStatReporter();
@@ -82,17 +92,17 @@ public:
   // 上报线程调用PerpareReport成功后，调用此方法获取所有线程的数据
   void CollectData(std::map<ServiceKey, ServiceStat>& report_data);
 
-private:
+ private:
   // 新线程创建线程局部存储
   TlsInstanceStat* CreateTlsStat();
 
   static void OnThreadExit(void* ptr);
 
-private:
+ private:
   Context* context_;
   uint64_t report_interval_;
 
-  sync::Mutex lock_;
+  std::mutex lock_;
   pthread_key_t tls_key_;
   std::set<TlsInstanceStat*> tls_stat_set_;
 

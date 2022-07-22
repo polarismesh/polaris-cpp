@@ -19,7 +19,7 @@
 #include <gtest/gtest.h>
 #include <pthread.h>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "mock/fake_server_response.h"
 #include "mock/mock_server_connector.h"
 #include "polaris/consumer.h"
@@ -31,11 +31,11 @@
 namespace polaris {
 
 class BackupInstanceMockServerConnectorTest : public MockServerConnectorTest {
-protected:
+ protected:
   virtual void SetUp() {
     MockServerConnectorTest::SetUp();
-    context_      = NULL;
-    consumer_api_ = NULL;
+    context_ = nullptr;
+    consumer_api_ = nullptr;
     TestUtils::CreateTempDir(persist_dir_);
     std::string err_msg, content =
                              "global:\n"
@@ -49,35 +49,35 @@ protected:
                              "  loadBalancer:\n"
                              "    type: l5cst\n";
     Config *config = Config::CreateFromString(content, err_msg);
-    POLARIS_ASSERT(config != NULL && err_msg.empty());
+    POLARIS_ASSERT(config != nullptr && err_msg.empty());
     context_ = Context::Create(config);
     delete config;
-    ASSERT_TRUE(context_ != NULL);
-    ASSERT_TRUE((consumer_api_ = ConsumerApi::Create(context_)) != NULL);
+    ASSERT_TRUE(context_ != nullptr);
+    ASSERT_TRUE((consumer_api_ = ConsumerApi::Create(context_)) != nullptr);
 
     // check
     MockServerConnector *server_connector_in_context =
-        dynamic_cast<MockServerConnector *>(context_->GetServerConnector());
-    ASSERT_TRUE(server_connector_ != NULL);
+        dynamic_cast<MockServerConnector *>(context_->GetContextImpl()->GetServerConnector());
+    ASSERT_TRUE(server_connector_ != nullptr);
     ASSERT_EQ(server_connector_, server_connector_in_context);
-    service_key_.name_      = "cpp_test_service";
+    service_key_.name_ = "cpp_test_service";
     service_key_.namespace_ = "cpp_test_namespace";
-    instance_num_           = 100;
-    instance_healthy_       = true;
+    instance_num_ = 100;
+    instance_healthy_ = true;
   }
 
   virtual void TearDown() {
-    if (consumer_api_ != NULL) {
+    if (consumer_api_ != nullptr) {
       delete consumer_api_;
-      consumer_api_ = NULL;
+      consumer_api_ = nullptr;
     }
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
     TestUtils::RemoveDir(persist_dir_);
     for (std::size_t i = 0; i < event_thread_list_.size(); ++i) {
-      pthread_join(event_thread_list_[i], NULL);
+      pthread_join(event_thread_list_[i], nullptr);
     }
     MockServerConnectorTest::TearDown();
   }
@@ -86,15 +86,14 @@ protected:
     FakeServer::InstancesResponse(instances_response_, service_key_);
     v1::Service *service = instances_response_.mutable_service();
     for (int i = 0; i < 10; i++) {
-      (*service->mutable_metadata())["key" + StringUtils::TypeToStr<int>(i)] =
-          "value" + StringUtils::TypeToStr<int>(i);
+      (*service->mutable_metadata())["key" + std::to_string(i)] = "value" + std::to_string(i);
     }
     for (int i = 0; i < instance_num_; i++) {
       ::v1::Instance *instance = instances_response_.mutable_instances()->Add();
       instance->mutable_namespace_()->set_value(service_key_.namespace_);
       instance->mutable_service()->set_value(service_key_.name_);
-      instance->mutable_id()->set_value("instance_" + StringUtils::TypeToStr<int>(i));
-      instance->mutable_host()->set_value("host" + StringUtils::TypeToStr<int>(i));
+      instance->mutable_id()->set_value("instance_" + std::to_string(i));
+      instance->mutable_host()->set_value("host" + std::to_string(i));
       instance->mutable_port()->set_value(8080 + i);
       instance->mutable_healthy()->set_value(instance_healthy_);
       instance->mutable_weight()->set_value(100);
@@ -102,10 +101,10 @@ protected:
     FakeServer::RoutingResponse(routing_response_, service_key_);
   }
 
-public:
-  void MockFireEventHandler(const ServiceKey &service_key, ServiceDataType data_type,
-                            uint64_t /*sync_interval*/, ServiceEventHandler *handler) {
-    ServiceData *service_data = NULL;
+ public:
+  void MockFireEventHandler(const ServiceKey &service_key, ServiceDataType data_type, uint64_t /*sync_interval*/,
+                            const std::string & /*disk_revision*/, ServiceEventHandler *handler) {
+    ServiceData *service_data = nullptr;
     if (data_type == kServiceDataInstances) {
       service_data = ServiceData::CreateFromPb(&instances_response_, kDataIsSyncing);
     } else if (data_type == kServiceDataRouteRule) {
@@ -115,17 +114,17 @@ public:
     }
     // 创建单独的线程去下发数据更新，否则会死锁
     EventHandlerData *event_data = new EventHandlerData();
-    event_data->service_key_     = service_key;
-    event_data->data_type_       = data_type;
-    event_data->service_data_    = service_data;
-    event_data->handler_         = handler;
+    event_data->service_key_ = service_key;
+    event_data->data_type_ = data_type;
+    event_data->service_data_ = service_data;
+    event_data->handler_ = handler;
     pthread_t tid;
-    pthread_create(&tid, NULL, AsyncEventUpdate, event_data);
+    pthread_create(&tid, nullptr, AsyncEventUpdate, event_data);
     handler_list_.push_back(handler);
     event_thread_list_.push_back(tid);
   }
 
-protected:
+ protected:
   Context *context_;
   ConsumerApi *consumer_api_;
   v1::DiscoverResponse instances_response_;
@@ -137,9 +136,7 @@ protected:
   std::vector<pthread_t> event_thread_list_;
 };
 
-bool CompareInstance(Instance instance1, Instance instance2) {
-  return instance1.GetId() < instance2.GetId();
-}
+bool CompareInstance(Instance instance1, Instance instance2) { return instance1.GetId() < instance2.GetId(); }
 
 bool CheckDuplicate(std::vector<Instance> &instances) {
   sort(instances.begin(), instances.end(), CompareInstance);
@@ -153,12 +150,12 @@ bool CheckDuplicate(std::vector<Instance> &instances) {
 
 TEST_F(BackupInstanceMockServerConnectorTest, TestSetAndGetRoute) {
   InitServiceData();
-  EXPECT_CALL(*server_connector_, RegisterEventHandler(::testing::Eq(service_key_), ::testing::_,
-                                                       ::testing::_, ::testing::_))
+  EXPECT_CALL(*server_connector_,
+              RegisterEventHandler(::testing::Eq(service_key_), ::testing::_, ::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::Exactly(2))
-      .WillRepeatedly(::testing::DoAll(
-          ::testing::Invoke(this, &BackupInstanceMockServerConnectorTest::MockFireEventHandler),
-          ::testing::Return(kReturnOk)));
+      .WillRepeatedly(
+          ::testing::DoAll(::testing::Invoke(this, &BackupInstanceMockServerConnectorTest::MockFireEventHandler),
+                           ::testing::Return(kReturnOk)));
 
   ReturnCode ret;
   Instance instance;

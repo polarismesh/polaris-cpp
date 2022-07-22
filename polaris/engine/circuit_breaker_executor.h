@@ -27,7 +27,7 @@ class MetricConnector;
 ///   - 执行实例级别熔断
 ///   - 执行Set级别熔断
 class CircuitBreakerExecutor : public Executor {
-public:
+ public:
   explicit CircuitBreakerExecutor(Context* context);
 
   // 仅供单元测试使用，正常逻辑代码勿用
@@ -45,7 +45,7 @@ public:
   // 定期执行ReportClient
   static void TimingCircuitBreak(CircuitBreakerExecutor* executor);
 
-private:
+ private:
   MetricConnector* metric_connector_;
 };
 

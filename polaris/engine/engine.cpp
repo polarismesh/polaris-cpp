@@ -13,30 +13,26 @@
 
 #include "engine/engine.h"
 
-#include <stddef.h>
-
 #include "logger.h"
 
 namespace polaris {
 
-class Context;
-
 Engine::Engine(Context* context)
-    : context_(context), main_executor_(context), cache_manager_(context),
-      monitor_reporter_(context_), circuit_breaker_executor_(context),
+    : context_(context),
+      cache_manager_(context),
+      monitor_reporter_(context_),
+      circuit_breaker_executor_(context),
       health_checker_executor_(context) {}
 
 Engine::~Engine() {
   StopAndWait();
-  context_ = NULL;
+  context_ = nullptr;
 }
 
 ReturnCode Engine::Start() {
-  POLARIS_ASSERT(context_ != NULL);
+  POLARIS_ASSERT(context_ != nullptr);
   ReturnCode ret_code;
-  if ((ret_code = main_executor_.Start()) != kReturnOk ||
-      (ret_code = cache_manager_.Start()) != kReturnOk ||
-      (ret_code = monitor_reporter_.Start()) != kReturnOk ||
+  if ((ret_code = cache_manager_.Start()) != kReturnOk || (ret_code = monitor_reporter_.Start()) != kReturnOk ||
       (ret_code = circuit_breaker_executor_.Start()) != kReturnOk ||
       (ret_code = health_checker_executor_.Start()) != kReturnOk) {
     return ret_code;
@@ -45,7 +41,6 @@ ReturnCode Engine::Start() {
 }
 
 ReturnCode Engine::StopAndWait() {
-  main_executor_.StopAndWait();
   cache_manager_.StopAndWait();
   monitor_reporter_.StopAndWait();
   circuit_breaker_executor_.StopAndWait();

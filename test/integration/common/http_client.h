@@ -18,13 +18,13 @@
 
 namespace polaris {
 
-static const char HTTP_GET[]    = "GET";
-static const char HTTP_PUT[]    = "PUT";
-static const char HTTP_POST[]   = "POST";
+static const char HTTP_GET[] = "GET";
+static const char HTTP_PUT[] = "PUT";
+static const char HTTP_POST[] = "POST";
 static const char HTTP_DELETE[] = "DELETE";
 
 class HttpClient {
-public:
+ public:
   /// @brief 发送HTTP请求
   ///
   /// @param method GET/PUT/DELETE
@@ -33,10 +33,10 @@ public:
   /// @param timeout 超时时间
   /// @param response json格式应答
   /// @return int HTTP返回码, 200为应答成功
-  static int DoRequest(const std::string& method, const std::string& path, const std::string& body,
-                       int timeout, std::string& response);
+  static int DoRequest(const std::string& method, const std::string& path, const std::string& body, int timeout,
+                       std::string& response);
 
-private:
+ private:
   static bool ToResponse(const std::string& data, int& code, std::string& body);
 };
 

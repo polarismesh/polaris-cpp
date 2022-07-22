@@ -15,20 +15,12 @@
 #define POLARIS_CPP_POLARIS_MONITOR_API_STAT_REGISTRY_H_
 
 #include <stdint.h>
+#include <atomic>
 #include <vector>
 
 #include "api_stat.h"
 #include "polaris/defs.h"
-
-namespace google {
-namespace protobuf {
-template <typename T>
-class RepeatedField;
-}
-}  // namespace google
-namespace v1 {
-class SDKAPIStatistics;
-}
+#include "v1/request.pb.h"
 
 namespace polaris {
 
@@ -36,7 +28,7 @@ class Context;
 struct ReturnCodeInfo;
 
 class ApiStatRegistry {
-public:
+ public:
   explicit ApiStatRegistry(Context* context);
 
   ~ApiStatRegistry();
@@ -46,12 +38,12 @@ public:
 
   void GetApiStatistics(google::protobuf::RepeatedField<v1::SDKAPIStatistics>& statistics);
 
-private:
+ private:
   Context* context_;
   std::vector<ReturnCodeInfo*> ret_code_info_;
   int ret_code_count_;
   int success_code_index_;
-  int*** api_metrics_;  // 三维数组，三个维度分别为：API key, ret_code索引, delay区间
+  std::atomic<int>*** api_metrics_;  // 三维数组，三个维度分别为：API key, ret_code索引, delay区间
 };
 
 }  // namespace polaris

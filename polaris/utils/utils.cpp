@@ -19,14 +19,21 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <atomic>
 #include <sstream>
 #include <string>
 
 namespace polaris {
 
-static const uint64_t kSeqIdBase = 1000000000000000;
-uint64_t g_seq_id                = 0;
-uint64_t Utils::GetNextSeqId() { return kSeqIdBase + ATOMIC_INC(&g_seq_id) % kSeqIdBase; }
+uint64_t Utils::GetNextSeqId() {
+  static std::atomic<uint64_t> seq_id(0);
+  return seq_id.fetch_add(1, std::memory_order_relaxed);
+}
+
+uint32_t Utils::GetNextSeqId32() {
+  static std::atomic<uint32_t> seq_id(0);
+  return seq_id.fetch_add(1, std::memory_order_relaxed);
+}
 
 void hexchar(unsigned char c, unsigned char& hex1, unsigned char& hex2) {
   hex1 = c / 16;
@@ -61,8 +68,8 @@ std::string Utils::UrlDecode(const std::string& url) {
   for (std::size_t i = 0; i < url.size(); i++) {
     if (url[i] == '%' && i + 2 < url.size() && isxdigit(url[i + 1]) && isxdigit(url[i + 2])) {
       char c1 = url[i + 1], c2 = url[i + 2];
-      unsigned char ch = (isdigit(c1) ? c1 - '0' : tolower(c1) - 'a' + 10) << 4 |
-                         (isdigit(c2) ? c2 - '0' : tolower(c2) - 'a' + 10);
+      unsigned char ch =
+          (isdigit(c1) ? c1 - '0' : tolower(c1) - 'a' + 10) << 4 | (isdigit(c2) ? c2 - '0' : tolower(c2) - 'a' + 10);
       result.push_back(ch);
       i += 2;
     } else if (url[i] == '+') {
@@ -88,16 +95,14 @@ int Utils::HexcharToInt(char input) {
 }
 
 bool Utils::HexStringToBytes(const std::string& hex_string, std::string* out_bytes) {
-  if (NULL == out_bytes) {
+  if (nullptr == out_bytes) {
     return false;
   }
   std::string hex_input_string = hex_string;
-  if (hex_input_string.size() <= 2 ||
-      hex_input_string.size() % 2) {  // 必须以0x开头，必须是偶数个字符
+  if (hex_input_string.size() <= 2 || hex_input_string.size() % 2) {  // 必须以0x开头，必须是偶数个字符
     return false;
   }
-  if (hex_input_string.substr(0, 2) != "0x" &&
-      hex_input_string.substr(0, 2) != "0X") {  // 必须以0x开头
+  if (hex_input_string.substr(0, 2) != "0x" && hex_input_string.substr(0, 2) != "0X") {  // 必须以0x开头
     return false;
   }
   hex_input_string = hex_input_string.substr(2);
@@ -107,28 +112,27 @@ bool Utils::HexStringToBytes(const std::string& hex_string, std::string* out_byt
     }
   }
 
-  int buffer_size  = hex_input_string.size() / 2 + 1;
+  int buffer_size = hex_input_string.size() / 2 + 1;
   char* dst_buffer = static_cast<char*>(malloc(buffer_size));
-  if (NULL == dst_buffer) {
+  if (nullptr == dst_buffer) {
     return false;
   }
   int dst_buffer_len = 0;
   for (size_t i = 1; i < hex_input_string.size(); i += 2) {
-    dst_buffer[dst_buffer_len++] =
-        HexcharToInt(hex_input_string[i - 1]) * 16 + HexcharToInt(hex_input_string[i]);
+    dst_buffer[dst_buffer_len++] = HexcharToInt(hex_input_string[i - 1]) * 16 + HexcharToInt(hex_input_string[i]);
   }
   out_bytes->assign(dst_buffer, dst_buffer_len);
   free(dst_buffer);
-  dst_buffer = NULL;
+  dst_buffer = nullptr;
   return true;
 }
 
 const char XCHARS[] = "0123456789ABCDEF";
 std::string Utils::Uuid() {
-  std::string uuid         = std::string(36, '-');
-  uuid[14]                 = '4';
-  static unsigned int seed = time(NULL) ^ pthread_self();
-  ATOMIC_ADD(&seed, seed ^ pthread_self());
+  std::string uuid = std::string(36, '-');
+  uuid[14] = '4';
+  static std::atomic<unsigned int> seed(time(nullptr) ^ pthread_self());
+  seed.fetch_xor(pthread_self());
   srand(seed);
   for (int i = 0; i < 36; i++) {
     if (i != 8 && i != 13 && i != 14 && i != 18 && i != 23) {

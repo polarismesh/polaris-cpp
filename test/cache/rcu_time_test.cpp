@@ -20,42 +20,44 @@
 
 #include <pthread.h>
 
+#include <atomic>
+
 #include "cache/rcu_time.h"
 #include "test_utils.h"
 
 namespace polaris {
 
 class RcuTimeTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
     TestUtils::SetUpFakeTime();
     thread_time_mgr_ = new ThreadTimeMgr();
-    ASSERT_TRUE(thread_time_mgr_ != NULL);
+    ASSERT_TRUE(thread_time_mgr_ != nullptr);
   }
 
   virtual void TearDown() {
-    if (thread_time_mgr_ != NULL) {
+    if (thread_time_mgr_ != nullptr) {
       delete thread_time_mgr_;
-      thread_time_mgr_ = NULL;
+      thread_time_mgr_ = nullptr;
     }
     TestUtils::TearDownFakeTime();
   }
 
-protected:
+ protected:
   ThreadTimeMgr *thread_time_mgr_;
 };
 
 TEST_F(RcuTimeTest, SingleThreadTest) {
   // 没有线程进入过缓冲区
-  ASSERT_EQ(thread_time_mgr_->MinTime(), Time::GetCurrentTimeMs());
+  ASSERT_EQ(thread_time_mgr_->MinTime(), Time::GetCoarseSteadyTimeMs());
 
   for (int i = 0; i < 100; ++i) {
     TestUtils::FakeNowIncrement(1000);
     thread_time_mgr_->RcuEnter();
-    ASSERT_EQ(thread_time_mgr_->MinTime(), Time::GetCurrentTimeMs());
+    ASSERT_EQ(thread_time_mgr_->MinTime(), Time::GetCoarseSteadyTimeMs());
     thread_time_mgr_->RcuExit();
     TestUtils::FakeNowIncrement(1000);
-    ASSERT_EQ(thread_time_mgr_->MinTime(), Time::GetCurrentTimeMs());
+    ASSERT_EQ(thread_time_mgr_->MinTime(), Time::GetCoarseSteadyTimeMs());
   }
 }
 
@@ -64,49 +66,50 @@ void *ThreadFunc(void *args) {
   for (int i = 0; i < 100000; ++i) {
     TestUtils::FakeNowIncrement(1000);
     thread_time_mgr->RcuEnter();
-    EXPECT_LE(thread_time_mgr->MinTime(), Time::GetCurrentTimeMs());
+    EXPECT_LE(thread_time_mgr->MinTime(), Time::GetCoarseSteadyTimeMs());
     thread_time_mgr->RcuExit();
   }
-  return NULL;
+  return nullptr;
 }
 
 TEST_F(RcuTimeTest, MultiThreadTest) {
   std::vector<pthread_t> thread_list;
   pthread_t tid;
   for (int i = 0; i < 64; ++i) {
-    pthread_create(&tid, NULL, ThreadFunc, thread_time_mgr_);
+    pthread_create(&tid, nullptr, ThreadFunc, thread_time_mgr_);
     thread_list.push_back(tid);
   }
   for (std::size_t i = 0; i < thread_list.size(); ++i) {
-    pthread_join(thread_list[i], NULL);
+    pthread_join(thread_list[i], nullptr);
   }
   thread_list.clear();
-  ASSERT_EQ(thread_time_mgr_->MinTime(), Time::GetCurrentTimeMs());
+  ASSERT_EQ(thread_time_mgr_->MinTime(), Time::GetCoarseSteadyTimeMs());
 }
 
 struct ThreadCount {
+  explicit ThreadCount(ThreadTimeMgr *thread_time_mgr) : thread_time_mgr_(thread_time_mgr), count_(0) {}
   ThreadTimeMgr *thread_time_mgr_;
-  int count_;
+  std::atomic<int> count_;
 };
 
 void *ThreadFuncWithCount(void *args) {
   ThreadCount *thread_args = static_cast<ThreadCount *>(args);
   thread_args->thread_time_mgr_->RcuEnter();
   thread_args->thread_time_mgr_->RcuExit();
-  ATOMIC_INC(&thread_args->count_);
+  thread_args->count_++;
   while (thread_args->count_ != 0) {
     usleep(10000);
   }
-  return NULL;
+  return nullptr;
 }
 
 TEST_F(RcuTimeTest, TestTlsFree) {
   std::vector<pthread_t> thread_list;
   int thread_num = 64;
   pthread_t tid;
-  ThreadCount thread_count = {thread_time_mgr_, 0};
+  ThreadCount thread_count(thread_time_mgr_);
   for (int i = 0; i < thread_num; ++i) {
-    pthread_create(&tid, NULL, ThreadFuncWithCount, &thread_count);
+    pthread_create(&tid, nullptr, ThreadFuncWithCount, &thread_count);
     thread_list.push_back(tid);
   }
   thread_time_mgr_->RcuEnter();
@@ -115,10 +118,10 @@ TEST_F(RcuTimeTest, TestTlsFree) {
     usleep(10000);
   }
   delete thread_time_mgr_;
-  thread_time_mgr_    = NULL;
+  thread_time_mgr_ = nullptr;
   thread_count.count_ = 0;
   for (std::size_t i = 0; i < thread_list.size(); ++i) {
-    pthread_join(thread_list[i], NULL);
+    pthread_join(thread_list[i], nullptr);
   }
   thread_list.clear();
 }

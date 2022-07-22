@@ -13,23 +13,21 @@
 
 #include "model/route_rule_destination.h"
 
-#include "model/model_impl.h"
-
 namespace polaris {
 
 static const uint32_t kRuleDefaultWeight = 0;
-static const bool kRuleDefaultIsolate    = false;
+static const bool kRuleDefaultIsolate = false;
 
 bool RouteRuleDestination::InitFromPb(const v1::Destination& destination) {
-  service_key_.namespace_ = destination.namespace_().value();
-  service_key_.name_      = destination.service().value();
+  service_key_.namespace_ = MatchString::WildcardOrValue(destination.namespace_().value());
+  service_key_.name_ = MatchString::WildcardOrValue(destination.service().value());
   google::protobuf::Map<std::string, v1::MatchString>::const_iterator it;
   for (it = destination.metadata().begin(); it != destination.metadata().end(); ++it) {
     if (!metadata_[it->first].Init(it->second)) {
       return false;
     }
   }
-  weight_  = destination.has_weight() ? destination.weight().value() : kRuleDefaultWeight;
+  weight_ = destination.has_weight() ? destination.weight().value() : kRuleDefaultWeight;
   isolate_ = destination.has_isolate() ? destination.isolate().value() : kRuleDefaultIsolate;
 
   if (destination.has_transfer()) {
@@ -39,8 +37,7 @@ bool RouteRuleDestination::InitFromPb(const v1::Destination& destination) {
 }
 
 bool RouteRuleDestination::FillSystemVariables(const SystemVariables& variables) {
-  for (std::map<std::string, MatchString>::iterator it = metadata_.begin(); it != metadata_.end();
-       ++it) {
+  for (std::map<std::string, MatchString>::iterator it = metadata_.begin(); it != metadata_.end(); ++it) {
     if (it->second.IsVariable()) {
       const std::string& variable_value = it->second.GetString();
       std::string value;
@@ -55,9 +52,8 @@ bool RouteRuleDestination::FillSystemVariables(const SystemVariables& variables)
 }
 
 bool RouteRuleDestination::MatchService(const ServiceKey& service_key) const {
-  return (service_key_.namespace_ == service_key.namespace_ ||
-          service_key_.namespace_ == MatchString::Wildcard()) &&
-         (service_key_.name_ == service_key.name_ || service_key_.name_ == MatchString::Wildcard());
+  return (service_key_.namespace_ == service_key.namespace_ || service_key_.namespace_.empty()) &&
+         (service_key_.name_ == service_key.name_ || service_key_.name_.empty());
 }
 
 // 根据Destination计算计算实例分组
@@ -66,25 +62,24 @@ std::map<std::string, RuleRouterSet*> RouteRuleDestination::CalculateSet(
     const std::map<std::string, std::string>& parameters) const {
   //根据instance的元数据来区分set
   std::map<std::string, RuleRouterSet*> rule_router_set_map;
-  for (std::vector<Instance*>::const_iterator instance_it = instances.begin();
-       instance_it != instances.end(); ++instance_it) {
+  for (std::vector<Instance*>::const_iterator instance_it = instances.begin(); instance_it != instances.end();
+       ++instance_it) {
     if (MatchString::MapMatch(metadata_, (*instance_it)->GetMetadata(), parameters)) {
       RuleRouterSet* rule_router_set;
       SubSetInfo ss;
       //提取subset
-      for (std::map<std::string, MatchString>::const_iterator it = metadata_.begin();
-           it != metadata_.end(); ++it) {
+      for (std::map<std::string, MatchString>::const_iterator it = metadata_.begin(); it != metadata_.end(); ++it) {
         if (it->second.IsParameter()) {
           // 此处不判断find结果，已经匹配的情况下parameter必然存在key
           ss.subset_map_[it->first] = parameters.find(it->first)->second;
         } else {
-          ss.subset_map_[it->first] = (*instance_it)->GetMetadata()[it->first];
+          ss.subset_map_[it->first] = (*instance_it)->GetMetadata().find(it->first)->second;
         }
       }
       if (rule_router_set_map.find(ss.GetSubInfoStrId()) == rule_router_set_map.end()) {
-        rule_router_set                           = new RuleRouterSet();
-        rule_router_set->subset.subset_map_       = ss.subset_map_;
-        rule_router_set->isolated_                = isolate_;
+        rule_router_set = new RuleRouterSet();
+        rule_router_set->subset.subset_map_ = ss.subset_map_;
+        rule_router_set->isolated_ = isolate_;
         rule_router_set_map[ss.GetSubInfoStrId()] = rule_router_set;
       } else {
         rule_router_set = rule_router_set_map[ss.GetSubInfoStrId()];

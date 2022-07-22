@@ -24,49 +24,44 @@
 #include "cache/service_cache.h"
 #include "model/match_string.h"
 #include "model/model_impl.h"
-#include "polaris/defs.h"
-#include "polaris/plugin.h"
+#include "plugin/service_router/service_router.h"
 
 namespace polaris {
 
 // 实例分组
 class RuleRouterCluster {
-public:
+ public:
   ~RuleRouterCluster();
 
   bool CalculateByRoute(const RouteRule& route, ServiceKey& service_key, bool match_service,
-                        const std::vector<Instance*>& instances,
-                        const std::set<Instance*>& unhealthy_set,
+                        const std::vector<Instance*>& instances, const std::set<Instance*>& unhealthy_set,
                         const std::map<std::string, std::string>& parameters);
 
-  bool CalculateRouteResult(std::vector<RuleRouterSet*>& result, uint32_t* sum_weight,
-                            float percent_of_min_instances, bool enable_recover_all);
+  bool CalculateRouteResult(std::vector<RuleRouterSet*>& result, uint32_t* sum_weight, float percent_of_min_instances,
+                            bool enable_recover_all);
 
   void CalculateSubset(ServiceInstances* service_instances, Labels& labels);
 
-  bool GetHealthyAndHalfOpenSubSet(
-      std::vector<RuleRouterSet*>& cluster,
-      std::map<std::string, SetCircuitBreakerUnhealthyInfo>& circuit_breaker_sets,
-      std::vector<RuleRouterSet*>& cluster_halfopen, Labels& labels);
+  bool GetHealthyAndHalfOpenSubSet(std::vector<RuleRouterSet*>& cluster,
+                                   std::map<std::string, SetCircuitBreakerUnhealthyInfo>& circuit_breaker_sets,
+                                   std::vector<RuleRouterSet*>& cluster_halfopen, Labels& labels);
 
   bool GetHealthySubSet(std::vector<RuleRouterSet*>& cluster,
-                        std::map<std::string, SetCircuitBreakerUnhealthyInfo>& circuit_breaker_sets,
-                        Labels& labels);
+                        std::map<std::string, SetCircuitBreakerUnhealthyInfo>& circuit_breaker_sets, Labels& labels);
 
-  RuleRouterSet* GetDownGradeSubset(
-      std::map<std::string, SetCircuitBreakerUnhealthyInfo>& circuit_breaker_sets, Labels& labels);
+  RuleRouterSet* GetDownGradeSubset(std::map<std::string, SetCircuitBreakerUnhealthyInfo>& circuit_breaker_sets,
+                                    Labels& labels);
 
-  void GetSetBreakerInfo(
-      std::map<std::string, SetCircuitBreakerUnhealthyInfo>& circuit_breaker_sets,
-      SubSetInfo& subset, Labels& labels, SetCircuitBreakerUnhealthyInfo** breaker_info);
+  void GetSetBreakerInfo(std::map<std::string, SetCircuitBreakerUnhealthyInfo>& circuit_breaker_sets,
+                         SubSetInfo& subset, Labels& labels, SetCircuitBreakerUnhealthyInfo** breaker_info);
 
-public:
+ public:
   std::map<uint32_t, std::vector<RuleRouterSet*> > data_;
 };
 
 // 规则路由实现
 class RuleServiceRouter : public ServiceRouter {
-public:
+ public:
   RuleServiceRouter();
 
   virtual ~RuleServiceRouter();
@@ -77,18 +72,12 @@ public:
 
   virtual RouterStatData* CollectStat();
 
-  static InstancesSet* SelectSet(std::map<uint32_t, InstancesSet*>& cluster, uint32_t sum_weight);
-
-  static bool RouteMatch(ServiceRouteRule* route_rule, ServiceRouteRule* src_route_rule,
-                         ServiceInfo* source_service_info, RouteRuleBound*& matched_route,
-                         bool* match_outbounds, bool* have_route_rule, std::string& parameters);
-
-private:
+ private:
   bool enable_recover_all_;
   float percent_of_min_instances_;
   Context* context_;
-  ServiceCache<RuleRouteCacheKey>* router_cache_;
-  sync::Atomic<int> not_match_count_;
+  ServiceCache<RuleRouteCacheKey, RuleRouterCacheValue>* router_cache_;
+  std::atomic<int> not_match_count_;
 };
 
 }  // namespace polaris

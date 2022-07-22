@@ -15,15 +15,16 @@
 #define POLARIS_CPP_POLARIS_PLUGIN_LOAD_BALANCER_LOCALITY_AWARE_LOCALITY_AWARE_SELECTOR_H_
 
 #include <sys/time.h>
+
+#include <atomic>
 #include <deque>
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 
 #include "logger.h"
 #include "polaris/defs.h"
-#include "sync/atomic.h"
-#include "sync/mutex.h"
 
 #include "circular_queue.h"        // 循环队列
 #include "doubly_buffered_data.h"  // DoublyBufferedData
@@ -56,7 +57,7 @@ struct CallInfo {
 };
 
 class LocalityAwareSelector {
-public:
+ public:
   explicit LocalityAwareSelector(int64_t min_weight);
   virtual ~LocalityAwareSelector();
   bool AddInstance(const InstanceId &id);
@@ -67,7 +68,7 @@ public:
   void Feedback(const CallInfo &info);
   void Destroy();
 
-private:
+ private:
   struct TimeInfo {
     int64_t latency_sum;  // microseconds
     int64_t end_time_us;
@@ -77,7 +78,7 @@ private:
   class Weight {
     friend class Instances;
 
-  public:
+   public:
     static const size_t kRecvQueueSize = 128;
 
     Weight(int64_t initial_weight, int64_t min_weight);
@@ -106,11 +107,11 @@ private:
 
     int64_t ResetWeight(size_t index, int64_t now_us);
 
-  private:
+   private:
     int64_t weight_;       // 实际生效的weight,受min_weight等规则约束
     int64_t base_weight_;  // 根据数学模型直接计算到的weight
     int64_t min_weight_;   // 最小权重，可在yaml配置，默认1000
-    sync::Mutex mutex_;
+    std::mutex mutex_;
     int64_t begin_time_sum_;
     int begin_time_count_;
     int64_t old_diff_sum_;
@@ -121,17 +122,18 @@ private:
   };
 
   struct InstanceInfo {
+    InstanceInfo() : left(nullptr), weight(nullptr) {}
     InstanceId instance_id;
-    sync::Atomic<int64_t> *left;
+    std::atomic<int64_t> *left;
     Weight *weight;
   };
 
   class Instances {
-  public:
+   public:
     std::vector<InstanceInfo> weight_tree;
     std::map<InstanceId, size_t> instance_map;
 
-  public:
+   public:
     // 更新父节点的权重
     void UpdateParentWeights(int64_t diff, size_t index) const;
   };
@@ -141,22 +143,21 @@ private:
   static bool RemoveAll(Instances &bg, const Instances &fg);
 
   // Add a entry to _left_weights.
-  sync::Atomic<int64_t> *PushLeft() {
+  std::atomic<int64_t> *PushLeft() {
     left_weights_.push_back(0);
-    return reinterpret_cast<sync::Atomic<int64_t> *>(&left_weights_.back());
+    return reinterpret_cast<std::atomic<int64_t> *>(&left_weights_.back());
   }
   void PopLeft() { left_weights_.pop_back(); }
 
-private:
-  sync::Atomic<int64_t> total_;
+ private:
+  std::atomic<int64_t> total_;
   int64_t min_weight_;
   polaris::DoublyBufferedData<Instances> db_instances_;
   std::deque<int64_t> left_weights_;
-  sync::Atomic<uint64_t> select_failed_times_;
+  std::atomic<uint64_t> select_failed_times_;
 };
 
-inline void LocalityAwareSelector::Instances::UpdateParentWeights(int64_t diff,
-                                                                  size_t index) const {
+inline void LocalityAwareSelector::Instances::UpdateParentWeights(int64_t diff, size_t index) const {
   while (index != 0) {
     const size_t parent_index = (index - 1) >> 1;
     if ((parent_index << 1) + 1 == index) {  //左孩子
@@ -179,20 +180,21 @@ inline int64_t LocalityAwareSelector::Weight::ResetWeight(size_t index, int64_t 
     new_weight = min_weight_;
   }
   const int64_t old_weight = weight_;
-  weight_                  = new_weight;
-  const int64_t diff       = new_weight - old_weight;
+  weight_ = new_weight;
+  const int64_t diff = new_weight - old_weight;
   if (old_index_ == index && diff != 0) {
     old_diff_sum_ += diff;
   }
   return diff;
 }
 
-inline LocalityAwareSelector::Weight::AddInflightResult LocalityAwareSelector::Weight::AddInflight(
-    const SelectIn &in, size_t index, int64_t dice) {
-  sync::MutexGuard lock(mutex_);
+inline LocalityAwareSelector::Weight::AddInflightResult LocalityAwareSelector::Weight::AddInflight(const SelectIn &in,
+                                                                                                   size_t index,
+                                                                                                   int64_t dice) {
+  const std::lock_guard<std::mutex> lock(mutex_);
   if (Disabled()) {
     AddInflightResult r;
-    r.chosen      = false;
+    r.chosen = false;
     r.weight_diff = 0;
     return r;
   }
@@ -200,14 +202,14 @@ inline LocalityAwareSelector::Weight::AddInflightResult LocalityAwareSelector::W
   if (weight_ < dice) {
     // inflight delay makes the weight too small to choose.
     AddInflightResult r;
-    r.chosen      = false;
+    r.chosen = false;
     r.weight_diff = diff;
     return r;
   }
   begin_time_sum_ += in.begin_time_us;
   ++begin_time_count_;
   AddInflightResult r;
-  r.chosen      = true;
+  r.chosen = true;
   r.weight_diff = diff;
   return r;
 }

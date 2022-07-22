@@ -17,7 +17,7 @@
 
 #include <benchmark/benchmark.h>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "mock/fake_server_response.h"
 #include "polaris/context.h"
 #include "polaris/log.h"
@@ -27,7 +27,7 @@
 namespace polaris {
 
 class BM_ServiceRouter : public benchmark::Fixture {
-public:
+ public:
   void SetUp(const ::benchmark::State &state) {
     if (state.thread_index != 0) {
       return;
@@ -39,7 +39,7 @@ public:
     GetLogger()->SetLogLevel(kInfoLogLevel);
 
     service_key_.namespace_ = "benchmark_namespace";
-    service_key_.name_      = "benchmark_service";
+    service_key_.name_ = "benchmark_service";
 
     // 创建Context
     TestUtils::CreateTempDir(persist_dir_);
@@ -52,30 +52,29 @@ public:
                              "    persistDir: " +
                              persist_dir_;
     Config *config = Config::CreateFromString(content, err_msg);
-    if (config == NULL) {
+    if (config == nullptr) {
       std::cout << "create config with error: " << err_msg << std::endl;
       exit(-1);
     }
     context_ = Context::Create(config);
     delete config;
-    if (context_ == NULL) {
+    if (context_ == nullptr) {
       std::cout << "create context failed" << std::endl;
       exit(-1);
     }
-    ServiceContext *service_connext = context_->GetOrCreateServiceContext(service_key_);
-    chain_                          = service_connext->GetServiceRouterChain();
-    assert(chain_ != NULL);
-    service_connext->DecrementRef();
+    ServiceContext *service_connext = context_->GetContextImpl()->GetServiceContext(service_key_);
+    chain_ = service_connext->GetServiceRouterChain();
+    assert(chain_ != nullptr);
   }
 
   void TearDown(const ::benchmark::State &state) {
     if (state.thread_index != 0) {
       return;
     }
-    chain_ = NULL;
-    if (context_ != NULL) {
+    chain_ = nullptr;
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
     TestUtils::RemoveDir(log_dir_);
     TestUtils::RemoveDir(persist_dir_);
@@ -101,7 +100,7 @@ BENCHMARK_DEFINE_F(BM_ServiceRouter, PrepareRouteInfo)
     context_->GetContextImpl()->GetClientLocation().Update(location);
   }
   while (state.KeepRunning()) {
-    RouteInfo route_info(service_key_, NULL);
+    RouteInfo route_info(service_key_, nullptr);
     ret_code = chain_->PrepareRouteInfo(route_info, 1000);
     if (ret_code != kReturnOk) {
       state.SkipWithError("get service data return error");
@@ -121,8 +120,7 @@ BENCHMARK_REGISTER_F(BM_ServiceRouter, PrepareRouteInfo)
 BENCHMARK_DEFINE_F(BM_ServiceRouter, DoRoute)(benchmark::State &state) {
   ReturnCode ret_code;
   if (state.thread_index == 0) {
-    ret_code =
-        FakeServer::InitService(context_->GetLocalRegistry(), service_key_, state.range(0), false);
+    ret_code = FakeServer::InitService(context_->GetLocalRegistry(), service_key_, state.range(0), false);
     if (ret_code != kReturnOk) {
       state.SkipWithError("init service data failed");
       return;
@@ -131,7 +129,7 @@ BENCHMARK_DEFINE_F(BM_ServiceRouter, DoRoute)(benchmark::State &state) {
     context_->GetContextImpl()->GetClientLocation().Update(location);
   }
   while (state.KeepRunning()) {
-    RouteInfo route_info(service_key_, NULL);
+    RouteInfo route_info(service_key_, nullptr);
     ret_code = chain_->PrepareRouteInfo(route_info, 1000);
     if (ret_code != kReturnOk) {
       state.SkipWithError("prepare service data return error");

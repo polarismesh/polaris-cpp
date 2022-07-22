@@ -16,7 +16,8 @@
 #include <iosfwd>
 #include <vector>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
+#include "context/service_context.h"
 #include "polaris/context.h"
 #include "reactor/reactor.h"
 #include "reactor/task.h"
@@ -25,23 +26,19 @@ namespace polaris {
 
 HealthCheckExecutor::HealthCheckExecutor(Context* context) : Executor(context) {}
 
-void HealthCheckExecutor::SetupWork() {
-  reactor_.SubmitTask(new FuncTask<HealthCheckExecutor>(TimingDetect, this));
-}
+void HealthCheckExecutor::SetupWork() { reactor_.SubmitTask(new FuncTask<HealthCheckExecutor>(TimingDetect, this)); }
 
 void HealthCheckExecutor::TimingDetect(HealthCheckExecutor* executor) {
-  std::vector<ServiceContext*> all_service_contexts;
+  std::vector<std::shared_ptr<ServiceContext>> all_service_contexts;
   executor->context_->GetContextImpl()->GetAllServiceContext(all_service_contexts);
   for (std::size_t i = 0; i < all_service_contexts.size(); ++i) {
-    HealthCheckerChain* health_checker_chain   = all_service_contexts[i]->GetHealthCheckerChain();
+    HealthCheckerChain* health_checker_chain = all_service_contexts[i]->GetHealthCheckerChain();
     CircuitBreakerChain* circuit_breaker_chain = all_service_contexts[i]->GetCircuitBreakerChain();
     health_checker_chain->DetectInstance(*circuit_breaker_chain);
-    all_service_contexts[i]->DecrementRef();
   }
   all_service_contexts.clear();
   // 设置定时任务
-  executor->reactor_.AddTimingTask(
-      new TimingFuncTask<HealthCheckExecutor>(TimingDetect, executor, 1000));
+  executor->reactor_.AddTimingTask(new TimingFuncTask<HealthCheckExecutor>(TimingDetect, executor, 1000));
 }
 
 }  // namespace polaris

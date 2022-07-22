@@ -17,9 +17,9 @@ namespace polaris {
 
 void TimeoutStrategy::Init(uint64_t min_timeout, uint64_t max_timeout, float expand) {
   min_timeout_ = min_timeout;
-  timeout_     = min_timeout;
-  max_timeout_ = max_timeout;
-  expand_      = expand;
+  timeout_ = min_timeout;
+  max_timeout_ = max_timeout > timeout_ ? max_timeout : timeout_;
+  expand_ = expand;
 }
 
 void TimeoutStrategy::SetNextRetryTimeout() {

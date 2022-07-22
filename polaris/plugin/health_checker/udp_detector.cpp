@@ -26,70 +26,69 @@
 
 namespace polaris {
 
-UdpHealthChecker::UdpHealthChecker() { timeout_ms_ = 0; }
+UdpHealthChecker::UdpHealthChecker() {}
 
 UdpHealthChecker::~UdpHealthChecker() {}
 
-ReturnCode UdpHealthChecker::Init(Config* config, Context* /*context*/) {
-  static const char kUdpSendPackageKey[]        = "send";
-  static const char kUdpSendPackageDefault[]    = "";
-  static const char kUdpReceivePackageKey[]     = "receive";
+ReturnCode UdpHealthChecker::Init(Config* config, Context* context) {
+  ReturnCode base_result = BaseHealthChecker::Init(config, context);
+  if (base_result != kReturnOk) return base_result;
+
+  static const char kUdpSendPackageKey[] = "send";
+  static const char kUdpSendPackageDefault[] = "";
+  static const char kUdpReceivePackageKey[] = "receive";
   static const char kUdpReceivePackageDefault[] = "";
 
   std::string send_package = config->GetStringOrDefault(kUdpSendPackageKey, kUdpSendPackageDefault);
   if (send_package.empty()) {
-    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s should not be empty",
-                kPluginUdpHealthChecker, kUdpSendPackageKey);
+    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s should not be empty", Name(), kUdpSendPackageKey);
     return kReturnInvalidConfig;
   }
   if (!Utils::HexStringToBytes(send_package, &send_package_)) {
-    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
-                kPluginUdpHealthChecker, kUdpSendPackageKey);
+    POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed", Name(), kUdpSendPackageKey);
     return kReturnInvalidConfig;
   }
-  std::string receive_package =
-      config->GetStringOrDefault(kUdpReceivePackageKey, kUdpReceivePackageDefault);
+  std::string receive_package = config->GetStringOrDefault(kUdpReceivePackageKey, kUdpReceivePackageDefault);
   if (!receive_package.empty()) {
     if (!Utils::HexStringToBytes(receive_package, &receive_package_)) {
-      POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed",
-                  kPluginUdpHealthChecker, kUdpReceivePackageKey);
+      POLARIS_LOG(LOG_ERROR, "health checker[%s] config %s hexstring to bytes failed", Name(), kUdpReceivePackageKey);
       return kReturnInvalidConfig;
     }
   }
-  timeout_ms_ = config->GetMsOrDefault(HealthCheckerConfig::kTimeoutKey,
-                                       HealthCheckerConfig::kTimeoutDefault);
   return kReturnOk;
 }
 
-ReturnCode UdpHealthChecker::DetectInstance(Instance& instance, DetectResult& detect_result) {
-  uint64_t start_time_ms    = Time::GetCurrentTimeMs();
+const char* UdpHealthChecker::Name() { return kPluginUdpHealthChecker; }
+
+ReturnCode UdpHealthChecker::DetectInstanceOnce(Instance& instance, DetectResult& detect_result) {
+  uint64_t start_time_ms = Time::GetCoarseSteadyTimeMs();
   detect_result.detect_type = kPluginUdpHealthChecker;
   if (send_package_.empty()) {
     detect_result.return_code = kReturnInvalidConfig;
-    detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+    detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
     return kReturnInvalidConfig;
   }
   std::string host = instance.GetHost();
-  int port         = instance.GetPort();
+  int port = instance.GetPort();
   std::string udp_response;
   int retcode = 0;
   if (receive_package_.empty()) {
-    retcode = NetClient::UdpSendRecv(host, port, timeout_ms_, send_package_, NULL);
+    retcode = NetClient::UdpSendRecv(host, port, timeout_ms_, send_package_, nullptr);
   } else {
     retcode = NetClient::UdpSendRecv(host, port, timeout_ms_, send_package_, &udp_response);
   }
   if (retcode < 0) {
     detect_result.return_code = kReturnNetworkFailed;
-    detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+    detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
     return kReturnNetworkFailed;
   }
   if (!receive_package_.empty() && receive_package_ != udp_response) {
     detect_result.return_code = kReturnServerError;
-    detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+    detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
     return kReturnServerError;
   }
   detect_result.return_code = kReturnOk;
-  detect_result.elapse      = Time::GetCurrentTimeMs() - start_time_ms;
+  detect_result.elapse = Time::GetCoarseSteadyTimeMs() - start_time_ms;
   return kReturnOk;
 }
 

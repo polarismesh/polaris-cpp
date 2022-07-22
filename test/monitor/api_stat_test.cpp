@@ -25,28 +25,28 @@
 namespace polaris {
 
 class ApiStatTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
-    context_           = TestContext::CreateContext();
+    context_ = TestContext::CreateContext();
     api_stat_registry_ = context_->GetContextImpl()->GetApiStatRegistry();
   }
 
   virtual void TearDown() {
-    api_stat_registry_ = NULL;
-    if (context_ != NULL) {
+    api_stat_registry_ = nullptr;
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
   }
 
-protected:
+ protected:
   Context* context_;
   ApiStatRegistry* api_stat_registry_;
 };
 
 TEST_F(ApiStatTest, ApiStatRecord) {
   for (int i = 0; i < 100; i++) {
-    ApiStat api_stat(context_, kApiStatConsumerGetOne);
+    ApiStat api_stat(context_->GetContextImpl(), kApiStatConsumerGetOne);
     if (i % 2 == 0) {
       api_stat.Record(i % 4 == 0 ? kReturnServiceNotFound : kReturnServerError);
     }
@@ -60,8 +60,7 @@ TEST_F(ApiStatTest, ApiStatRecord) {
 TEST_F(ApiStatTest, ApiStatReport) {
   for (int i = 0; i < 2000; i++) {
     int mod_i = i % 3;
-    ReturnCode ret_code =
-        mod_i == 0 ? kReturnOk : (mod_i == 1 ? kReturnServiceNotFound : kReturnServerError);
+    ReturnCode ret_code = mod_i == 0 ? kReturnOk : (mod_i == 1 ? kReturnServiceNotFound : kReturnServerError);
     api_stat_registry_->Record(kApiStatConsumerGetOne, ret_code, i % 1001);
   }
   google::protobuf::RepeatedField<v1::SDKAPIStatistics> statistics;

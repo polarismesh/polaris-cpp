@@ -22,7 +22,7 @@ namespace polaris {
 
 // 封装MetricKey用于索引
 class MetricKeyWrapper {
-public:
+ public:
   MetricKeyWrapper();
 
   explicit MetricKeyWrapper(v1::MetricKey* metric_key);
@@ -37,7 +37,7 @@ public:
 
   const MetricKeyWrapper& operator=(const MetricKeyWrapper& other);
 
-private:
+ private:
   bool owned_;
   v1::MetricKey* metric_key_;
 };

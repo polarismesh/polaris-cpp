@@ -15,11 +15,12 @@
 #define POLARIS_CPP_POLARIS_PLUGIN_LOAD_BALANCER_LOCALITY_AWARE_DOUBLY_BUFFERED_DATA_H_
 
 #include <pthread.h>
+
+#include <atomic>
+#include <mutex>
 #include <vector>
 
 #include "logger.h"
-#include "sync/atomic.h"
-#include "sync/mutex.h"
 #include "utils/utils.h"
 
 namespace polaris {
@@ -36,14 +37,14 @@ class DoublyBufferedData {
   // 线程读数据时上锁，其他线程可读不可改
   class Wrapper;
 
-public:
+ public:
   // ScopedPtr类，在读DoublyBufferedData中的数据时传递数据
   // 调用DoublyBufferedData的Read()时，加Wrapper的锁
   // 返回一个ScopedPtr对象，被析构时自动释放Wrapper的锁
   class ScopedPtr : Noncopyable {
     friend class DoublyBufferedData;  // Read时，向 _data 和 _w 赋值
-  public:
-    ScopedPtr() : data_(NULL), w_(NULL) {}
+   public:
+    ScopedPtr() : data_(nullptr), w_(nullptr) {}
     ~ScopedPtr() {
       if (w_) {
         w_->EndRead();
@@ -53,7 +54,7 @@ public:
     const T &operator*() const { return *data_; }
     const T *operator->() const { return data_; }
 
-  private:
+   private:
     const T *data_;
     Wrapper *w_;
   };
@@ -83,7 +84,7 @@ public:
   template <typename Fn, typename Arg1, typename Arg2>
   size_t ModifyWithForeground(Fn &fn, const Arg1 &, const Arg2 &);
 
-private:
+ private:
   template <typename Fn>
   struct WithFG0 {
     WithFG0(Fn &fn, T *data) : fn_(fn), data_(data) {}
@@ -92,7 +93,7 @@ private:
       return fn_(bg, (const T &)data_[&bg == data_]);
     }
 
-  private:
+   private:
     Fn &fn_;
     T *data_;
   };
@@ -102,7 +103,7 @@ private:
     WithFG1(Fn &fn, T *data, const Arg1 &arg1) : fn_(fn), data_(data), arg1_(arg1) {}
     size_t operator()(T &bg) { return fn_(bg, (const T &)data_[&bg == data_], arg1_); }
 
-  private:
+   private:
     Fn &fn_;
     T *data_;
     const Arg1 &arg1_;
@@ -110,11 +111,10 @@ private:
 
   template <typename Fn, typename Arg1, typename Arg2>
   struct WithFG2 {
-    WithFG2(Fn &fn, T *data, const Arg1 &arg1, const Arg2 &arg2)
-        : fn_(fn), data_(data), arg1_(arg1), arg2_(arg2) {}
+    WithFG2(Fn &fn, T *data, const Arg1 &arg1, const Arg2 &arg2) : fn_(fn), data_(data), arg1_(arg1), arg2_(arg2) {}
     size_t operator()(T &bg) { return fn_(bg, (const T &)data_[&bg == data_], arg1_, arg2_); }
 
-  private:
+   private:
     Fn &fn_;
     T *data_;
     const Arg1 &arg1_;
@@ -126,7 +126,7 @@ private:
     Closure1(Fn &fn, const Arg1 &arg1) : fn_(fn), arg1_(arg1) {}
     size_t operator()(T &bg) { return fn_(bg, arg1_); }
 
-  private:
+   private:
     Fn &fn_;
     const Arg1 &arg1_;
   };
@@ -136,7 +136,7 @@ private:
     Closure2(Fn &fn, const Arg1 &arg1, const Arg2 &arg2) : fn_(fn), arg1_(arg1), arg2_(arg2) {}
     size_t operator()(T &bg) { return fn_(bg, arg1_, arg2_); }
 
-  private:
+   private:
     Fn &fn_;
     const Arg1 &arg1_;
     const Arg2 &arg2_;
@@ -147,11 +147,11 @@ private:
   Wrapper *AddWrapper();
   void RemoveWrapper(Wrapper *);
 
-private:
+ private:
   // 前台和后台数据
   T data_[2];
   // 前台的index
-  sync::Atomic<int> index_;
+  std::atomic<int> index_;
 
   // 创建线程私有的数据
   bool created_key_;
@@ -160,38 +160,38 @@ private:
   std::vector<Wrapper *> wrappers_;
 
   // 针对_wrappers上的锁，防止在遍历_wrappers时或增删wrapper出错
-  sync::Mutex wrappers_mutex_;
+  std::mutex wrappers_mutex_;
 
   // 改前后台数据时上的锁
-  sync::Mutex modify_mutex_;
+  std::mutex modify_mutex_;
 };  // class DoublyBufferedData
 
 // static const pthread_key_t INVALID_PTHREAD_KEY = (pthread_key_t)-1;
 
 // Wrapper类，用pthread_key_t确保每个线程一个
 template <typename T>
-class DoublyBufferedData<T>::Wrapper : private sync::Mutex {
+class DoublyBufferedData<T>::Wrapper : private std::mutex {
   friend class DoublyBufferedData;
 
-public:
+ public:
   explicit Wrapper(DoublyBufferedData *c) : control_(c) {}
 
   ~Wrapper() {
-    if (control_ != NULL) {
+    if (control_ != nullptr) {
       control_->RemoveWrapper(this);
     }
   }
 
-  inline void BeginRead() { Lock(); }
+  inline void BeginRead() { lock(); }
 
-  inline void EndRead() { Unlock(); }
+  inline void EndRead() { unlock(); }
 
   inline void WaitReadDone() {
-    Lock();
-    Unlock();
+    lock();
+    unlock();
   }
 
-private:
+ private:
   DoublyBufferedData *control_;
 };
 
@@ -199,10 +199,10 @@ template <typename T>
 typename DoublyBufferedData<T>::Wrapper *DoublyBufferedData<T>::AddWrapper() {
   // 在内存不足时，new (std::nothrow)并不抛出异常,将指针置NULL
   Wrapper *w(new (std::nothrow) Wrapper(this));
-  if (NULL == w) {
-    return NULL;
+  if (nullptr == w) {
+    return nullptr;
   }
-  sync::MutexGuard lock(wrappers_mutex_);
+  const std::lock_guard<std::mutex> lock(wrappers_mutex_);
   wrappers_.push_back(w);  // 将Wrapper插入_wrappers中
   return w;
 }
@@ -211,10 +211,10 @@ typename DoublyBufferedData<T>::Wrapper *DoublyBufferedData<T>::AddWrapper() {
 // Wrapper析构是会调用该函数
 template <typename T>
 void DoublyBufferedData<T>::RemoveWrapper(typename DoublyBufferedData<T>::Wrapper *w) {
-  if (w == NULL) {
+  if (w == nullptr) {
     return;
   }
-  sync::MutexGuard lock(wrappers_mutex_);
+  const std::lock_guard<std::mutex> lock(wrappers_mutex_);
   for (size_t i = 0; i < wrappers_.size(); ++i) {
     if (wrappers_[i] == w) {
       wrappers_[i] = wrappers_.back();
@@ -243,11 +243,11 @@ DoublyBufferedData<T>::~DoublyBufferedData() {
     pthread_key_delete(wrapper_key_);
   }
   {
-    sync::MutexGuard lock(wrappers_mutex_);
+    const std::lock_guard<std::mutex> lock(wrappers_mutex_);
     for (size_t i = 0; i < wrappers_.size(); ++i) {
       // wrapper在析构时会利用_control主动将自己从_wrappers中删除
       // 将_control设为NULL
-      wrappers_[i]->control_ = NULL;
+      wrappers_[i]->control_ = nullptr;
       delete wrappers_[i];
     }
     wrappers_.clear();
@@ -262,20 +262,20 @@ int DoublyBufferedData<T>::Read(typename DoublyBufferedData<T>::ScopedPtr *ptr) 
   }
   // 当某个线程获取到他的Wrapper时，读数据
   Wrapper *w = static_cast<Wrapper *>(pthread_getspecific(wrapper_key_));
-  if (POLARIS_LIKELY(w != NULL)) {
+  if (POLARIS_LIKELY(w != nullptr)) {
     w->BeginRead();             // 上锁
     ptr->data_ = UnsafeRead();  // 传前台
-    ptr->w_    = w;             // 传Wrapper，ScopedPtr析构时会释放锁
+    ptr->w_ = w;                // 传Wrapper，ScopedPtr析构时会释放锁
     return 0;
   }
   // pthread_getspecific获取Wrapper失败，创建一个线程对应的Wrapper
   w = AddWrapper();
-  if (POLARIS_LIKELY(w != NULL)) {
+  if (POLARIS_LIKELY(w != nullptr)) {
     const int rc = pthread_setspecific(wrapper_key_, w);
     if (rc == 0) {
       w->BeginRead();
       ptr->data_ = UnsafeRead();
-      ptr->w_    = w;
+      ptr->w_ = w;
       return 0;
     }
   }
@@ -286,8 +286,8 @@ template <typename T>
 template <typename Fn>
 size_t DoublyBufferedData<T>::Modify(Fn &fn) {
   // 上锁改后台数据
-  sync::MutexGuard lock(modify_mutex_);
-  int bg_index     = !index_;
+  const std::lock_guard<std::mutex> lock(modify_mutex_);
+  int bg_index = !index_;
   const size_t ret = fn(data_[bg_index]);
   if (!ret) {
     return 0;
@@ -298,7 +298,7 @@ size_t DoublyBufferedData<T>::Modify(Fn &fn) {
   bg_index = !bg_index;
   {
     // 针对每个线程（wrapper），取他的锁再释放，确保每个线程结束了读旧前台
-    sync::MutexGuard lock(wrappers_mutex_);
+    const std::lock_guard<std::mutex> lock(wrappers_mutex_);
     for (size_t i = 0; i < wrappers_.size(); ++i) {
       wrappers_[i]->WaitReadDone();
     }
@@ -306,8 +306,7 @@ size_t DoublyBufferedData<T>::Modify(Fn &fn) {
   // 改旧前台，现在的后台
   const size_t ret2 = fn(data_[bg_index]);
   if (ret2 != ret) {
-    POLARIS_LOG(LOG_ERROR,
-                "Modify DoublyBufferedData, the return values of fg and bg are different");
+    POLARIS_LOG(LOG_ERROR, "Modify DoublyBufferedData, the return values of fg and bg are different");
   }
   return ret2;
 }

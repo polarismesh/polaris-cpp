@@ -18,13 +18,12 @@
 #include <utility>
 
 #include "cache/service_cache.h"
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "logger.h"
 #include "model/model_impl.h"
 #include "monitor/service_record.h"
 #include "polaris/context.h"
 #include "polaris/model.h"
-#include "service_router.h"
 #include "utils/time_clock.h"
 #include "utils/utils.h"
 
@@ -32,20 +31,20 @@ namespace polaris {
 
 class Config;
 
-MetadataServiceRouter::MetadataServiceRouter() : context_(NULL), router_cache_(NULL) {}
+MetadataServiceRouter::MetadataServiceRouter() : context_(nullptr), router_cache_(nullptr) {}
 
 MetadataServiceRouter::~MetadataServiceRouter() {
-  context_ = NULL;
-  if (router_cache_ != NULL) {
+  context_ = nullptr;
+  if (router_cache_ != nullptr) {
     router_cache_->SetClearHandler(0);
     router_cache_->DecrementRef();
-    router_cache_ = NULL;
+    router_cache_ = nullptr;
   }
 }
 
 ReturnCode MetadataServiceRouter::Init(Config* /*config*/, Context* context) {
-  context_      = context;
-  router_cache_ = new ServiceCache<MetadataCacheKey>();
+  context_ = context;
+  router_cache_ = new ServiceCache<MetadataCacheKey, RouterSubsetCache>();
   context->GetContextImpl()->RegisterCache(router_cache_);
   return kReturnOk;
 }
@@ -69,8 +68,7 @@ static bool MetadataMatch(const std::map<std::string, std::string>& metadata,
 bool MetadataServiceRouter::CalculateResult(const std::vector<Instance*>& instances,
                                             const std::set<Instance*>& unhealthy_set,
                                             const std::map<std::string, std::string>& metadata,
-                                            MetadataFailoverType failover_type,
-                                            std::vector<Instance*>& result) {
+                                            MetadataFailoverType failover_type, std::vector<Instance*>& result) {
   std::vector<Instance*> unhealthy;
   for (std::size_t i = 0; i < instances.size(); ++i) {
     Instance* const& instance = instances[i];
@@ -98,8 +96,7 @@ bool MetadataServiceRouter::CalculateResult(const std::vector<Instance*>& instan
 }
 
 bool MetadataServiceRouter::FailoverAll(const std::vector<Instance*>& instances,
-                                        const std::set<Instance*>& unhealthy_set,
-                                        std::vector<Instance*>& result) {
+                                        const std::set<Instance*>& unhealthy_set, std::vector<Instance*>& result) {
   std::vector<Instance*> unhealthy;
   for (std::size_t i = 0; i < instances.size(); ++i) {
     Instance* const& instance = instances[i];
@@ -159,65 +156,44 @@ bool MetadataServiceRouter::FailoverNotKey(const std::vector<Instance*>& instanc
 }
 
 ReturnCode MetadataServiceRouter::DoRoute(RouteInfo& route_info, RouteResult* route_result) {
-  POLARIS_CHECK_ARGUMENT(route_result != NULL);
-
-  ServiceInstances* service_instances = route_info.GetServiceInstances();
-  POLARIS_CHECK_ARGUMENT(service_instances != NULL);
-  ContextImpl* context_impl     = context_->GetContextImpl();
-  const ServiceKey& service_key = service_instances->GetServiceData()->GetServiceKey();
-
   // 优先查询缓存
   MetadataCacheKey cache_key;
+  ServiceInstances* service_instances = route_info.GetServiceInstances();
   cache_key.prior_data_ = service_instances->GetAvailableInstances();
-  cache_key.circuit_breaker_version_ =
-      service_instances->GetService()->GetCircuitBreakerDataVersion();
+  cache_key.circuit_breaker_version_ = route_info.GetCircuitBreakerVersion();
   cache_key.failover_type_ = kMetadataFailoverNone;
   if (!route_info.GetMetadata().empty()) {
-    cache_key.metadata_      = route_info.GetMetadata();
+    cache_key.metadata_ = route_info.GetMetadata();
     cache_key.failover_type_ = route_info.GetMetadataFailoverType();
   }
 
-  CacheValueBase* cache_value_base = router_cache_->GetWithRef(cache_key);
-  RouterSubsetCache* cache_value   = NULL;
-  if (cache_value_base != NULL) {
-    cache_value = dynamic_cast<RouterSubsetCache*>(cache_value_base);
-    POLARIS_ASSERT(cache_value != NULL);
-  } else {
-    InstancesSet* prior_result = cache_key.prior_data_;
-    POLARIS_ASSERT(prior_result != NULL);
-    std::set<Instance*> unhealthy_set;
-    CalculateUnhealthySet(route_info, service_instances, unhealthy_set);
+  RouterSubsetCache* cache_value = router_cache_->GetWithRcuTime(cache_key);
+  if (cache_value == nullptr) {
+    cache_value = router_cache_->CreateOrGet(cache_key, [&] {
+      InstancesSet* prior_result = cache_key.prior_data_;
+      std::set<Instance*> unhealthy_set;
+      route_info.CalculateUnhealthySet(unhealthy_set);
+      std::vector<Instance*> result;
+      bool recover_all = CalculateResult(prior_result->GetInstances(), unhealthy_set, cache_key.metadata_,
+                                         cache_key.failover_type_, result);
 
-    std::vector<Instance*> result;
-    bool recover_all = CalculateResult(prior_result->GetInstances(), unhealthy_set,
-                                       cache_key.metadata_, cache_key.failover_type_, result);
-
-    cache_value                  = new RouterSubsetCache();
-    cache_value->instances_data_ = service_instances->GetServiceData();
-    cache_value->instances_data_->IncrementRef();
-    cache_value->current_data_ = new InstancesSet(result, cache_key.metadata_);
-    router_cache_->PutWithRef(cache_key, cache_value);
-    if (recover_all) {
-      if (!prior_result->GetInstancesSetImpl()->recover_all_ &&
-          prior_result->GetInstancesSetImpl()->recover_all_.Cas(false, true)) {
-        context_impl->GetServiceRecord()->InstanceRecoverAll(
-            service_key, new RecoverAllRecord(Time::GetCurrentTimeMs(), "metadata router", true));
+      RouterSubsetCache* new_cache_value = new RouterSubsetCache();
+      new_cache_value->instances_data_ = service_instances->GetServiceData();
+      new_cache_value->instances_data_->IncrementRef();
+      new_cache_value->current_data_ = new InstancesSet(result, cache_key.metadata_);
+      route_result->SetNewInstancesSet();
+      if (prior_result->GetImpl()->UpdateRecoverAll(recover_all)) {
+        const ServiceKey& service_key = service_instances->GetServiceData()->GetServiceKey();
+        context_->GetContextImpl()->GetServiceRecord()->InstanceRecoverAll(
+            service_key, new RecoverAllRecord(Time::GetSystemTimeMs(), "metadata router", recover_all));
       }
-    } else {
-      if (prior_result->GetInstancesSetImpl()->recover_all_ &&
-          prior_result->GetInstancesSetImpl()->recover_all_.Cas(true, false)) {
-        context_impl->GetServiceRecord()->InstanceRecoverAll(
-            service_key, new RecoverAllRecord(Time::GetCurrentTimeMs(), "metadata router", false));
-      }
-    }
+      return new_cache_value;
+    });
   }
   if (!route_info.GetMetadata().empty()) {
-    cache_value->current_data_->GetInstancesSetImpl()->count_++;
+    cache_value->current_data_->GetImpl()->count_++;
   }
   service_instances->UpdateAvailableInstances(cache_value->current_data_);
-  cache_value->DecrementRef();
-  route_result->SetServiceInstances(service_instances);
-  route_info.SetServiceInstances(NULL);
   return kReturnOk;
 }
 

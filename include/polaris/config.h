@@ -32,16 +32,29 @@ class ConfigImpl;
 ///
 /// 配置可用于初始化上下文和插件
 class Config : Noncopyable {
-public:
+ public:
   ~Config();
 
   /// @brief 获取子配置
   ///
-  /// @note
-  /// 函数返回值永不为NULL。当key不存在时，函数返回内容为空的Config。用户需要负责进行释放该指针
+  /// @note 函数返回值永不为NULL。当key不存在时，函数返回内容为空的Config。用户需要负责进行释放该指针
   /// @param key 要获取的子配置对象对应的key。
   /// @return Config* 返回的配置对象
   Config* GetSubConfig(const std::string& key);
+
+  /// @brief 检查子配置是否存在
+  ///
+  /// @param key 要检查的子配置对象的key
+  /// @return true 子配置对象存在
+  /// @return false 子配置对象不存在
+  bool SubConfigExist(const std::string& key);
+
+  /// @brief 获取子配置列表
+  ///
+  /// @note 函数返回值永不为NULL。当key不存在时，函数返回内容为空的列表。用户需要负责进行释放该列表指针
+  /// @param key 要获取的子配置对象对应的key。
+  /// @return std::vector<Config*> 返回的配置对象列表
+  std::vector<Config*> GetSubConfigList(const std::string& key);
 
   /// @brief 拷贝一份子配置，与父配置完全独立
   ///
@@ -93,14 +106,18 @@ public:
   /// @param default_value
   /// 字符串形式默认值，当取不到key时，或者key不为序列时使用该字符串解析出序列，用逗号分隔
   /// @return std::vector<std::string> 返回的配置
-  std::vector<std::string> GetListOrDefault(const std::string& key,
-                                            const std::string& default_value);
+  std::vector<std::string> GetListOrDefault(const std::string& key, const std::string& default_value);
 
   /// @brief 根据Key获取map类型配置，key不存在时返回空map
   ///
   /// @param key 需要获取的配置key
   /// @return std::map<std::string, std::string> 返回的配置
   std::map<std::string, std::string> GetMap(const std::string& key);
+
+  /// @brief 获取配置最顶层的key名字
+  ///
+  /// @return const std::string& 顶层key
+  const std::string& GetRootKey() const;
 
   /// @brief 配置转换成字符串
   ///
@@ -138,7 +155,7 @@ public:
   /// @return Config* 空的配置对象
   static Config* CreateEmptyConfig();
 
-private:
+ private:
   explicit Config(ConfigImpl* impl);  // 隐藏构造函数，只能通过Create系列方法创建配置对象
   ConfigImpl* impl_;
 };

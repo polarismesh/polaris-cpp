@@ -16,7 +16,9 @@
 
 #include <stdint.h>
 
+#include "cache/service_cache.h"
 #include "plugin/load_balancer/hash/hash_manager.h"
+#include "plugin/load_balancer/ringhash/continuum.h"
 #include "polaris/defs.h"
 #include "polaris/plugin.h"
 
@@ -24,8 +26,31 @@ namespace polaris {
 
 class InstancesData;
 
+struct RingHashCacheKey {
+  InstancesSet* prior_data_;
+  uint64_t version_;
+
+  bool operator<(const RingHashCacheKey& rhs) const {
+    return this->prior_data_ < rhs.prior_data_ ||
+           (this->prior_data_ == rhs.prior_data_ && this->version_ < rhs.version_);
+  }
+};
+
+class RingHashCacheValue : public ServiceBase {
+ public:
+  virtual ~RingHashCacheValue() {
+    prior_date_->DecrementRef();
+    prior_date_ = nullptr;
+  }
+
+ public:
+  InstancesSet* prior_date_;
+  std::unique_ptr<ContinuumSelector> selector_;
+  std::set<Instance*> half_open_instances_;
+};
+
 class KetamaLoadBalancer : public LoadBalancer {
-public:
+ public:
   KetamaLoadBalancer();
 
   virtual ~KetamaLoadBalancer();
@@ -34,16 +59,18 @@ public:
 
   virtual LoadBalanceType GetLoadBalanceType() { return kLoadBalanceTypeRingHash; }
 
-  virtual ReturnCode ChooseInstance(ServiceInstances* instances, const Criteria& criteria,
-                                    Instance*& next);
+  virtual ReturnCode ChooseInstance(ServiceInstances* service_instances, const Criteria& criteria, Instance*& next);
 
   static void OnInstanceUpdate(const InstancesData* old, InstancesData* new_instances);
 
-private:
+ private:
   Context* context_;
-  uint32_t vnodeCnt_;
-  Hash64Func hashFunc_;
+  uint32_t vnode_cnt_;
+  int base_weight_;
+  Hash64Func hash_func_;
   bool compatible_go_;  // 兼容golang sdk的一致性hash算法
+
+  ServiceCache<RingHashCacheKey, RingHashCacheValue>* data_cache_;
 };
 
 }  // namespace polaris

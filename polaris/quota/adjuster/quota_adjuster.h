@@ -15,7 +15,7 @@
 #define POLARIS_CPP_POLARIS_QUOTA_ADJUSTER_QUOTA_ADJUSTER_H_
 
 #include "polaris/defs.h"
-#include "polaris/model.h"
+#include "polaris/limit.h"
 
 namespace v1 {
 class RateLimitRecord;
@@ -23,7 +23,6 @@ class RateLimitRecord;
 
 namespace polaris {
 
-class LimitCallResult;
 class MetricConnector;
 class RateLimitRule;
 class Reactor;
@@ -36,7 +35,7 @@ enum QuotaAdjusterType {
 
 // 配额调整基类
 class QuotaAdjuster : public ServiceBase {
-public:
+ public:
   QuotaAdjuster(Reactor& reactor, MetricConnector* connector, RemoteAwareBucket* remote_bucket);
 
   virtual ~QuotaAdjuster();
@@ -45,7 +44,7 @@ public:
   virtual ReturnCode Init(RateLimitRule* rule) = 0;
 
   // 记录调用结果
-  virtual void RecordResult(const LimitCallResult& call_result) = 0;
+  virtual void RecordResult(const LimitCallResult::Impl& request) = 0;
 
   virtual void MakeDeleted() = 0;
 
@@ -55,7 +54,7 @@ public:
   // 根据类型创建对应的配额调整对象
   static QuotaAdjuster* Create(QuotaAdjusterType adjuster_type, RateLimitWindow* window);
 
-protected:
+ protected:
   Reactor& reactor_;
   MetricConnector* connector_;
   RemoteAwareBucket* remote_bucket_;

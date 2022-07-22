@@ -37,9 +37,8 @@ int main(int argc, char** argv) {
       "    type: ringHash\n"
       "    compatibleGo: true";
   polaris::ConsumerApi* consumer = polaris::ConsumerApi::CreateFromString(config);
-  if (consumer == NULL) {
-    std::cout << "create consumer api failed, see log (default ~/polaris/log/polaris.log)"
-              << std::endl;
+  if (consumer == nullptr) {
+    std::cout << "create consumer api failed, see log (default ~/polaris/log/polaris.log)" << std::endl;
     return -1;
   }
 
@@ -52,8 +51,7 @@ int main(int argc, char** argv) {
     polaris::ReturnCode ret;
     // 调用服务发现接口获取服务实例
     if ((ret = consumer->GetOneInstance(request, instance)) != polaris::kReturnOk) {
-      std::cout << "get instance for service with error:" << polaris::ReturnCodeToMsg(ret).c_str()
-                << std::endl;
+      std::cout << "get instance for service with error:" << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
       sleep(1);
       continue;
     }

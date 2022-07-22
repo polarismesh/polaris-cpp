@@ -22,7 +22,7 @@ namespace polaris {
 
 // 任务接口
 class Task {
-public:
+ public:
   virtual ~Task() {}
 
   virtual void Run() = 0;  // 任务执行逻辑，只会调用一次
@@ -31,14 +31,14 @@ public:
 // 封装对象方法的任务
 template <typename T>
 class FuncTask : public Task {
-public:
+ public:
   typedef void (*Func)(T* para);  // 封装的参数定义
 
   FuncTask(void (*func)(T* para), T* para) : func_(func), para_(para) {}
 
   virtual void Run() { func_(para_); }
 
-protected:
+ protected:
   const Func func_;
   T* const para_;
 };
@@ -46,17 +46,15 @@ protected:
 // 封装ServiceBase的类专用的方法任务
 template <typename T>
 class FuncRefTask : public FuncTask<T> {
-public:
-  FuncRefTask(void (*func)(T* para), T* para) : FuncTask<T>(func, para) {
-    FuncTask<T>::para_->IncrementRef();
-  }
+ public:
+  FuncRefTask(void (*func)(T* para), T* para) : FuncTask<T>(func, para) { FuncTask<T>::para_->IncrementRef(); }
 
   virtual ~FuncRefTask() { FuncTask<T>::para_->DecrementRef(); }
 };
 
 // 定时执行任务接口
 class TimingTask : public Task {
-public:
+ public:
   explicit TimingTask(uint64_t interval) : interval_(interval) {}
 
   uint64_t GetInterval() const { return interval_; }
@@ -65,53 +63,51 @@ public:
   // 返回0的话则释放任务，不再执行
   virtual uint64_t NextRunTime() { return 0; }
 
-protected:
+ protected:
   const uint64_t interval_;
 };
 
 // 将函数封装成定时任务
 template <typename T>
 class TimingFuncTask : public TimingTask {
-public:
+ public:
   typedef void (*Func)(T* para);
 
-  TimingFuncTask(void (*func)(T* para), T* para, uint64_t timeout)
-      : TimingTask(timeout), func_(func), para_(para) {}
+  TimingFuncTask(void (*func)(T* para), T* para, uint64_t timeout) : TimingTask(timeout), func_(func), para_(para) {}
 
   virtual void Run() { func_(para_); }
 
-protected:
+ protected:
   const Func func_;
   T* const para_;
 };
 
 template <typename T>
 class TimingFuncRefTask : public TimingFuncTask<T> {
-public:
-  TimingFuncRefTask(void (*func)(T* para), T* para, uint64_t timeout)
-      : TimingFuncTask<T>(func, para, timeout) {
+ public:
+  TimingFuncRefTask(void (*func)(T* para), T* para, uint64_t timeout) : TimingFuncTask<T>(func, para, timeout) {
     TimingFuncTask<T>::para_->IncrementRef();
   }
 
   virtual ~TimingFuncRefTask() { TimingFuncTask<T>::para_->DecrementRef(); }
 };
 
-// 用于延迟释放对象的任务
+// 用于延迟删除对象的任务
 template <typename T>
-class DeferReleaseTask : public Task {
-public:
-  explicit DeferReleaseTask(T* object) : object_(object) {}
+class DeferDeleteTask : public Task {
+ public:
+  explicit DeferDeleteTask(T* object) : object_(object) {}
 
-  virtual ~DeferReleaseTask() { Run(); }
+  virtual ~DeferDeleteTask() { Run(); }
 
   virtual void Run() {
-    if (object_ != NULL) {
+    if (object_ != nullptr) {
       delete object_;
-      object_ = NULL;
+      object_ = nullptr;
     }
   }
 
-private:
+ private:
   T* object_;
 };
 

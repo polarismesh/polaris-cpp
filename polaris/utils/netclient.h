@@ -18,10 +18,10 @@
 
 namespace polaris {
 
-const int kDefaultTimeoutMs = 500;  // 默认超时时间500ms
+const uint64_t kDefaultTimeoutMs = 500;  // 默认超时时间500ms
 
 class NetClient {
-public:
+ public:
   static int CreateTcpSocket(bool non_block);
 
   static int SetNonBlock(int fd);
@@ -36,11 +36,11 @@ public:
 
   static int ConnectWithTimeout(int fd, const std::string& host, int port, int timeout_ms);
 
-  static int TcpSendRecv(const std::string& host, int port, int timeout_ms,
-                         const std::string& send_package, std::string* recv_package);
+  static int TcpSendRecv(const std::string& host, int port, uint64_t timeout_ms, const std::string& send_package,
+                         std::string* recv_package);
 
-  static int UdpSendRecv(const std::string& host, int port, int timeout_ms,
-                         const std::string& send_package, std::string* recv_package);
+  static int UdpSendRecv(const std::string& host, int port, uint64_t timeout_ms, const std::string& send_package,
+                         std::string* recv_package);
 
   static bool GetIpByIf(const std::string& ifname, std::string* ip);
 

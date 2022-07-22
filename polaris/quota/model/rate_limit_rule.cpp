@@ -44,29 +44,32 @@ bool RateLimitWindowKey::operator==(const RateLimitWindowKey& rhs) const {
          this->regex_labels_ == rhs.regex_labels_;
 }
 
-uint32_t RateLimitReport::IntervalWithJitter() const { return interval_ + rand() % jitter_; }
-
 RateLimitRule::RateLimitRule()
-    : priority_(0), limit_resource_(v1::Rule::QPS), limit_type_(v1::Rule::GLOBAL),
-      amount_mode_(v1::Rule::GLOBAL_TOTAL), action_type_(kRateLimitActionReject), disable_(true),
-      max_valid_duration_(0), is_regex_combine_(true), failover_type_(v1::Rule::FAILOVER_LOCAL) {}
+    : priority_(0),
+      limit_resource_(v1::Rule::QPS),
+      limit_type_(v1::Rule::GLOBAL),
+      amount_mode_(v1::Rule::GLOBAL_TOTAL),
+      action_type_(kRateLimitActionReject),
+      disable_(true),
+      max_valid_duration_(0),
+      is_regex_combine_(true),
+      failover_type_(v1::Rule::FAILOVER_LOCAL) {}
 
 bool RateLimitRule::Init(const v1::Rule& rule) {
   disable_ = rule.has_disable() ? rule.disable().value() : false;
   if (disable_) {
     return false;  // 禁用的规则不用保存
   }
-  id_       = rule.id().value();
+  id_ = rule.id().value();
   priority_ = rule.has_priority() ? rule.priority().value() : 0;  // 未设置则为0表示最高优先级
-  service_key_.name_      = rule.service().value();
+  service_key_.name_ = rule.service().value();
   service_key_.namespace_ = rule.namespace_().value();
   // 显示指定了并发限流时使用并发限流，其他情况或默认为QPS限流
   limit_resource_ = rule.resource();
-  limit_type_     = rule.type();
+  limit_type_ = rule.type();
 
   bool has_regex = false;
-  if (!InitMatch(rule.labels(), labels_, has_regex) ||
-      !InitMatch(rule.subset(), subset_, has_regex)) {
+  if (!InitMatch(rule.labels(), labels_, has_regex) || !InitMatch(rule.subset(), subset_, has_regex)) {
     return false;
   }
   if (has_regex) {
@@ -87,12 +90,12 @@ bool RateLimitRule::Init(const v1::Rule& rule) {
   if (!InitReportConfig(rule)) {
     return false;
   }
-  revision_           = rule.revision().value();
+  revision_ = rule.revision().value();
   max_valid_duration_ = FindMaxValidDuration();
-  failover_type_      = rule.failover();
+  failover_type_ = rule.failover();
   if (rule.has_cluster()) {
     cluster_.namespace_ = rule.cluster().namespace_().value();
-    cluster_.name_      = rule.cluster().service().value();
+    cluster_.name_ = rule.cluster().service().value();
   }
 
   adjuster_.CopyFrom(rule.adjuster());
@@ -108,17 +111,17 @@ bool RateLimitRule::InitAmount(const v1::Rule& rule) {
       return false;
     }
     amount.max_amount_ = rule_amount.maxamount().value();
-    amount.precision_  = rule_amount.has_precision() ? rule_amount.precision().value() : 1;
+    amount.precision_ = rule_amount.has_precision() ? rule_amount.precision().value() : 1;
 
     if (rule_amount.has_startamount()) {  // 有软限流配置
       amount.start_amount_ = rule_amount.startamount().value();
-      amount.end_amount_   = amount.max_amount_;    // 硬限等于配额
-      amount.max_amount_   = amount.start_amount_;  // 默认配额等于软限
-      amount.min_amount_   = rule_amount.has_minamount() ? rule_amount.minamount().value() : 1;
+      amount.end_amount_ = amount.max_amount_;    // 硬限等于配额
+      amount.max_amount_ = amount.start_amount_;  // 默认配额等于软限
+      amount.min_amount_ = rule_amount.has_minamount() ? rule_amount.minamount().value() : 1;
     } else {  // 未配置软限时不根据健康度调整配额
       amount.start_amount_ = amount.max_amount_;
-      amount.end_amount_   = amount.max_amount_;
-      amount.min_amount_   = rule_amount.has_minamount() ? rule_amount.minamount().value() : 1;
+      amount.end_amount_ = amount.max_amount_;
+      amount.min_amount_ = rule_amount.has_minamount() ? rule_amount.minamount().value() : 1;
     }
     amounts_.push_back(amount);
   }
@@ -127,8 +130,8 @@ bool RateLimitRule::InitAmount(const v1::Rule& rule) {
 
 bool RateLimitRule::InitMatch(const google::protobuf::Map<std::string, v1::MatchString>& pb_match,
                               std::map<std::string, MatchString>& match, bool& has_regex) {
-  for (google::protobuf::Map<std::string, v1::MatchString>::const_iterator it = pb_match.begin();
-       it != pb_match.end(); ++it) {
+  for (google::protobuf::Map<std::string, v1::MatchString>::const_iterator it = pb_match.begin(); it != pb_match.end();
+       ++it) {
     MatchString& match_string = match[it->first];
     if (!match_string.Init(it->second)) {
       return false;
@@ -169,12 +172,11 @@ bool RateLimitRule::InitReportConfig(const v1::Rule& rule) {
     report_.interval_ = kDefaultLimitReportInterval;
   }
 
-  // 设置 jitter
-  report_.jitter_ = report_.interval_ * 4 / 10;
-  if (report_.jitter_ < 1) {
-    report_.jitter_ = 1;
+  if (rule.has_report() && rule.report().has_enablebatch()) {
+    report_.enable_batch_ = rule.report().enablebatch().value();
+  } else {
+    report_.enable_batch_ = false;
   }
-  report_.interval_ = report_.interval_ - report_.jitter_ / 2;
   return true;
 }
 
@@ -197,9 +199,7 @@ bool RateLimitRule::IsMatch(const std::map<std::string, std::string>& subset,
   return MatchString::MapMatch(labels_, labels) && MatchString::MapMatch(subset_, subset);
 }
 
-std::string RateLimitRule::GetActionString() {
-  return action_type_ == kRateLimitActionReject ? "reject" : "unirate";
-}
+std::string RateLimitRule::GetActionString() { return action_type_ == kRateLimitActionReject ? "reject" : "unirate"; }
 
 std::string RateLimitRule::MatchMapToStr(const std::map<std::string, MatchString>& match) {
   std::ostringstream output;
@@ -212,13 +212,9 @@ std::string RateLimitRule::MatchMapToStr(const std::map<std::string, MatchString
   return output.str();
 }
 
-std::string RateLimitRule::GetSubsetAsString() {
-  return subset_.empty() ? "*" : MatchMapToStr(subset_);
-}
+std::string RateLimitRule::GetSubsetAsString() { return subset_.empty() ? "*" : MatchMapToStr(subset_); }
 
-std::string RateLimitRule::GetLabelsAsString() {
-  return labels_.empty() ? "*" : MatchMapToStr(labels_);
-}
+std::string RateLimitRule::GetLabelsAsString() { return labels_.empty() ? "*" : MatchMapToStr(labels_); }
 
 std::string RateLimitRule::GetMetricId(const RateLimitWindowKey& window_key) {
   std::string output = id_;
@@ -226,7 +222,7 @@ std::string RateLimitRule::GetMetricId(const RateLimitWindowKey& window_key) {
 
   std::map<std::string, MatchString>::const_iterator it;
   const char* separator = "";
-  std::size_t pos       = 0;
+  std::size_t pos = 0;
   for (it = subset_.begin(); it != subset_.end(); ++it) {
     output += separator;
     output += it->first;
@@ -248,7 +244,7 @@ std::string RateLimitRule::GetMetricId(const RateLimitWindowKey& window_key) {
   output += "#";
 
   separator = "";
-  pos       = 0;
+  pos = 0;
   for (it = labels_.begin(); it != labels_.end(); ++it) {
     output += separator;
     output += it->first;
@@ -270,9 +266,8 @@ std::string RateLimitRule::GetMetricId(const RateLimitWindowKey& window_key) {
 }
 
 void RateLimitRule::GetWindowKey(const std::map<std::string, std::string>& subset,
-                                 const std::map<std::string, std::string>& labels,
-                                 RateLimitWindowKey& window_key) {
-  window_key.rule_id_   = id_;
+                                 const std::map<std::string, std::string>& labels, RateLimitWindowKey& window_key) {
+  window_key.rule_id_ = id_;
   const char* separator = "";
   std::map<std::string, MatchString>::const_iterator it;
   std::map<std::string, std::string>::const_iterator match_it;

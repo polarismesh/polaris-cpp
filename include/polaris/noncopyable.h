@@ -18,11 +18,11 @@ namespace polaris {
 
 /// @brief 用于屏蔽拷贝构造函数和赋值函数
 class Noncopyable {
-protected:
+ protected:
   Noncopyable() {}
   ~Noncopyable() {}
 
-private:
+ private:
   Noncopyable(const Noncopyable&);
   const Noncopyable& operator=(const Noncopyable&);
 };

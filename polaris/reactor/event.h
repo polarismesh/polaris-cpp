@@ -18,7 +18,7 @@ namespace polaris {
 
 // 事件基类
 class EventBase {
-public:
+ public:
   explicit EventBase(int fd) : fd_(fd) {}
 
   virtual ~EventBase() {}
@@ -34,7 +34,7 @@ public:
   // EPOLLRDHUP EPOLLERR 事件处理
   virtual void CloseHandler() = 0;
 
-protected:
+ protected:
   int fd_;  // 事件发生的fd
 };
 

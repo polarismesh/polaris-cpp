@@ -63,17 +63,22 @@ struct ClimbTriggerPolicy {
 
 struct ClimbThrottling {
   ClimbThrottling()
-      : cold_below_tune_down_rate_(0), cold_below_tune_up_rate_(0), cold_above_tune_down_rate_(0),
-        cold_above_tune_up_rate_(0), limit_threshold_to_tune_up_(0), judge_duration_(0),
-        tune_up_period_(0), tune_down_period_(0) {}
+      : cold_below_tune_down_rate_(0),
+        cold_below_tune_up_rate_(0),
+        cold_above_tune_down_rate_(0),
+        cold_above_tune_up_rate_(0),
+        limit_threshold_to_tune_up_(0),
+        judge_duration_(0),
+        tune_up_period_(0),
+        tune_down_period_(0) {}
   int32_t cold_below_tune_down_rate_;  //冷水位以下区间的下调百分比
   int32_t cold_below_tune_up_rate_;    //冷水位以下区间的上调百分比
   int32_t cold_above_tune_down_rate_;  //冷水位以上区间的下调百分比
   int32_t cold_above_tune_up_rate_;    //冷水位以上区间的上调百分比
   int32_t limit_threshold_to_tune_up_;  //冷水位以上，超过百分之多少的请求被限流后，才进行阈值上调
-  uint64_t judge_duration_;  //阈值调整规则的决策间隔
-  int32_t tune_up_period_;  //阈值上调周期数，连续N个决策间隔都为上调，才执行上调
-  int32_t tune_down_period_;  //阈值下调周期数，连续N个决策间隔都为下调，才执行下调
+  uint64_t judge_duration_;             //阈值调整规则的决策间隔
+  int32_t tune_up_period_;              //阈值上调周期数，连续N个决策间隔都为上调，才执行上调
+  int32_t tune_down_period_;            //阈值下调周期数，连续N个决策间隔都为下调，才执行下调
 
   void InitClimbThrottling(const v1::ClimbConfig::ClimbThrottling& climb_throttling);
 };

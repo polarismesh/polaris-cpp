@@ -23,22 +23,22 @@
 
 #include "cache/rcu_map.h"
 #include "model/model_impl.h"
+#include "plugin/service_router/service_router.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
+#include "reactor/task.h"
 #include "utils/string_utils.h"
 
 namespace polaris {
 
 class InstancesSet;
 
-typedef ServiceBase CacheValueBase;
-
-class RouterSubsetCache : public CacheValueBase {
-public:
+class RouterSubsetCache : public ServiceBase {
+ public:
   RouterSubsetCache();
   virtual ~RouterSubsetCache();
 
-public:
+ public:
   ServiceData* instances_data_;  // 保证原始服务实例不被释放
   InstancesSet* current_data_;
 };
@@ -89,26 +89,28 @@ struct RuleRouteCacheKey {
 };
 
 // 规则路由缓存Value
-class RuleRouterCacheValue : public CacheValueBase {
-public:
+class RuleRouterCacheValue : public ServiceBase {
+ public:
   RuleRouterCacheValue();
 
   virtual ~RuleRouterCacheValue();
 
-public:
-  ServiceData* instances_data_;  // 保证原始服务实例不被释放
-  ServiceData* route_rule_;      // 保证原始服务路由不被释放
-  std::map<uint32_t, InstancesSet*> data_;
-  uint32_t sum_weight_;
+ public:
+  ServiceData* instances_data_;                // 保证原始服务实例不被释放
+  ServiceData* route_rule_;                    // 保证原始服务路由不被释放
+  std::map<uint32_t, InstancesSet*> subsets_;  // 匹配到的subset
+  uint32_t subset_sum_weight_;
   bool match_outbounds_;
+  bool is_redirect_;  // 是否为服务转发
+  ServiceKey redirect_service_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // 就近路由缓存Key
 struct NearbyCacheKey {
   InstancesSet* prior_data_;
-  uint64_t location_version_;
   uint64_t circuit_breaker_version_;
+  uint32_t location_version_;
   uint8_t request_flags_;
 
   bool operator<(const NearbyCacheKey& rhs) const {
@@ -151,22 +153,18 @@ struct SetDivisionCacheKey {
       return true;
     } else if (this->circuit_breaker_version_ > rhs.circuit_breaker_version_) {
       return false;
-    } else if (this->request_flags_ < rhs.request_flags_) {
-      return true;
-    } else if (this->request_flags_ > rhs.request_flags_) {
-      return false;
     } else {
-      return false;
+      return this->request_flags_ < rhs.request_flags_;
     }
   }
 };
 
 // 分SET路由缓存Value
 class SetDivisionCacheValue : public RouterSubsetCache {
-public:
+ public:
   SetDivisionCacheValue() : enable_set(false) {}
 
-public:
+ public:
   bool enable_set;
 };
 
@@ -221,7 +219,7 @@ struct MetadataCacheKey {
 
 ///////////////////////////////////////////////////////////////////////////////
 class Clearable : public ServiceBase {
-public:
+ public:
   Clearable() { clear_handler_ = 0; }
   virtual ~Clearable() {}
 
@@ -230,28 +228,27 @@ public:
   void SetClearHandler(uint64_t clear_handler) { clear_handler_ = clear_handler; }
   uint64_t GetClearHandler() { return clear_handler_; }
 
-private:
+ private:
   uint64_t clear_handler_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // 服务数据缓存
-template <typename K>
+template <typename Key, typename Value>
 class ServiceCache : public Clearable {
-public:
+ public:
   ServiceCache() {}
 
   virtual ~ServiceCache() {}
 
-  void PutWithRef(const K& key, CacheValueBase* cache_value) {
-    cache_value->IncrementRef();
-    buffered_cache_.Update(key, cache_value);
+  Value* CreateOrGet(const Key& key, std::function<Value*()> creator) {
+    return buffered_cache_.CreateOrGet(key, creator);
   }
 
-  CacheValueBase* GetWithRef(const K& key) { return buffered_cache_.Get(key); }
+  Value* GetWithRcuTime(const Key& key) { return buffered_cache_.GetWithRcuTime(key); }
 
   virtual void Clear(uint64_t min_access_time) {
-    typename std::vector<K> clear_keys;
+    typename std::vector<Key> clear_keys;
     buffered_cache_.CheckExpired(min_access_time, clear_keys);
     for (std::size_t i = 0; i < clear_keys.size(); ++i) {
       buffered_cache_.Delete(clear_keys[i]);
@@ -259,20 +256,17 @@ public:
     buffered_cache_.CheckGc(min_access_time);
   }
 
-  void GetAllValuesWithRef(std::vector<CacheValueBase*>& values) {
-    buffered_cache_.GetAllValuesWithRef(values);
-  }
+  void GetAllValuesWithRef(std::vector<Value*>& values) { buffered_cache_.GetAllValuesWithRef(values); }
 
   RouterStatData* CollectStat() {
-    RouterStatData* data = NULL;
-    std::vector<CacheValueBase*> values;
+    RouterStatData* data = nullptr;
+    std::vector<Value*> values;
     buffered_cache_.GetAllValuesWithRef(values);
     for (std::size_t i = 0; i < values.size(); ++i) {
-      RouterSubsetCache* value = dynamic_cast<RouterSubsetCache*>(values[i]);
-      POLARIS_ASSERT(value != NULL);
-      int count = value->current_data_->GetInstancesSetImpl()->count_.Exchange(0);
+      Value* value = values[i];
+      int count = value->current_data_->GetImpl()->count_.exchange(0);
       if (count != 0) {
-        if (data == NULL) {
+        if (data == nullptr) {
           data = new RouterStatData();
         }
         v1::RouteResult* result = data->record_.add_results();
@@ -286,8 +280,67 @@ public:
     return data;
   }
 
-private:
-  RcuMap<K, CacheValueBase> buffered_cache_;
+ private:
+  RcuMap<Key, Value> buffered_cache_;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+class ServiceCacheUpdateParam {
+ public:
+  ServiceInfo source_service_info_;
+  uint8_t request_flag_;
+  std::map<std::string, std::string> labels_;
+  MetadataRouterParam metadata_param_;
+
+  ServiceInfo* GetSourceServiceInfo() {
+    if (source_service_info_.metadata_.empty() && source_service_info_.service_key_.name_.empty() &&
+        source_service_info_.service_key_.namespace_.empty()) {
+      return nullptr;
+    }
+    return &source_service_info_;
+  }
+
+  bool operator<(const ServiceCacheUpdateParam& rhs) const {
+    if (source_service_info_.metadata_ < rhs.source_service_info_.metadata_) {
+      return true;
+    } else if (source_service_info_.metadata_ > rhs.source_service_info_.metadata_) {
+      return false;
+    } else if (request_flag_ < rhs.request_flag_) {
+      return true;
+    } else if (request_flag_ > rhs.request_flag_) {
+      return false;
+    } else if (metadata_param_.failover_type_ < rhs.metadata_param_.failover_type_) {
+      return true;
+    } else if (metadata_param_.failover_type_ > rhs.metadata_param_.failover_type_) {
+      return false;
+    } else if (metadata_param_.metadata_ < rhs.metadata_param_.metadata_) {
+      return true;
+    } else if (metadata_param_.metadata_ > rhs.metadata_param_.metadata_) {
+      return false;
+    } else if (labels_ < rhs.labels_) {
+      return true;
+    } else if (labels_ > rhs.labels_) {
+      return false;
+    } else {
+      return source_service_info_.service_key_ < rhs.source_service_info_.service_key_;
+    }
+  }
+};
+
+class ContextImpl;
+class ServiceCacheUpdateTask : public Task {
+ public:
+  ServiceCacheUpdateTask(const ServiceKey& service_key, uint64_t circuit_breaker_version, ContextImpl* context_impl)
+      : service_key_(service_key), circuit_breaker_version_(circuit_breaker_version), context_impl_(context_impl) {}
+
+  virtual ~ServiceCacheUpdateTask() {}
+
+  virtual void Run();
+
+ private:
+  ServiceKey service_key_;
+  uint64_t circuit_breaker_version_;
+  ContextImpl* context_impl_;
 };
 
 }  // namespace polaris

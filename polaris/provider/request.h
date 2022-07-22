@@ -23,16 +23,16 @@
 namespace polaris {
 
 class ProviderRequestBase {
-public:
+ public:
   ProviderRequestBase() : port_(0), flow_id_(0) {}
 
   void SetWithHostPort(const std::string& service_namespace, const std::string& service_name,
                        const std::string& service_token, const std::string& host, int port) {
     service_namespace_ = service_namespace;
-    service_name_      = service_name;
-    service_token_     = service_token;
-    host_              = host;
-    port_              = port;
+    service_name_ = service_name;
+    service_token_ = service_token;
+    host_ = host;
+    port_ = port;
   }
 
   // 检查参数是否合法
@@ -46,8 +46,14 @@ public:
 
   void SetFlowId(uint64_t flow_id) { flow_id_ = flow_id; }
   uint64_t GetFlowId() const { return flow_id_; }
+  const std::string GetNamespace() const { return service_namespace_; }
+  const std::string GetService() const { return service_name_; }
+  const std::string GetToken() const { return service_token_; }
+  const std::string GetHost() const { return host_; }
+  int GetPort() const { return port_; }
+  const std::string GetVpcId() const { return vpc_id_; }
 
-protected:
+ protected:
   std::string service_namespace_;  ///< 服务名字空间
   std::string service_name_;       ///< 服务名字
   std::string service_token_;      ///< 服务访问token
@@ -62,39 +68,45 @@ protected:
 
 /// @brief 服务注册请求实现类
 class InstanceRegisterRequest::Impl : public ProviderRequestBase {
-public:
+ public:
   Impl() : health_check_flag_(false) {}
 
   void AddMetdata(const std::string& key, const std::string& value);
 
   v1::Instance* ToPb() const;  // 转换成PB请求
 
-private:
+ private:
   friend class InstanceRegisterRequest;
 
-  std::string protocol_;    ///< 服务协议，可选
-  optional<int> weight_;    ///< 服务权重，默认100，范围0-1000
-  optional<int> priority_;  ///< 实例优先级，默认为0，数值越小，优先级越高
-  std::string version_;     ///< 实例提供服务版本号
+  std::string protocol_;                         ///< 服务协议，可选
+  optional<int> weight_;                         ///< 服务权重，默认100，范围0-1000
+  optional<int> priority_;                       ///< 实例优先级，默认为0，数值越小，优先级越高
+  std::string version_;                          ///< 实例提供服务版本号
   std::map<std::string, std::string> metadata_;  ///< 用户自定义metadata信息
   bool health_check_flag_;                       ///< 是否开启健康检查，默认不开启
   optional<HealthCheckType> health_check_type_;  ///< 健康检查类型
   optional<int> ttl_;                            ///< ttl超时时间，单位：秒
+
+  // 位置信息
+  std::string region_;
+  std::string zone_;
+  std::string campus_;
 };
 
 // 唯一标识实例的请求，用于反注册和心跳上报
 class InstanceIdentityRequest : public ProviderRequestBase {
-public:
+ public:
   void SetWithId(const std::string& service_token, const std::string& instance_id) {
     service_token_ = service_token;
-    instance_id_   = instance_id;
+    instance_id_ = instance_id;
   }
 
   bool CheckRequest(const char* request_type) const;
 
   v1::Instance* ToPb() const;  // 转换成PB请求
+  const std::string GetInstanceID() const { return instance_id_.Value(); }
 
-private:
+ private:
   optional<std::string> instance_id_;  // 服务实例ID
 };
 

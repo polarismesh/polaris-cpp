@@ -28,18 +28,17 @@ void SignalHandler(int signum) {
 }
 
 class RequestCallback : public polaris::ServiceCacheNotify {
-public:
-  RequestCallback(polaris::InstancesFuture* future, int request_id)
-      : future_(future), request_id_(request_id) {}
+ public:
+  RequestCallback(polaris::InstancesFuture* future, int request_id) : future_(future), request_id_(request_id) {}
   virtual ~RequestCallback() { delete future_; }
 
   virtual void NotifyReady() {
-    polaris::InstancesResponse* resp = NULL;
-    polaris::ReturnCode ret_code     = future_->Get(0, resp);
+    polaris::InstancesResponse* resp = nullptr;
+    polaris::ReturnCode ret_code = future_->Get(0, resp);
     if (ret_code == polaris::kReturnOk) {
       polaris::Instance& instance = resp->GetInstances()[0];
-      std::cout << "callback get instance, ip:" << instance.GetHost()
-                << ", port:" << instance.GetPort() << "  for request " << request_id_ << std::endl;
+      std::cout << "callback get instance, ip:" << instance.GetHost() << ", port:" << instance.GetPort()
+                << "  for request " << request_id_ << std::endl;
       delete resp;
     } else {
       std::cout << "request id " << request_id_ << " get instance with error "
@@ -47,11 +46,9 @@ public:
     }
   }
 
-  virtual void NotifyTimeout() {
-    std::cout << "request id " << request_id_ << " get instance timeout" << std::endl;
-  }
+  virtual void NotifyTimeout() { std::cout << "request id " << request_id_ << " get instance timeout" << std::endl; }
 
-private:
+ private:
   polaris::InstancesFuture* future_;
   int request_id_;
 };
@@ -72,7 +69,7 @@ int main(int argc, char** argv) {
   // 创建线程安全的Consumer对象
   // 该方法检查当前路径下是否有polaris.yaml文件，如果有则加载该文件配置中的配置项覆盖默认配置，没有则使用默认配置
   polaris::ConsumerApi* consumer = polaris::ConsumerApi::CreateWithDefaultFile();
-  if (consumer == NULL) {
+  if (consumer == nullptr) {
     std::cout << "create consumer api failed" << std::endl;
     return -1;
   }
@@ -83,23 +80,22 @@ int main(int argc, char** argv) {
   polaris::ReturnCode ret;
   int count = 0;
   while (!signal_received) {
-    polaris::InstancesFuture* future = NULL;
+    polaris::InstancesFuture* future = nullptr;
     if ((ret = consumer->AsyncGetOneInstance(request, future)) != polaris::kReturnOk) {
-      std::cout << "async get instance for service with error "
-                << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+      std::cout << "async get instance for service with error " << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
       sleep(1);
       continue;
     }
     if (future->IsDone(false)) {
-      polaris::InstancesResponse* resp = NULL;
-      ret                              = future->Get(0, resp);
+      polaris::InstancesResponse* resp = nullptr;
+      ret = future->Get(0, resp);
       if (ret == polaris::kReturnOk) {
         polaris::Instance& instance = resp->GetInstances()[0];
-        std::cout << "get instance, ip:" << instance.GetHost() << ", port:" << instance.GetPort()
-                  << " for request " << count++ << std::endl;
+        std::cout << "get instance, ip:" << instance.GetHost() << ", port:" << instance.GetPort() << " for request "
+                  << count++ << std::endl;
       } else {
-        std::cout << "future get instance for service with error "
-                  << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+        std::cout << "future get instance for service with error " << polaris::ReturnCodeToMsg(ret).c_str()
+                  << std::endl;
       }
       delete future;
       delete resp;

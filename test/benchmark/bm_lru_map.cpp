@@ -21,16 +21,15 @@
 #include <string>
 
 #include "cache/lru_map.h"
-#include "utils/scoped_ptr.h"
 
 namespace polaris {
 
 class BM_LruMap : public benchmark::Fixture {
-public:
+ public:
   void SetUp(const ::benchmark::State &state) {
     if (state.thread_index == 0) {
       capacity_ = 8096;
-      lru_map_.Set(new LruHashMap<int, int>(capacity_, MurmurInt32, LruValueNoOp, LruValueDelete));
+      lru_map_.reset(new LruHashMap<int, int>(capacity_, MurmurInt32, LruValueNoOp, LruValueDelete));
     }
   }
 
@@ -41,14 +40,14 @@ public:
   }
 
   int capacity_;
-  ScopedPtr<LruHashMap<int, int> > lru_map_;
+  std::unique_ptr<LruHashMap<int, int> > lru_map_;
 };
 
 BENCHMARK_DEFINE_F(BM_LruMap, TestUpdate)
 (benchmark::State &state) {
   while (state.KeepRunning()) {
     int key = rand() % 4000;
-    int op  = rand() % 10;
+    int op = rand() % 10;
     if (op == 0) {
       int *value = new int(key);
       lru_map_->Update(key, value);

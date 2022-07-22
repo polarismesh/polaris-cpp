@@ -43,84 +43,83 @@ struct TestServiceCacheKey {
   }
 };
 
-class TestServiceCacheValue : public CacheValueBase {
-public:
+class TestServiceCacheValue : public ServiceBase {
+ public:
   virtual ~TestServiceCacheValue() {}
   int value_;
   ServiceBase *service_base_;
 };
 
 class ServiceCacheTest : public ::testing::Test {
-protected:
-  virtual void SetUp() { cache_ = new ServiceCache<TestServiceCacheKey>(); }
+ protected:
+  virtual void SetUp() { cache_ = new ServiceCache<TestServiceCacheKey, TestServiceCacheValue>(); }
 
   virtual void TearDown() {
     for (std::size_t i = 0; i < thread_list_.size(); ++i) {
-      pthread_join(thread_list_[i], NULL);
+      pthread_join(thread_list_[i], nullptr);
     }
     thread_list_.clear();
     cache_->DecrementRef();
   }
 
-protected:
-  ServiceCache<TestServiceCacheKey> *cache_;
+ protected:
+  ServiceCache<TestServiceCacheKey, TestServiceCacheValue> *cache_;
   std::vector<pthread_t> thread_list_;
 
   static void *UpdateCache(void *args) {
-    ServiceCache<TestServiceCacheKey> *cache =
-        static_cast<ServiceCache<TestServiceCacheKey> *>(args);
+    ServiceCache<TestServiceCacheKey, TestServiceCacheValue> *cache =
+        static_cast<ServiceCache<TestServiceCacheKey, TestServiceCacheValue> *>(args);
     int cache_num = 100;
-    int total     = cache_num * cache_num;
+    int total = cache_num * cache_num;
     for (int i = 0; i < total; ++i) {
-      TestServiceCacheKey key      = {i % cache_num, NULL};
-      TestServiceCacheValue *value = new TestServiceCacheValue();
-      value->value_                = i % cache_num;
-      value->service_base_         = NULL;
-      cache->PutWithRef(key, value);
-      value->DecrementRef();
+      TestServiceCacheKey key = {i % cache_num, nullptr};
+      cache->CreateOrGet(key, [=] {
+        TestServiceCacheValue *value = new TestServiceCacheValue();
+        value->value_ = i % cache_num;
+        value->service_base_ = nullptr;
+        return value;
+      });
     }
-    return NULL;
+    return nullptr;
   }
 };
 
 TEST_F(ServiceCacheTest, MultiThreadUpdate) {
   pthread_t tid;
   for (int i = 0; i < 8; ++i) {
-    pthread_create(&tid, NULL, UpdateCache, cache_);
+    pthread_create(&tid, nullptr, UpdateCache, cache_);
     thread_list_.push_back(tid);
   }
 }
 
 TEST_F(ServiceCacheTest, TestCacheClear) {
-  Context *context          = TestContext::CreateContext();
+  Context *context = TestContext::CreateContext();
   ContextImpl *context_impl = context->GetContextImpl();
   Time::TryShutdomClock();
   TestUtils::SetUpFakeTime();
 
   context_impl->RegisterCache(cache_);
-  TestServiceCacheKey key      = {0, NULL};
-  TestServiceCacheValue *value = new TestServiceCacheValue();
-  cache_->PutWithRef(key, value);
+  TestServiceCacheKey key = {0, nullptr};
+  TestServiceCacheValue *value = cache_->CreateOrGet(key, [] { return new TestServiceCacheValue(); });
+  value->IncrementRef();
   context_impl->ClearCache();
 
   // 刚加入，不会清除
-  ServiceBase *got_value = cache_->GetWithRef(key);
+  TestServiceCacheValue *got_value = cache_->GetWithRcuTime(key);
   ASSERT_TRUE(got_value == value);
-  got_value->DecrementRef();
 
   TestUtils::FakeNowIncrement(context_impl->GetCacheClearTime() - 1);
   context_impl->ClearCache();
 
   // 未达到清除时间，不会清除
-  got_value = cache_->GetWithRef(key);
+  got_value = cache_->GetWithRcuTime(key);
   ASSERT_TRUE(got_value == value);
-  got_value->DecrementRef();
 
   TestUtils::FakeNowIncrement(context_impl->GetCacheClearTime());
   context_impl->ClearCache();
   // 达到清除时间，清除
-  got_value = cache_->GetWithRef(key);
-  ASSERT_TRUE(got_value == NULL);
+  got_value = cache_->GetWithRcuTime(key);
+  ASSERT_TRUE(got_value == nullptr);
 
   value->DecrementRef();
   TestUtils::TearDownFakeTime();

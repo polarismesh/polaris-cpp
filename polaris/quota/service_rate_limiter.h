@@ -16,17 +16,17 @@
 
 #include <stdint.h>
 
+#include <atomic>
+
 #include "polaris/defs.h"
 #include "polaris/limit.h"
 #include "quota/model/rate_limit_rule.h"
-#include "sync/atomic.h"
 
 namespace polaris {
 
 // 配额分配结果
 struct QuotaResult {
-  QuotaResult(QuotaResultCode result_code, uint64_t queue_time)
-      : result_code_(result_code), queue_time_(queue_time) {}
+  QuotaResult(QuotaResultCode result_code, uint64_t queue_time) : result_code_(result_code), queue_time_(queue_time) {}
 
   QuotaResultCode result_code_;  // 配额分配返回码
   uint64_t queue_time_;          // 排队时间，标识多长时间后可以有新配额供应
@@ -34,7 +34,7 @@ struct QuotaResult {
 
 // 配额池接口
 class QuotaBucket {
-public:
+ public:
   virtual ~QuotaBucket() {}
 
   //在令牌桶/漏桶中进行单个配额的划扣，并返回本次分配的结果
@@ -46,12 +46,11 @@ public:
 
 // 服务限流处理插件接口
 class ServiceRateLimiter {
-public:
+ public:
   virtual ~ServiceRateLimiter() {}
 
   // 初始化并创建令牌桶/漏桶。主流程会在首次调用，以及规则对象变更的时候，调用该方法
-  virtual ReturnCode InitQuotaBucket(RateLimitRule* rate_limit_rule,
-                                     QuotaBucket*& quota_bucket) = 0;
+  virtual ReturnCode InitQuotaBucket(RateLimitRule* rate_limit_rule, QuotaBucket*& quota_bucket) = 0;
 
   static ServiceRateLimiter* Create(RateLimitActionType action_type);
 };
@@ -60,7 +59,7 @@ public:
 // Reject模式 直接拒绝
 
 class RejectQuotaBucket : public QuotaBucket {
-public:
+ public:
   RejectQuotaBucket() {}
   virtual ~RejectQuotaBucket() {}
 
@@ -70,7 +69,7 @@ public:
 };
 
 class RejectServiceRateLimiter : public ServiceRateLimiter {
-public:
+ public:
   RejectServiceRateLimiter() {}
   virtual ~RejectServiceRateLimiter() {}
 
@@ -80,7 +79,7 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 // Unirate模式 匀速排队
 class UnirateQuotaBucket : public QuotaBucket {
-public:
+ public:
   UnirateQuotaBucket();
   virtual ~UnirateQuotaBucket();
 
@@ -90,18 +89,18 @@ public:
 
   virtual void Release() {}
 
-private:
-  RateLimitRule* rule_;                     // 限流规则
-  uint64_t max_queuing_duration_;           // 最长排队时间
-  uint32_t effective_amount_;               // 等效配额
-  uint64_t effective_duration_;             // 等效时间窗
-  sync::Atomic<uint64_t> effective_rate_;   // 为一个实例生成一个配额的平均时间
-  sync::Atomic<uint64_t> last_grant_time_;  // 上次分配配额时间
-  bool reject_all_;                         //是不是有amount为0
+ private:
+  RateLimitRule* rule_;                    // 限流规则
+  uint64_t max_queuing_duration_;          // 最长排队时间
+  uint32_t effective_amount_;              // 等效配额
+  uint64_t effective_duration_;            // 等效时间窗
+  std::atomic<uint64_t> effective_rate_;   // 为一个实例生成一个配额的平均时间
+  std::atomic<uint64_t> last_grant_time_;  // 上次分配配额时间
+  bool reject_all_;                        //是不是有amount为0
 };
 
 class UnirateServiceRateLimiter : public ServiceRateLimiter {
-public:
+ public:
   UnirateServiceRateLimiter() {}
   virtual ~UnirateServiceRateLimiter() {}
 

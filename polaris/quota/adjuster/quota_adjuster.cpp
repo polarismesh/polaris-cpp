@@ -26,23 +26,21 @@ namespace polaris {
 class MetricConnector;
 class Reactor;
 
-QuotaAdjuster::QuotaAdjuster(Reactor& reactor, MetricConnector* connector,
-                             RemoteAwareBucket* remote_bucket)
+QuotaAdjuster::QuotaAdjuster(Reactor& reactor, MetricConnector* connector, RemoteAwareBucket* remote_bucket)
     : reactor_(reactor), connector_(connector), remote_bucket_(remote_bucket) {}
 
 QuotaAdjuster::~QuotaAdjuster() {
-  connector_     = NULL;
-  remote_bucket_ = NULL;
+  connector_ = nullptr;
+  remote_bucket_ = nullptr;
 }
 
 QuotaAdjuster* QuotaAdjuster::Create(QuotaAdjusterType quota_type, RateLimitWindow* window) {
-  QuotaAdjuster* quota_adjuster = NULL;
+  QuotaAdjuster* quota_adjuster = nullptr;
   if (quota_type == kQuotaAdjusterClimb) {
-    quota_adjuster = new ClimbAdjuster(window->GetReactor(), window->GetMetricConnector(),
-                                       window->GetRemoteBucket());
+    quota_adjuster = new ClimbAdjuster(window->GetReactor(), window->GetMetricConnector(), window->GetRemoteBucket());
     if (quota_adjuster->Init(window->GetRateLimitRule()) != kReturnOk) {
       quota_adjuster->DecrementRef();
-      quota_adjuster = NULL;
+      quota_adjuster = nullptr;
     }
   }
   return quota_adjuster;

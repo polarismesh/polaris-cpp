@@ -18,13 +18,9 @@ GEN_DIR = $(BUILD)/gens
 TEST_DIR = $(BUILD)/test
 
 CXXFLAGS += $(M32_FLAGS) -fPIC -pipe -fno-ident -D_REENTRANT -g -O2 -DREVISION=\"$(REVISION)\" \
-						-W -Wall
+						-W -Wall -Werror -std=c++11 -Woverloaded-virtual
 LDFLAGS = -shared $(M32_FLAGS)
 ARFLAGS = -rcs
-
-ifeq ($(shell expr $(shell g++ -dumpversion) '>=' 4.8.1), 1)  # check whether g++ support c++11
-CXXFLAGS += -Werror -std=c++11
-endif
 
 ifeq ($(AddressSanitizer), true)
 CXXFLAGS += -fsanitize=address
@@ -34,8 +30,9 @@ ifeq ($(DisableTimeTicker), true)
 CXXFLAGS += -DPOLARIS_DISABLE_TIME_TICKER # 禁用TimeTicker线程
 endif
 
-ifeq ($(SupportFork), true)
-CXXFLAGS += -DPOLARIS_SUPPORT_FORK # 支持在已经创建SDK对象时
+ifeq ($(COMPILE_FOR_PRE_CPP11), true)
+LDFLAGS += -static-libstdc++ -Wl,--wrap=memcpy -lrt
+CXXFLAGS += -DCOMPILE_FOR_PRE_CPP11
 endif
 
 ifeq ($(MemCheck), true)
@@ -365,15 +362,11 @@ $(BUILD)/examples/%: examples/%.cpp $(POLARIS_SLIB)
 # 	@mkdir -p $(@D)
 # 	$(CXX) $(CXXFLAGS) -I$(POLARIS_HDR_DIR) $< -L$(LIB_DIR) -lpolaris_api -pthread -lz -lrt -o $@
 
-CHAOS_SRC := $(wildcard test/chaos/*.cpp)
-CHAOS_TARGET := $(CHAOS_SRC:test/chaos/%.cpp=$(BUILD)/chaos/%)
-
-chaos: $(CHAOS_TARGET) $(POLARIS_SLIB)
-
-# 静态库方式编译例子
-$(BUILD)/chaos/%: test/chaos/%.cpp $(POLARIS_SLIB)
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -I$(POLARIS_HDR_DIR) $< $(POLARIS_SLIB) $(PROTOBUF_LIB) -pthread -lz -lrt -o $@
+###############################################################################
+# chaos
+chaos: $(POLARIS_SLIB)
+	@make -C test/chaos clean
+	@make -C test/chaos
 
 ###############################################################################
 # package

@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <time.h>
 
+#include <atomic>
 #include <list>
 
 #include "polaris/defs.h"
@@ -32,17 +33,16 @@ class Future;
 
 template <typename T>
 class SharedState {
-public:
-  SharedState() {
-    state_ref_ = 1;
-    value_     = NULL;
-    ret_code_  = kReturnOk;
+ public:
+  SharedState() : state_ref_(1) {
+    value_ = nullptr;
+    ret_code_ = kReturnOk;
   }
 
   ~SharedState() {
-    if (value_ != NULL) {
+    if (value_ != nullptr) {
       delete value_;
-      value_ = NULL;
+      value_ = nullptr;
     }
   }
 
@@ -54,28 +54,22 @@ public:
     if (timeout == 0) {
       return is_ready_.IsNotified();
     }
-    timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_nsec += (timeout % 1000) * 1000000;
-    ts.tv_sec += timeout / 1000 + ts.tv_nsec / 1000000000L;
-    ts.tv_nsec = ts.tv_nsec % 1000000000L;
-    is_ready_.Wait(ts);
-    return is_ready_.IsNotified();
+    return is_ready_.WaitFor(timeout);
   }
 
   T* GetValue() {
     T* return_value = value_;
-    value_          = NULL;
+    value_ = nullptr;
     return return_value;
   }
 
   ReturnCode GetErrorCode() { return ret_code_; }
 
-  void Reference() { ATOMIC_INC(&state_ref_); }
+  void Reference() { state_ref_.fetch_add(1, std::memory_order_relaxed); }
 
   void Release() {
-    ATOMIC_DEC(&state_ref_);
-    if (state_ref_ == 0) {
+    int ref_left = state_ref_.fetch_sub(1, std::memory_order_acq_rel);
+    if (ref_left == 1) {
       delete this;
     }
   }
@@ -90,8 +84,8 @@ public:
     is_ready_.NotifyAll();
   }
 
-private:
-  int state_ref_;                 // 记录state的索引次数
+ private:
+  std::atomic<int> state_ref_;    // 记录state的索引次数
   T* value_;                      // 结果
   ReturnCode ret_code_;           // 错误码
   sync::CondVarNotify is_ready_;  // 是否就绪
@@ -99,13 +93,13 @@ private:
 
 template <typename T>
 class Future {
-public:
+ public:
   explicit Future(SharedState<T>* share_state) {
     share_state->Reference();
     share_state_ = share_state;
   }
   ~Future() {
-    if (share_state_ != NULL) {
+    if (share_state_ != nullptr) {
       share_state_->Release();
     }
   }
@@ -120,13 +114,13 @@ public:
 
   ReturnCode GetError() { return share_state_->GetErrorCode(); }
 
-private:
+ private:
   SharedState<T>* share_state_;
 };
 
 template <typename T>
 class Promise {
-public:
+ public:
   Promise() { share_state_ = new SharedState<T>(); }
   ~Promise() { share_state_->Release(); }
 
@@ -140,7 +134,7 @@ public:
 
   Future<T>* GetFuture() { return new Future<T>(share_state_); }
 
-private:
+ private:
   SharedState<T>* share_state_;
 };
 

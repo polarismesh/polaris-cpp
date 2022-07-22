@@ -26,24 +26,24 @@
 namespace polaris {
 
 class ContextApiTest : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {
-    context_ = NULL;
-    config_  = NULL;
+    context_ = nullptr;
+    config_ = nullptr;
   }
 
   virtual void TearDown() {
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
-    if (config_ != NULL) {
+    if (config_ != nullptr) {
       delete config_;
-      config_ = NULL;
+      config_ = nullptr;
     }
   }
 
-protected:
+ protected:
   Config *config_;
   Context *context_;
 };
@@ -51,13 +51,13 @@ protected:
 TEST_F(ContextApiTest, TestShareContext) {
   std::string err_msg, content;
   config_ = Config::CreateFromString(content, err_msg);
-  ASSERT_TRUE(config_ != NULL && err_msg.empty());
+  ASSERT_TRUE(config_ != nullptr && err_msg.empty());
   context_ = Context::Create(config_);
 
   ConsumerApi *consumer = ConsumerApi::Create(context_);
-  ASSERT_TRUE(consumer != NULL);
+  ASSERT_TRUE(consumer != nullptr);
   ProviderApi *provider = ProviderApi::Create(context_);
-  ASSERT_TRUE(provider != NULL);
+  ASSERT_TRUE(provider != nullptr);
   delete provider;
   delete consumer;
 }
@@ -80,19 +80,19 @@ TEST_F(ContextApiTest, TestLimitContext) {
                            "    namespace: Polaris\n"
                            "    service: polaris.metric.test";
   config_ = Config::CreateFromString(content, err_msg);
-  ASSERT_TRUE(config_ != NULL && err_msg.empty());
+  ASSERT_TRUE(config_ != nullptr && err_msg.empty());
   context_ = Context::Create(config_, kLimitContext);
 
   LimitApi *limit = LimitApi::Create(context_);
-  ASSERT_TRUE(limit != NULL);
+  ASSERT_TRUE(limit != nullptr);
   ConsumerApi *consumer = ConsumerApi::Create(context_);
-  ASSERT_TRUE(consumer != NULL);
+  ASSERT_TRUE(consumer != nullptr);
   ProviderApi *provider = ProviderApi::Create(context_);
-  ASSERT_TRUE(provider != NULL);
+  ASSERT_TRUE(provider != nullptr);
   delete provider;
   delete consumer;
   delete limit;  // 会释放Context
-  context_ = NULL;
+  context_ = nullptr;
 }
 
 }  // namespace polaris

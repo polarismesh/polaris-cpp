@@ -20,7 +20,7 @@
 #include <iostream>
 #include <string>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "mock/fake_server_response.h"
 #include "polaris/consumer.h"
 #include "polaris/log.h"
@@ -29,7 +29,7 @@
 namespace polaris {
 
 class BM_ConsumerApi : public benchmark::Fixture {
-public:
+ public:
   void SetUp(const ::benchmark::State &state) {
     if (state.thread_index != 0) {
       return;
@@ -51,31 +51,31 @@ public:
                              "    persistDir: " +
                              persist_dir_;
     Config *config = Config::CreateFromString(content, err_msg);
-    if (config == NULL) {
+    if (config == nullptr) {
       std::cout << "create config with error: " << err_msg << std::endl;
       exit(-1);
     }
     context_ = Context::Create(config);
     delete config;
-    if (context_ == NULL) {
+    if (context_ == nullptr) {
       std::cout << "create context failed" << std::endl;
       exit(-1);
     }
     consumer_ = ConsumerApi::Create(context_);
-    srand(Time::GetCurrentTimeMs());
+    srand(Time::GetCoarseSteadyTimeMs());
   }
 
   void TearDown(const ::benchmark::State &state) {
     if (state.thread_index != 0) {
       return;
     }
-    if (consumer_ != NULL) {
+    if (consumer_ != nullptr) {
       delete consumer_;
-      consumer_ = NULL;
+      consumer_ = nullptr;
     }
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
     TestUtils::RemoveDir(log_dir_);
     TestUtils::RemoveDir(persist_dir_);
@@ -91,10 +91,8 @@ static ReturnCode InitServices(LocalRegistry *local_registry, benchmark::State &
   ReturnCode ret_code;
   int service_num = state.range(0);
   for (int64_t i = 0; i < service_num; i++) {
-    ServiceKey service_key = {"benchmark_namespace",
-                              "benchmark_service_" + StringUtils::TypeToStr<int>(i)};
-    if ((ret_code = FakeServer::InitService(local_registry, service_key, state.range(1), false)) !=
-        kReturnOk) {
+    ServiceKey service_key = {"benchmark_namespace", "benchmark_service_" + std::to_string(i)};
+    if ((ret_code = FakeServer::InitService(local_registry, service_key, state.range(1), false)) != kReturnOk) {
       std::string err_msg = "init services failed:" + polaris::ReturnCodeToMsg(ret_code);
       state.SkipWithError(err_msg.c_str());
       return ret_code;
@@ -114,17 +112,71 @@ BENCHMARK_DEFINE_F(BM_ConsumerApi, FastGetOneInstance)
   polaris::Instance instance;
   ServiceKey service_key = {"benchmark_namespace", "benchmark_service_0"};
   polaris::GetOneInstanceRequest request(service_key);
+  polaris::ServiceCallResult result;
   while (state.KeepRunning()) {
     if ((ret_code = consumer_->GetOneInstance(request, instance)) != kReturnOk) {
       std::string err_msg = "get one instance failed:" + polaris::ReturnCodeToMsg(ret_code);
       state.SkipWithError(err_msg.c_str());
       break;
     }
+
+    result.SetServiceNamespace(service_key.namespace_);
+    result.SetServiceName(service_key.name_);
+    result.SetInstanceId(instance.GetId());
+    result.SetDelay(100);
+    result.SetRetCode(0);
+    result.SetRetStatus(polaris::kCallRetOk);
+    if ((ret_code = consumer_->UpdateServiceCallResult(result)) != polaris::kReturnOk) {
+      std::string err_msg = "update call result for instance with error:" + polaris::ReturnCodeToMsg(ret_code);
+      state.SkipWithError(err_msg.c_str());
+    }
   }
   state.SetItemsProcessed(state.iterations());
 }
 
 BENCHMARK_REGISTER_F(BM_ConsumerApi, FastGetOneInstance)
+    ->ArgPair(1, 1000)
+    ->ThreadRange(1, 8)
+    ->Unit(benchmark::kMicrosecond)
+    ->MinTime(10)
+    ->UseRealTime();
+
+BENCHMARK_DEFINE_F(BM_ConsumerApi, SlowGetOneInstance)(benchmark::State &state) {
+  if (state.thread_index == 0) {
+    InitServices(context_->GetLocalRegistry(), state);
+    Location location = {"华南", "深圳", "南山"};
+    context_->GetContextImpl()->GetClientLocation().Update(location);
+  }
+  ServiceKey service_key = {"benchmark_namespace", "benchmark_service_0"};
+
+  while (state.KeepRunning()) {
+    polaris::GetOneInstanceRequest request(service_key);
+    polaris::InstancesResponse *response = nullptr;
+    polaris::ReturnCode ret_code;
+    if ((ret_code = consumer_->GetOneInstance(request, response)) != polaris::kReturnOk) {
+      std::string err_msg = "get one instance failed:" + polaris::ReturnCodeToMsg(ret_code);
+      state.SkipWithError(err_msg.c_str());
+    }
+    std::string instance_id = response->GetInstances()[0].GetId();
+    delete response;
+
+    // 上报调用结果
+    polaris::ServiceCallResult result;
+    result.SetServiceNamespace(service_key.namespace_);
+    result.SetServiceName(service_key.name_);
+    result.SetInstanceId(instance_id);
+    result.SetDelay(100);
+    result.SetRetCode(0);
+    result.SetRetStatus(polaris::kCallRetOk);
+    if ((ret_code = consumer_->UpdateServiceCallResult(result)) != polaris::kReturnOk) {
+      std::string err_msg = "update call result for instance with error:" + polaris::ReturnCodeToMsg(ret_code);
+      state.SkipWithError(err_msg.c_str());
+    }
+  }
+  state.SetItemsProcessed(state.iterations());
+}
+
+BENCHMARK_REGISTER_F(BM_ConsumerApi, SlowGetOneInstance)
     ->ArgPair(1, 1000)
     ->ThreadRange(1, 8)
     ->Unit(benchmark::kMicrosecond)
@@ -139,12 +191,10 @@ BENCHMARK_DEFINE_F(BM_ConsumerApi, GetOneInstance)(benchmark::State &state) {
   }
   ReturnCode ret_code;
   polaris::Instance instance;
-  static __thread unsigned int thread_local_seed = time(NULL) ^ pthread_self();
+  static __thread unsigned int thread_local_seed = time(nullptr) ^ pthread_self();
   while (state.KeepRunning()) {
-    ServiceKey service_key = {
-        "benchmark_namespace",
-        "benchmark_service_" +
-            StringUtils::TypeToStr<int>(rand_r(&thread_local_seed) % state.range(0))};
+    ServiceKey service_key = {"benchmark_namespace",
+                              "benchmark_service_" + std::to_string(rand_r(&thread_local_seed) % state.range(0))};
     polaris::GetOneInstanceRequest request(service_key);
     if ((ret_code = consumer_->GetOneInstance(request, instance)) != kReturnOk) {
       std::string err_msg = "get one instance failed:" + polaris::ReturnCodeToMsg(ret_code);

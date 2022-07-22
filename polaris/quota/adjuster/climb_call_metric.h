@@ -15,11 +15,12 @@
 #define POLARIS_CPP_POLARIS_QUOTA_ADJUSTER_CLIMB_CALL_METRIC_H_
 
 #include <stdint.h>
+
+#include <atomic>
 #include <iosfwd>
 #include <vector>
 
 #include "polaris/limit.h"
-#include "sync/atomic.h"
 
 namespace v1 {
 class MetricRequest;
@@ -42,14 +43,14 @@ struct MetricBucket {
 
   std::size_t Size() { return size_; }
 
-private:
+ private:
   std::size_t size_;
-  sync::Atomic<uint32_t>** bucket_;
+  std::atomic<uint32_t>** bucket_;
 };
 
 // 接口调用数据
 class CallMetricData {
-public:
+ public:
   CallMetricData(ClimbMetricConfig& metric_config, ClimbTriggerPolicy& trigger_policy);
   ~CallMetricData();
 
@@ -57,7 +58,7 @@ public:
 
   void Serialize(v1::MetricRequest* metric_request);
 
-private:
+ private:
   ClimbMetricConfig& metric_config_;
   ClimbTriggerPolicy& trigger_policy_;
   uint64_t bucket_time_;

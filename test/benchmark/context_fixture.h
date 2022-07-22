@@ -23,7 +23,7 @@
 #include <iostream>
 #include <string>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "mock/fake_server_response.h"
 #include "polaris/context.h"
 #include "polaris/log.h"
@@ -32,7 +32,7 @@
 namespace polaris {
 
 class ContextFixture : public ::benchmark::Fixture {
-public:
+ public:
   ContextFixture() {  // 设置Logger目录和日志级别
     TestUtils::CreateTempDir(log_dir_);
     polaris::SetLogDir(log_dir_);
@@ -49,7 +49,7 @@ public:
         "  localCache:\n"
         "    persistDir: " +
         persist_dir_;
-    context_      = NULL;
+    context_ = nullptr;
     context_mode_ = kShareContext;
   }
 
@@ -60,16 +60,16 @@ public:
 
   virtual void SetUp(::benchmark::State& state) {
     if (state.thread_index == 0) {
-      if (context_ == NULL) {
+      if (context_ == nullptr) {
         std::string err_msg;
         Config* config = Config::CreateFromString(config_, err_msg);
-        if (config == NULL) {
+        if (config == nullptr) {
           std::cout << "create config with error: " << err_msg << std::endl;
           abort();
         }
         context_ = Context::Create(config, context_mode_);
         delete config;
-        if (context_ == NULL) {
+        if (context_ == nullptr) {
           std::cout << "create context with error: " << std::endl;
           abort();
         }
@@ -79,31 +79,29 @@ public:
 
   virtual void TearDown(::benchmark::State& state) {
     if (state.thread_index == 0) {
-      if (context_ != NULL && context_mode_ != kLimitContext) {
+      if (context_ != nullptr && context_mode_ != kLimitContext) {
         delete context_;
       }
-      context_ = NULL;
+      context_ = nullptr;
     }
   }
 
   ReturnCode LoadData(v1::DiscoverResponse& response) {
-    ServiceData* service_data     = NULL;
-    ServiceDataNotify* notify     = NULL;
+    ServiceData* service_data = nullptr;
+    ServiceDataNotify* notify = nullptr;
     LocalRegistry* local_registry = context_->GetLocalRegistry();
 
-    ServiceKey service_key = {response.service().namespace_().value(),
-                              response.service().name().value()};
-    service_data           = ServiceData::CreateFromPb(&response, kDataIsSyncing);
-    ReturnCode ret_code    = local_registry->LoadServiceDataWithNotify(
-        service_key, service_data->GetDataType(), service_data, notify);
+    ServiceKey service_key = {response.service().namespace_().value(), response.service().name().value()};
+    service_data = ServiceData::CreateFromPb(&response, kDataIsSyncing);
+    ReturnCode ret_code =
+        local_registry->LoadServiceDataWithNotify(service_key, service_data->GetDataType(), service_data, notify);
     if (ret_code != kReturnOk) {
       return ret_code;
     }
-    return local_registry->UpdateServiceData(service_key, service_data->GetDataType(),
-                                             service_data);
+    return local_registry->UpdateServiceData(service_key, service_data->GetDataType(), service_data);
   }
 
-protected:
+ protected:
   std::string log_dir_;
   std::string persist_dir_;
   std::string config_;

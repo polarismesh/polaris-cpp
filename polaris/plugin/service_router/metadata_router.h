@@ -18,23 +18,15 @@
 #include <set>
 #include <string>
 #include <vector>
-#include "polaris/defs.h"
-#include "polaris/plugin.h"
+
+#include "cache/service_cache.h"
+#include "plugin/service_router/service_router.h"
 
 namespace polaris {
 
-class Config;
-class Context;
-class Instance;
-class RouteInfo;
-class RouteResult;
-struct MetadataCacheKey;
-template <typename K>
-class ServiceCache;
-
 // 就近路由的实现
 class MetadataServiceRouter : public ServiceRouter {
-public:
+ public:
   MetadataServiceRouter();
 
   virtual ~MetadataServiceRouter();
@@ -45,23 +37,20 @@ public:
 
   virtual RouterStatData* CollectStat();
 
-private:
-  bool CalculateResult(const std::vector<Instance*>& instances,
-                       const std::set<Instance*>& unhealthy_set,
-                       const std::map<std::string, std::string>& metadata,
-                       MetadataFailoverType failover_type, std::vector<Instance*>& result);
+ private:
+  bool CalculateResult(const std::vector<Instance*>& instances, const std::set<Instance*>& unhealthy_set,
+                       const std::map<std::string, std::string>& metadata, MetadataFailoverType failover_type,
+                       std::vector<Instance*>& result);
 
-  bool FailoverAll(const std::vector<Instance*>& instances,
-                   const std::set<Instance*>& unhealthy_set, std::vector<Instance*>& result);
+  bool FailoverAll(const std::vector<Instance*>& instances, const std::set<Instance*>& unhealthy_set,
+                   std::vector<Instance*>& result);
 
-  bool FailoverNotKey(const std::vector<Instance*>& instances,
-                      const std::set<Instance*>& unhealthy_set,
-                      const std::map<std::string, std::string>& metadata,
-                      std::vector<Instance*>& result);
+  bool FailoverNotKey(const std::vector<Instance*>& instances, const std::set<Instance*>& unhealthy_set,
+                      const std::map<std::string, std::string>& metadata, std::vector<Instance*>& result);
 
-private:
+ private:
   Context* context_;
-  ServiceCache<MetadataCacheKey>* router_cache_;  // 路由结果缓存
+  ServiceCache<MetadataCacheKey, RouterSubsetCache>* router_cache_;  // 路由结果缓存
 };
 
 }  // namespace polaris

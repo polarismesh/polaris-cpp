@@ -14,13 +14,14 @@
 #ifndef POLARIS_CPP_POLARIS_CACHE_RCU_MAP_H_
 #define POLARIS_CPP_POLARIS_CACHE_RCU_MAP_H_
 
+#include <functional>
 #include <list>
 #include <map>
+#include <mutex>
 #include <set>
 #include <vector>
 
 #include "logger.h"
-#include "sync/mutex.h"
 #include "utils/time_clock.h"
 #include "utils/utils.h"
 
@@ -57,7 +58,7 @@ void ValueDelete(Value* value) {
 /// 4.2 一个item不在dirty map中，如果它在read map中，那么它的value包含的指针一定为NULL
 template <typename Key, typename Value>
 class RcuMap {
-private:
+ private:
   struct MapValue {
     Value* value_;
     volatile uint64_t used_time_;
@@ -72,22 +73,26 @@ private:
     uint64_t delete_time_;
   };
 
-public:
+ public:
   explicit RcuMap(ValueOp allocator = ValueIncrementRef, ValueOp deallocator = ValueDecrementRef);
 
   ~RcuMap();
 
-  /// @brief 根据Key获取指向Value的指针，key不存在返回NULL
+  /// @brief 根据key获取指向value的指针，key不存在返回NULL
   Value* Get(const Key& key, bool update_access_time = true);
 
-  /// @brief 更新Key对应的Value
+  /// @brief 根据key获取指向Value的指针，key不存在返回NULL
+  Value* GetWithRcuTime(const Key& key);
+
+  /// @brief 更新key对应的value
   /// 如果key对应的value已存在，则将旧的value加入待释放列表，内部线程会延迟一定时间释放
   /// 如果传入的value为NULL，则效果等同于调用Delete方法删除key
   void Update(const Key& key, Value* value);
 
-  /// @brief 添加新的Key,Value
-  /// 如果key对应的value已存在，返回false
-  Value* PutIfAbsent(const Key& key, Value* value);
+  /// @brief 添加新的key,value
+  /// 如果key对应的value已存在，返回已存在的value
+  /// 如果key不存在，则使用creator函数创建新的value插入
+  Value* CreateOrGet(const Key& key, std::function<Value*()>& creator);
 
   /// @brief 删除指定key，并将value加入待释放列表
   void Delete(const Key& key);
@@ -101,14 +106,14 @@ public:
   /// @brief 获取所有Value的引用
   void GetAllValuesWithRef(std::vector<Value*>& values);
 
-private:
+ private:
   void CheckSwapInLock();
 
-private:
+ private:
   InnerMap* volatile read_map_;  // 多线程读线程安全map
   std::size_t miss_time_;        // 用于记录从dirty map中查到的次数
 
-  sync::Mutex dirty_lock_;
+  std::mutex dirty_lock_;
   InnerMap* dirty_map_;
   std::set<Key> deleted_keys_;
 
@@ -122,24 +127,23 @@ private:
 
 template <typename Key, typename Value>
 RcuMap<Key, Value>::RcuMap(ValueOp allocator, ValueOp deallocator) {
-  read_map_    = new InnerMap();
-  miss_time_   = 0;
-  dirty_map_   = new InnerMap();
-  allocator_   = allocator;
+  read_map_ = new InnerMap();
+  miss_time_ = 0;
+  dirty_map_ = new InnerMap();
+  allocator_ = allocator;
   deallocator_ = deallocator;
 }
 
 template <typename Key, typename Value>
 RcuMap<Key, Value>::~RcuMap() {
   for (typename InnerMap::iterator it = dirty_map_->begin(); it != dirty_map_->end(); ++it) {
-    POLARIS_ASSERT(it->second->value_ != NULL);  // dirty map中的MapValue，其value一定不为NULL
+    POLARIS_ASSERT(it->second->value_ != nullptr);  // dirty map中的MapValue，其value一定不为NULL
     deallocator_(it->second->value_);
     delete it->second;
   }
   delete dirty_map_;
 
-  for (typename std::set<Key>::iterator it = deleted_keys_.begin(); it != deleted_keys_.end();
-       ++it) {
+  for (typename std::set<Key>::iterator it = deleted_keys_.begin(); it != deleted_keys_.end(); ++it) {
     typename InnerMap::iterator map_it = read_map_->find(*it);
     POLARIS_ASSERT(map_it != read_map_->end());
     delete map_it->second;
@@ -168,20 +172,20 @@ RcuMap<Key, Value>::~RcuMap() {
 template <typename Key, typename Value>
 Value* RcuMap<Key, Value>::Get(const Key& key, bool update_access_time) {
   // 查询read map，获取结果
-  Value* read_result             = NULL;
-  InnerMap* current_read         = read_map_;
+  Value* read_result = nullptr;
+  InnerMap* current_read = read_map_;
   typename InnerMap::iterator it = current_read->find(key);
   if (it != current_read->end()) {  // MapValue包含的value指针在整个过程中是可能改变的
     if (update_access_time) {
-      it->second->used_time_ = Time::GetCurrentTimeMs();
+      it->second->used_time_ = Time::GetCoarseSteadyTimeMs();
     }
     read_result = it->second->value_;
   } else {
     // 从read map未读到数据，则加锁进行后续操作
-    sync::MutexGuard mutex_guard(dirty_lock_);
+    const std::lock_guard<std::mutex> mutex_guard(dirty_lock_);
     if ((it = dirty_map_->find(key)) != dirty_map_->end()) {
       if (update_access_time) {
-        it->second->used_time_ = Time::GetCurrentTimeMs();
+        it->second->used_time_ = Time::GetCoarseSteadyTimeMs();
       }
       read_result = it->second->value_;
       if (read_map_ == current_read) {
@@ -191,10 +195,35 @@ Value* RcuMap<Key, Value>::Get(const Key& key, bool update_access_time) {
       CheckSwapInLock();
     }
   }
-  if (read_result != NULL) {
+  if (read_result != nullptr) {
     allocator_(read_result);
   }
   return read_result;
+}
+
+template <typename Key, typename Value>
+Value* RcuMap<Key, Value>::GetWithRcuTime(const Key& key) {
+  // 查询read map，获取结果
+  InnerMap* current_read = read_map_;
+  typename InnerMap::iterator it = current_read->find(key);
+  if (it != current_read->end()) {  // MapValue包含的value指针在整个过程中是可能改变的
+    it->second->used_time_ = Time::GetCoarseSteadyTimeMs();
+    return it->second->value_;
+  } else {
+    Value* read_result = nullptr;
+    // 从read map未读到数据，则加锁进行后续操作
+    const std::lock_guard<std::mutex> mutex_guard(dirty_lock_);
+    if ((it = dirty_map_->find(key)) != dirty_map_->end()) {
+      it->second->used_time_ = Time::GetCoarseSteadyTimeMs();
+      read_result = it->second->value_;
+      if (read_map_ == current_read) {
+        miss_time_++;  // 记录read map读失败，dirty map读成功次数
+      }
+      // 判断miss次数是否足够导致促使dirty map交换成read map
+      CheckSwapInLock();
+    }
+    return read_result;
+  }
 }
 
 template <typename Key, typename Value>
@@ -205,9 +234,9 @@ void RcuMap<Key, Value>::CheckSwapInLock() {
 
   InnerMap* new_dirty_map = new InnerMap(*dirty_map_);
   DeletedMap deleted_map;
-  deleted_map.map_          = read_map_;
-  read_map_                 = dirty_map_;
-  deleted_map.delete_time_  = Time::GetCurrentTimeMs();
+  deleted_map.map_ = read_map_;
+  read_map_ = dirty_map_;
+  deleted_map.delete_time_ = Time::GetCoarseSteadyTimeMs();
   deleted_map.deleted_keys_ = new std::set<Key>();
   deleted_map.deleted_keys_->swap(deleted_keys_);
   dirty_map_ = new_dirty_map;
@@ -217,60 +246,78 @@ void RcuMap<Key, Value>::CheckSwapInLock() {
 
 template <typename Key, typename Value>
 void RcuMap<Key, Value>::Update(const Key& key, Value* value) {
-  if (value == NULL) {  // 直接调用Delete
+  if (value == nullptr) {  // 直接调用Delete
     this->Delete(key);
     return;
   }
 
   // 加锁将数据写入dirty map。
-  sync::MutexGuard mutex_guard(dirty_lock_);
+  const std::lock_guard<std::mutex> mutex_guard(dirty_lock_);
   typename InnerMap::iterator it = dirty_map_->find(key);
   if (it != dirty_map_->end()) {  // 更新dirty map
     MapValue old_value = *(it->second);
     it->second->value_ = value;
-    POLARIS_ASSERT(old_value.value_ != NULL);
-    old_value.used_time_ = Time::GetCurrentTimeMs();
+    POLARIS_ASSERT(old_value.value_ != nullptr);
+    old_value.used_time_ = Time::GetCoarseSteadyTimeMs();
     deleted_value_list_.push_back(old_value);  // 旧的数据加入回收列表
   } else {                                     // 插入
-    MapValue* new_value = NULL;
+    MapValue* new_value = nullptr;
     // 假如dirty map中没有key，那么此时可能在read map中包含被删除的key
     // 先检查read map是否有key
     if ((it = read_map_->find(key)) != read_map_->end()) {  // 有则更新并得到该value
       new_value = it->second;
-      POLARIS_ASSERT(new_value->value_ == NULL);
-      new_value->used_time_ = Time::GetCurrentTimeMs();  // 插入操作设置时间
-      new_value->value_     = value;
+      POLARIS_ASSERT(new_value->value_ == nullptr);
+      new_value->used_time_ = Time::GetCoarseSteadyTimeMs();  // 插入操作设置时间
+      new_value->value_ = value;
       // read map删除后又插入，相当于更新，需要删除记录去掉
       POLARIS_ASSERT(deleted_keys_.find(key) != deleted_keys_.end());
       deleted_keys_.erase(key);
     } else {  // read map没有相同的key，则创建该value
-      new_value             = new MapValue();
-      new_value->used_time_ = Time::GetCurrentTimeMs();  // 插入操作设置时间
-      new_value->value_     = value;
+      new_value = new MapValue();
+      new_value->used_time_ = Time::GetCoarseSteadyTimeMs();  // 插入操作设置时间
+      new_value->value_ = value;
     }
     (*dirty_map_)[key] = new_value;
   }
 }
 
 template <typename Key, typename Value>
-Value* RcuMap<Key, Value>::PutIfAbsent(const Key& key, Value* value) {
-  // 加锁将数据写入dirty map。
-  sync::MutexGuard mutex_guard(dirty_lock_);
-  typename InnerMap::iterator it = dirty_map_->find(key);
+Value* RcuMap<Key, Value>::CreateOrGet(const Key& key, std::function<Value*()>& creator) {
+  const std::lock_guard<std::mutex> mutex_guard(dirty_lock_);
+  auto it = dirty_map_->find(key);
   if (it != dirty_map_->end()) {
+    it->second->used_time_ = Time::GetCoarseSteadyTimeMs();
     return it->second->value_;
   }
 
-  MapValue* new_value   = new MapValue();
-  new_value->used_time_ = Time::GetCurrentTimeMs();  // 插入操作设置时间
-  new_value->value_     = value;
-  (*dirty_map_)[key]    = new_value;
-  return NULL;
+  Value* value = creator();
+  if (value == nullptr) {
+    return nullptr;
+  }
+
+  MapValue* new_value = nullptr;
+  // 假如dirty map中没有key，那么此时可能在read map中包含被删除的key
+  // 先检查read map是否有key
+  if ((it = read_map_->find(key)) != read_map_->end()) {  // 有则更新并得到该value
+    new_value = it->second;
+    POLARIS_ASSERT(new_value->value_ == nullptr);
+    new_value->used_time_ = Time::GetCoarseSteadyTimeMs();  // 插入操作设置时间
+    new_value->value_ = value;
+    // read map删除后又插入，相当于更新，需要删除记录去掉
+    POLARIS_ASSERT(deleted_keys_.find(key) != deleted_keys_.end());
+    deleted_keys_.erase(key);
+  } else {  // read map没有相同的key，则创建该value
+    new_value = new MapValue();
+    new_value->used_time_ = Time::GetCoarseSteadyTimeMs();  // 插入操作设置时间
+    new_value->value_ = value;
+  }
+  (*dirty_map_)[key] = new_value;
+  return value;
 }
 
 template <typename Key, typename Value>
 void RcuMap<Key, Value>::Delete(const Key& key) {
-  sync::MutexGuard mutex_guard(dirty_lock_);
+  const std::lock_guard<std::mutex> mutex_guard(dirty_lock_);
   typename InnerMap::iterator it = dirty_map_->find(key);
   // dirty map中没有的话，read map即使有value也已经释放成了NULL，退出即可
   if (it == dirty_map_->end()) {
@@ -279,15 +326,15 @@ void RcuMap<Key, Value>::Delete(const Key& key) {
 
   // dirty map中有该key的数据，从dirty map删除，并检查read map
   MapValue* map_value = it->second;
-  POLARIS_ASSERT(map_value != NULL);
-  POLARIS_ASSERT(map_value->value_ != NULL);
+  POLARIS_ASSERT(map_value != nullptr);
+  POLARIS_ASSERT(map_value->value_ != nullptr);
   dirty_map_->erase(it);
   // 被删除的数据放入GC
-  map_value->used_time_ = Time::GetCurrentTimeMs();
+  map_value->used_time_ = Time::GetCoarseSteadyTimeMs();
   deleted_value_list_.push_back(*map_value);
   // 重置read map中的value为NULL，不删除value
   if ((it = read_map_->find(key)) != read_map_->end()) {
-    it->second->value_ = NULL;
+    it->second->value_ = nullptr;
     deleted_keys_.insert(key);
   } else {  // 只有dirty map中有，则删除value
     delete map_value;
@@ -298,7 +345,7 @@ template <typename Key, typename Value>
 void RcuMap<Key, Value>::CheckGc(uint64_t min_delete_time) {
   std::vector<Value*> values_need_delete;
   do {  // 加锁获取需要删除的values
-    sync::MutexGuard mutex_guard(dirty_lock_);
+    const std::lock_guard<std::mutex> mutex_guard(dirty_lock_);
     while (!deleted_value_list_.empty()) {
       MapValue& oldest_value = deleted_value_list_.front();
       if (oldest_value.used_time_ >= min_delete_time) {
@@ -314,7 +361,7 @@ void RcuMap<Key, Value>::CheckGc(uint64_t min_delete_time) {
 
   std::vector<DeletedMap> map_need_delete;
   do {  // 加锁获取需要删除的map
-    sync::MutexGuard mutex_guard(dirty_lock_);
+    const std::lock_guard<std::mutex> mutex_guard(dirty_lock_);
     while (!deleted_map_list_.empty()) {
       DeletedMap& oldest_value = deleted_map_list_.front();
       if (oldest_value.delete_time_ >= min_delete_time) {
@@ -338,9 +385,8 @@ void RcuMap<Key, Value>::CheckGc(uint64_t min_delete_time) {
 }
 
 template <typename Key, typename Value>
-void RcuMap<Key, Value>::CheckExpired(uint64_t min_access_time,
-                                      std::vector<Key>& keys_need_expired) {
-  sync::MutexGuard mutex_guard(dirty_lock_);
+void RcuMap<Key, Value>::CheckExpired(uint64_t min_access_time, std::vector<Key>& keys_need_expired) {
+  const std::lock_guard<std::mutex> mutex_guard(dirty_lock_);
   for (typename InnerMap::iterator it = dirty_map_->begin(); it != dirty_map_->end(); ++it) {
     if (it->second->used_time_ <= min_access_time) {
       keys_need_expired.push_back(it->first);
@@ -350,7 +396,7 @@ void RcuMap<Key, Value>::CheckExpired(uint64_t min_access_time,
 
 template <typename Key, typename Value>
 void RcuMap<Key, Value>::GetAllValuesWithRef(std::vector<Value*>& values) {
-  sync::MutexGuard mutex_guard(dirty_lock_);
+  const std::lock_guard<std::mutex> mutex_guard(dirty_lock_);
   for (typename InnerMap::iterator it = dirty_map_->begin(); it != dirty_map_->end(); ++it) {
     allocator_(it->second->value_);
     values.push_back(it->second->value_);

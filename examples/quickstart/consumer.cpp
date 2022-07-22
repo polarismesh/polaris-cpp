@@ -30,7 +30,7 @@
 #include "polaris/consumer.h"
 
 class ConsumerServer {
-public:
+ public:
   ConsumerServer(const std::string& host, int port, const polaris::ServiceKey& provider_service);
 
   ~ConsumerServer();
@@ -39,12 +39,12 @@ public:
 
   void Stop();
 
-private:
+ private:
   std::string Proccess(const std::string& message);
 
   int Send(const std::string& host, int port, const std::string& request, std::string& response);
 
-private:
+ private:
   std::string host_;
   int port_;
   polaris::ServiceKey provider_service_;
@@ -88,8 +88,7 @@ int main(int argc, char** argv) {
   return 0;
 }
 
-ConsumerServer::ConsumerServer(const std::string& host, int port,
-                               const polaris::ServiceKey& provider_service)
+ConsumerServer::ConsumerServer(const std::string& host, int port, const polaris::ServiceKey& provider_service)
     : host_(host), port_(port), provider_service_(provider_service), stop_(false) {
   consumer_ = std::unique_ptr<polaris::ConsumerApi>(polaris::ConsumerApi::CreateWithDefaultFile());
 }
@@ -110,17 +109,15 @@ int ConsumerServer::Start() {
   server_addr.sin_port = htons(port_);
 
   // bind socket
-  if (bind(sock_listener, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-    std::cerr << "bind to " << host_ << ":" << port_ << " failed with error: " << errno
-              << std::endl;
+  if (bind(sock_listener, reinterpret_cast<sockaddr*>(&server_addr), sizeof(server_addr)) < 0) {
+    std::cerr << "bind to " << host_ << ":" << port_ << " failed with error: " << errno << std::endl;
     close(sock_listener);
     return -2;
   }
 
   // start listening
   if (listen(sock_listener, SOMAXCONN) < 0) {
-    std::cerr << "listen to " << host_ << ":" << port_ << " failed with error: " << errno
-              << std::endl;
+    std::cerr << "listen to " << host_ << ":" << port_ << " failed with error: " << errno << std::endl;
     close(sock_listener);
     return -3;
   }
@@ -133,16 +130,16 @@ int ConsumerServer::Start() {
       FD_ZERO(&set);
       FD_SET(sock_listener, &set);
       struct timeval timeout;
-      timeout.tv_sec  = 2;
+      timeout.tv_sec = 2;
       timeout.tv_usec = 0;
-      int ret         = select(sock_listener + 1, &set, NULL, NULL, &timeout);
+      int ret = select(sock_listener + 1, &set, NULL, NULL, &timeout);
       if (ret <= 0) {
         continue;
       }
       sockaddr_in client_addr;
       socklen_t client_addr_size = sizeof(client_addr);
       int sock_client;
-      if ((sock_client = accept(sock_listener, (sockaddr*)&client_addr, &client_addr_size)) < 0) {
+      if ((sock_client = accept(sock_listener, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_size)) < 0) {
         std::cerr << "accept connection failed with error:" << errno << std::endl;
         continue;
       }
@@ -157,7 +154,7 @@ int ConsumerServer::Start() {
           return;
         }
         std::string response = Proccess(buffer);
-        bytes                = send(sock_client, response.data(), response.size(), 0);
+        bytes = send(sock_client, response.data(), response.size(), 0);
         close(sock_client);
 
         if (bytes < 0) {
@@ -177,23 +174,21 @@ std::string ConsumerServer::Proccess(const std::string& message) {
   polaris::Instance instance;
   auto ret_code = consumer_->GetOneInstance(instance_requst, instance);
   if (ret_code != polaris::kReturnOk) {
-    std::cout << "get one instance for service with error: "
-              << polaris::ReturnCodeToMsg(ret_code).c_str() << std::endl;
+    std::cout << "get one instance for service with error: " << polaris::ReturnCodeToMsg(ret_code).c_str() << std::endl;
   }
 
   // 调用业务
   std::string response;
   auto begin_time = std::chrono::steady_clock::now();
-  int send_ret    = Send(instance.GetHost(), instance.GetPort(), message, response);
-  auto end_time   = std::chrono::steady_clock::now();
+  int send_ret = Send(instance.GetHost(), instance.GetPort(), message, response);
+  auto end_time = std::chrono::steady_clock::now();
 
   // 上报调用结果
   polaris::ServiceCallResult result;
   result.SetServiceNamespace(provider_service_.namespace_);
   result.SetServiceName(provider_service_.name_);
   result.SetInstanceId(instance.GetId());
-  result.SetDelay(
-      std::chrono::duration_cast<std::chrono::milliseconds>(end_time - begin_time).count());
+  result.SetDelay(std::chrono::duration_cast<std::chrono::milliseconds>(end_time - begin_time).count());
   result.SetRetCode(send_ret);
   result.SetRetStatus(send_ret >= 0 ? polaris::kCallRetOk : polaris::kCallRetError);
   if ((ret_code = consumer_->UpdateServiceCallResult(result)) != polaris::kReturnOk) {
@@ -202,15 +197,13 @@ std::string ConsumerServer::Proccess(const std::string& message) {
   }
 
   if (send_ret) {
-    response =
-        "send msg to " + instance.GetHost() + ":" + std::to_string(instance.GetPort()) + " failed";
+    response = "send msg to " + instance.GetHost() + ":" + std::to_string(instance.GetPort()) + " failed";
   }
   std::cout << response << std::endl;
   return response;
 }
 
-int ConsumerServer::Send(const std::string& host, int port, const std::string& request,
-                         std::string& response) {
+int ConsumerServer::Send(const std::string& host, int port, const std::string& request, std::string& response) {
   // create a socket
   int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (sock_fd < 0) {
@@ -223,7 +216,7 @@ int ConsumerServer::Send(const std::string& host, int port, const std::string& r
   inet_pton(AF_INET, host.c_str(), &server_addr.sin_addr);
   server_addr.sin_port = htons(port);
 
-  if (connect(sock_fd, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+  if (connect(sock_fd, reinterpret_cast<sockaddr*>(&server_addr), sizeof(server_addr)) < 0) {
     std::cerr << "connection establish failed: " << errno << std::endl;
     close(sock_fd);
     return -2;

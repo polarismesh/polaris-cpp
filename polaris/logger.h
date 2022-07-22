@@ -15,16 +15,16 @@
 #define POLARIS_CPP_POLARIS_LOGGER_H_
 
 #ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS
+#  define __STDC_FORMAT_MACROS
 #endif
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 
+#include <mutex>
 #include <string>
 
 #include "polaris/log.h"
-#include "sync/mutex.h"
 #include "utils/utils.h"
 
 namespace polaris {
@@ -63,9 +63,8 @@ namespace polaris {
 const char* LogLevelToStr(LogLevel log_level);
 
 class LoggerImpl : public Logger {
-public:
-  LoggerImpl(const std::string& log_path, const std::string& log_file_name, int max_file_size,
-             int max_file_no);
+ public:
+  LoggerImpl(const std::string& log_path, const std::string& log_file_name, int max_file_size, int max_file_no);
 
   explicit LoggerImpl(const std::string& log_file_name);
 
@@ -75,18 +74,20 @@ public:
 
   virtual void SetLogLevel(LogLevel log_level);
 
+  virtual void SetLogFile(int file_size, int file_no);
+
   virtual void SetLogDir(const std::string& log_dir);
 
   virtual void Log(const char* file, int line, LogLevel log_level, const char* format, ...)
       __attribute__((format(printf, 5, 6)));
 
-private:
+ private:
   void CloseFile();
   void OpenFile();
   void ShiftFile();
   void ShiftFileWithFileLock();
 
-private:
+ private:
   friend class LoggerTest_TestFileShift_Test;
   LogLevel log_level_;
 
@@ -94,10 +95,10 @@ private:
   std::string log_file_name_;
   int max_file_size_;
   int max_file_no_;
-  sync::Mutex lock_;
+  std::mutex lock_;
   FILE* log_file_;
   int cur_file_size_;
-  uint64_t shift_check_time_;  // 上次检查文件是否需要滚动的时间
+  uint64_t next_shift_check_time_;  // 下次检查文件是否需要滚动的时间
 };
 
 }  // namespace polaris

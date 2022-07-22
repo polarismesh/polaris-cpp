@@ -16,143 +16,82 @@
 
 #include <pthread.h>
 
+#include <atomic>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 #include <vector>
 
-#include "model/route_rule.h"
+#include "logger.h"
 #include "plugin/load_balancer/hash/hash_manager.h"
 #include "polaris/defs.h"
 #include "polaris/model.h"
 #include "polaris/plugin.h"
 #include "quota/model/service_rate_limit_rule.h"
-#include "sync/atomic.h"
 #include "sync/cond_var.h"
-#include "sync/mutex.h"
-#include "utils/scoped_ptr.h"
+#include "utils/ref_count.h"
 #include "v1/request.pb.h"
 #include "v1/response.pb.h"
 
 namespace polaris {
 
-/*
- * @desc instance 的本地缓存数据
- */
-class InstanceLocalValue : public ServiceBase {
-public:
-  InstanceLocalValue() {}
-
-  virtual ~InstanceLocalValue() {}
-
-  // AcquireXXX/ReleaseXXX 必须配对使用
-  std::vector<uint64_t>& AcquireVnodeHash() {
-    vnode_hash_mutex_.Lock();
-    return vnode_hash_;
-  }
-  void ReleaseVnodeHash() { vnode_hash_mutex_.Unlock(); }
-
-private:
-  // 引用计数
-  std::vector<uint64_t> vnode_hash_;
-  sync::Mutex vnode_hash_mutex_;
-};
-
-class Instance::InstanceImpl {
-public:
-  std::string id_;
-  std::string host_;
-  int port_;
-  std::string vpc_id_;
-  uint32_t weight_;
-  uint64_t local_id_;
-
-  std::string protocol_;
-  std::string version_;
-  int priority_;
-  bool is_healthy_;
-  bool is_isolate_;
-  std::map<std::string, std::string> metadata_;
-  std::string container_name_;     // 容器名
-  std::string internal_set_name_;  // set名
-  std::string logic_set_;
-  std::string region_;
-  std::string zone_;
-  std::string campus_;
-  uint64_t hash_;
-  InstanceLocalValue* localValue_;
-  uint32_t dynamic_weight_;
-  uint64_t locality_aware_info_;  // 默认值为0,启用la后为非0值
-
-  InstanceImpl();
-
-  explicit InstanceImpl(const InstanceImpl& impl);
-
-  const InstanceImpl& operator=(const InstanceImpl& impl);
-
-  virtual ~InstanceImpl() {
-    if (localValue_ != NULL) {
-      localValue_->DecrementRef();
-    }
-  }
-};
-
 const char* DataTypeToStr(ServiceDataType data_type);
-
-class ServiceBaseImpl {
-public:
-  volatile int ref_count_;
-};
 
 /// @desc 负载均衡选择子接口类，返回值均为实例下标
 class Selector {
-public:
+ public:
   virtual ~Selector() {}
 
   virtual int Select(const Criteria& criteria) = 0;
 };
 
 class InstancesSetImpl {
-public:
-  explicit InstancesSetImpl(const std::vector<Instance*>& instances) : instances_(instances) {}
+ public:
+  explicit InstancesSetImpl(const std::vector<Instance*>& instances)
+      : count_(0), instances_(instances), recover_all_(false) {}
 
-  InstancesSetImpl(const std::vector<Instance*>& instances,
-                   const std::map<std::string, std::string>& subset)
-      : instances_(instances), subset_(subset) {}
+  InstancesSetImpl(const std::vector<Instance*>& instances, const std::map<std::string, std::string>& subset)
+      : count_(0), instances_(instances), subset_(subset), recover_all_(false) {}
 
-  InstancesSetImpl(const std::vector<Instance*>& instances,
-                   const std::map<std::string, std::string>& subset,
+  InstancesSetImpl(const std::vector<Instance*>& instances, const std::map<std::string, std::string>& subset,
                    const std::string& recover_info)
-      : instances_(instances), subset_(subset), recover_info_(recover_info) {}
+      : count_(0), instances_(instances), subset_(subset), recover_all_(false), recover_info_(recover_info) {}
 
-public:
-  sync::Atomic<bool> recover_all_;  // 用来标记这个集合计算的下一个路由是否发生了全死全活
-  sync::Atomic<int> count_;  // 记录这个Set被访问的次数
+  bool UpdateRecoverAll(bool recover_all);
 
-private:
+  static uint64_t CalcTotalWeight(const std::vector<Instance*>& instances);
+
+  static uint32_t CalcMaxWeight(const std::vector<Instance*>& instances);
+
+  std::mutex& CreationLock() { return selector_creation_mutex_; }
+
+ public:
+  std::atomic<int> count_;  // 记录这个Set被访问的次数
+
+ private:
   friend class InstancesSet;
   std::vector<Instance*> instances_;
   std::map<std::string, std::string> subset_;  // 所属的subset
+  std::atomic<bool> recover_all_;  // 用来标记这个集合计算的下一个路由是否发生了全死全活
   std::string recover_info_;
-  ScopedPtr<Selector> selector_;
-  sync::Mutex selector_creation_mutex_;
-};
-
-struct RouterStatData {
-  v1::RouteRecord record_;
+  std::unique_ptr<Selector> selector_;
+  std::mutex selector_creation_mutex_;
 };
 
 class InstancesData {
-public:
+ public:
+  InstancesData()
+      : is_enable_nearby_(false), is_enable_canary_(false), instances_(nullptr), dynamic_weight_version_(0) {}
+
   ~InstancesData() {
     instances_->DecrementRef();
-    for (std::map<std::string, Instance*>::iterator it = instances_map_.begin();
-         it != instances_map_.end(); ++it) {
-      delete it->second;
+    for (auto& it : instances_map_) {
+      delete it.second;
     }
-    for (std::set<Instance*>::iterator it = isolate_instances_.begin();
-         it != isolate_instances_.end(); ++it) {
-      delete *it;
+    for (auto& instance : isolate_instances_) {
+      delete instance;
     }
   }
   std::map<std::string, std::string> metadata_;
@@ -162,26 +101,16 @@ public:
   std::set<Instance*> unhealthy_instances_;
   std::set<Instance*> isolate_instances_;
   InstancesSet* instances_;
+  std::atomic<uint64_t> dynamic_weight_version_;
 };
 
-class ServiceInstancesImpl {
-private:
-  friend class ServiceInstances;
+class ServiceInstances::Impl {
+ public:
+  explicit Impl(ServiceData* service_data);
   ServiceData* service_data_;
-  InstancesData* data_;
-  bool all_instances_available_;
   InstancesSet* available_instances_;
-};
-
-struct RouteRuleBound {
-  RouteRule route_rule_;
-  bool recover_all_;  // 是否全死全活
-};
-
-struct RouteRuleData {
-  std::vector<RouteRuleBound> inbounds_;
-  std::vector<RouteRuleBound> outbounds_;
-  std::set<std::string> keys_;  // 规则中设置的key
+  InstancesData* data_;
+  uint64_t dynamic_weight_version_;
 };
 
 struct ServiceKeyWithType {
@@ -197,8 +126,10 @@ inline bool operator<(ServiceKeyWithType const& lhs, ServiceKeyWithType const& r
   }
 }
 
+struct RouteRuleData;
+
 class ServiceDataImpl {
-public:
+ public:
   // 解析服务实例数据
   void ParseInstancesData(v1::DiscoverResponse& response);
 
@@ -212,6 +143,8 @@ public:
   // 熔断配置
   void ParseCircuitBreaker(v1::DiscoverResponse& response);
 
+  RouteRuleData* GetRouteRuleData() { return data_.route_rule_; }
+
   RateLimitData* GetRateLimitData() { return data_.rate_limit_; }
 
   v1::CircuitBreaker* GetCircuitBreaker() { return data_.circuitBreaker_; }
@@ -221,15 +154,16 @@ public:
    *
    * @return uint64_t 0 - 处理失败, ow - 可用的哈希值
    */
-  uint64_t HandleHashConflict(const std::map<uint64_t, Instance*>& hashMap,
-                              const ::v1::Instance& instance_data, Hash64Func hashFunc);
+  uint64_t HandleHashConflict(const std::map<uint64_t, Instance*>& hashMap, const ::v1::Instance& instance_data,
+                              Hash64Func hashFunc);
 
-private:
+ private:
   friend class ServiceInstances;
   friend class ServiceRouteRule;
   friend class ServiceData;
   friend class Service;
   friend class PluginManager;
+  friend class InMemoryRegistry;
   ServiceKey service_key_;
   std::string revision_;
   uint64_t cache_version_;
@@ -250,42 +184,42 @@ private:
 };
 
 class ConditionVariableDataNotify : public DataNotify {
-public:
+ public:
   ConditionVariableDataNotify() {}
 
   virtual ~ConditionVariableDataNotify() {}
 
   virtual void Notify() { data_loaded_.NotifyAll(); }
 
-  virtual bool Wait(uint64_t timeout) { return data_loaded_.Wait(timeout); }
+  virtual bool Wait(uint64_t timeout) { return data_loaded_.WaitFor(timeout); }
 
-private:
+ private:
   sync::CondVarNotify data_loaded_;
 };
 
 class ServiceDataNotifyImpl {
-public:
+ public:
   ServiceDataNotifyImpl(const ServiceKey& service_key, ServiceDataType data_type);
   ~ServiceDataNotifyImpl();
 
-private:
+ private:
   friend class ServiceDataNotify;
   ServiceKey service_key_;
   ServiceDataType data_type_;
   DataNotify* data_notify_;
-  sync::Mutex service_data_lock_;
+  std::mutex service_data_lock_;
   ServiceData* service_data_;
 };
 
 class ServiceImpl {
-public:
+ public:
   ServiceImpl(const ServiceKey& service_key, uint32_t service_id);
   ~ServiceImpl();
 
   // 更新服务实例数据的本地ID
   void UpdateInstanceId(ServiceData* service_data);
 
-private:
+ private:
   friend class Service;
   ServiceKey service_key_;
   uint32_t service_id_;
@@ -299,14 +233,18 @@ private:
   std::set<std::string> open_instances_;
 
   // 半开优先分配数据
-  sync::Mutex half_open_lock_;
-  sync::Atomic<uint64_t> last_half_open_time_;
-  sync::Atomic<int> try_half_open_count_;
+  std::mutex half_open_lock_;
+  std::atomic<uint64_t> last_half_open_time_;
+  std::atomic<int> try_half_open_count_;
   bool have_half_open_data_;
   std::map<std::string, int> half_open_data_;  // 存储半开分配数据
 
   // 动态权重数据
+  pthread_rwlock_t dynamic_weights_data_lock_;
   volatile uint64_t dynamic_weights_version_;
+  uint64_t dynamic_weights_data_last_update_time_;
+  DynamicWeightDataStatus dynamic_weights_data_status_;
+  uint64_t dynamic_weights_data_sync_interval_;
   std::map<std::string, uint32_t> dynamic_weights_;
   uint64_t min_dynamic_weight_for_init_;
 
@@ -328,17 +266,6 @@ struct Labels {
   std::string labels_str;
 
   std::string GetLabelStr();
-};
-
-// 实例分组数据
-struct RuleRouterSet {
-  uint32_t weight_;
-  std::vector<Instance*> healthy_;
-  std::vector<Instance*> unhealthy_;
-  // subset
-  SubSetInfo subset;
-  //是否被隔离
-  bool isolated_;
 };
 
 }  // namespace polaris

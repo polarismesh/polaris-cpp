@@ -25,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-#include "context_internal.h"
+#include "context/context_impl.h"
 #include "logger.h"
 #include "model/match_string.h"
 #include "model/model_impl.h"
@@ -59,8 +59,7 @@ static bool MetadataMatch(const google::protobuf::Map<std::string, v1::MatchStri
   return true;
 }
 
-static bool NameAndServiceMatch(const std::string& rule_namespace,
-                                const std::string& rule_service_name,
+static bool NameAndServiceMatch(const std::string& rule_namespace, const std::string& rule_service_name,
                                 const std::string& namespace_str, const std::string& service_name) {
   if ((rule_namespace == namespace_str || rule_namespace == "*") &&
       (rule_service_name == service_name || rule_service_name == "*")) {
@@ -110,36 +109,35 @@ std::string Labels::GetLabelStr() {
   }
 }
 
-SetCircuitBreakerImpl::SetCircuitBreakerImpl(const ServiceKey& service_key)
-    : service_key_(service_key) {
-  windows_manager_ = NULL;
-  context_         = NULL;
-  chain_data_impl_ = NULL;
-  enable_          = false;
+SetCircuitBreakerImpl::SetCircuitBreakerImpl(const ServiceKey& service_key) : service_key_(service_key) {
+  windows_manager_ = nullptr;
+  context_ = nullptr;
+  chain_data_impl_ = nullptr;
+  enable_ = false;
 }
 
 SetCircuitBreakerImpl::~SetCircuitBreakerImpl() {
-  context_ = NULL;
-  if (chain_data_impl_ != NULL) {
+  context_ = nullptr;
+  if (chain_data_impl_ != nullptr) {
     chain_data_impl_->MarkDeleted();
     chain_data_impl_->DecrementRef();
   }
-  if (windows_manager_ != NULL) {
+  if (windows_manager_ != nullptr) {
     delete windows_manager_;
-    windows_manager_ = NULL;
+    windows_manager_ = nullptr;
   }
 }
 
 ReturnCode SetCircuitBreakerImpl::Init(Config* plugin_config, Context* context) {
   context_ = context;
-  enable_  = plugin_config->GetBoolOrDefault("enable", false);
+  enable_ = plugin_config->GetBoolOrDefault("enable", false);
   if (!enable_) {
     return kReturnNotInit;
   }
 
-  ContextImpl* context_impl                        = context->GetContextImpl();
+  ContextImpl* context_impl = context->GetContextImpl();
   CircuitBreakerExecutor* circuit_breaker_executor = context_impl->GetCircuitBreakerExecutor();
-  LocalRegistry* local_registry                    = context_->GetLocalRegistry();
+  LocalRegistry* local_registry = context_->GetLocalRegistry();
   windows_manager_ = new MetricWindowManager(context_, circuit_breaker_executor);
   chain_data_impl_ = new CircuitBreakSetChainData(service_key_, local_registry, windows_manager_,
                                                   context->GetContextImpl()->GetServiceRecord());
@@ -149,17 +147,15 @@ ReturnCode SetCircuitBreakerImpl::Init(Config* plugin_config, Context* context) 
 ReturnCode SetCircuitBreakerImpl::GetCbPConfPbFromLocalRegistry(ServiceData*& service_data,
                                                                 v1::CircuitBreaker*& pb_conf) {
   LocalRegistry* local_registry = context_->GetLocalRegistry();
-  ReturnCode ret_code =
-      local_registry->GetServiceDataWithRef(service_key_, kCircuitBreakerConfig, service_data);
+  ReturnCode ret_code = local_registry->GetServiceDataWithRef(service_key_, kCircuitBreakerConfig, service_data);
   if (ret_code != kReturnOk) {
-    ServiceDataNotify* conf_notify_tmp = NULL;
-    local_registry->LoadServiceDataWithNotify(service_key_, kCircuitBreakerConfig, service_data,
-                                              conf_notify_tmp);
+    ServiceDataNotify* conf_notify_tmp = nullptr;
+    local_registry->LoadServiceDataWithNotify(service_key_, kCircuitBreakerConfig, service_data, conf_notify_tmp);
   }
-  if (service_data == NULL) {
+  if (service_data == nullptr) {
     return kReturnNotInit;
   }
-  if (service_data->GetServiceDataImpl()->GetCircuitBreaker() == NULL) {
+  if (service_data->GetServiceDataImpl()->GetCircuitBreaker() == nullptr) {
     service_data->DecrementRef();
     return kReturnNotInit;
   }
@@ -167,27 +163,26 @@ ReturnCode SetCircuitBreakerImpl::GetCbPConfPbFromLocalRegistry(ServiceData*& se
   return kReturnOk;
 }
 
-ReturnCode SetCircuitBreakerImpl::MatchDestinationSet(v1::CircuitBreaker* pb_conf,
-                                                      const InstanceGauge& gauge,
+ReturnCode SetCircuitBreakerImpl::MatchDestinationSet(v1::CircuitBreaker* pb_conf, const InstanceGauge& gauge,
                                                       v1::DestinationSet*& dst_conf_ptr) {
   for (int i = 0; i < pb_conf->inbounds_size(); ++i) {
     const v1::CbRule cb_rule = pb_conf->inbounds(i);
-    bool match               = false;
+    bool match = false;
     // 匹配sourceMatchers
     for (int j = 0; j < cb_rule.sources_size(); ++j) {
       const v1::SourceMatcher& source = cb_rule.sources(j);
-      if (NameAndServiceMatch(source.namespace_().value(), source.service().value(),
-                              gauge.source_service_key.namespace_,
-                              gauge.source_service_key.name_)) {
+      if (gauge.source_service_key != nullptr &&
+          NameAndServiceMatch(source.namespace_().value(), source.service().value(),
+                              gauge.source_service_key->namespace_, gauge.source_service_key->name_)) {
         if (source.labels().empty()) {
-          if (gauge.labels_.empty()) {
+          if (gauge.labels_ == nullptr || gauge.labels_->empty()) {
             POLARIS_LOG(POLARIS_TRACE, "[SET-CIRCUIT-BREAKER]CbRuleCircuitBreaker::Match");
             match = true;
             break;
           }
         } else {
-          if (!gauge.labels_.empty()) {
-            if (MetadataMatch(source.labels(), gauge.labels_)) {
+          if (gauge.labels_ != nullptr && !gauge.labels_->empty()) {
+            if (MetadataMatch(source.labels(), *gauge.labels_)) {
               POLARIS_LOG(POLARIS_TRACE, "[SET-CIRCUIT-BREAKER]CbRuleCircuitBreaker::Match");
               match = true;
               break;
@@ -203,10 +198,10 @@ ReturnCode SetCircuitBreakerImpl::MatchDestinationSet(v1::CircuitBreaker* pb_con
     match = false;
     for (int j = 0; j < cb_rule.destinations_size(); ++j) {
       const v1::DestinationSet& dst_conf = cb_rule.destinations(j);
-      if (NameAndServiceMatch(dst_conf.namespace_().value(), dst_conf.service().value(),
-                              gauge.service_namespace, gauge.service_name)) {
-        if ((dst_conf.metadata().empty() && gauge.subset_.empty()) ||
-            MetadataMatch(dst_conf.metadata(), gauge.subset_)) {
+      if (NameAndServiceMatch(dst_conf.namespace_().value(), dst_conf.service().value(), gauge.service_key_.namespace_,
+                              gauge.service_key_.name_)) {
+        if ((dst_conf.metadata().empty() && (gauge.subset_ == nullptr || gauge.subset_->empty())) ||
+            (gauge.subset_ != nullptr && MetadataMatch(dst_conf.metadata(), *gauge.subset_))) {
           dst_conf_ptr = pb_conf->mutable_inbounds(i)->mutable_destinations(j);
           return kReturnOk;
         }
@@ -217,27 +212,32 @@ ReturnCode SetCircuitBreakerImpl::MatchDestinationSet(v1::CircuitBreaker* pb_con
 }
 
 ReturnCode SetCircuitBreakerImpl::RealTimeCircuitBreak(const InstanceGauge& instance_gauge) {
-  if (instance_gauge.subset_.empty() && instance_gauge.labels_.empty()) {
+  if ((instance_gauge.subset_ == nullptr || instance_gauge.subset_->empty()) &&
+      (instance_gauge.labels_ == nullptr || instance_gauge.labels_->empty())) {
     return kReturnOk;
   }
   ServiceData* service_data;
-  v1::CircuitBreaker* pb_conf = NULL;
-  ReturnCode ret_code         = GetCbPConfPbFromLocalRegistry(service_data, pb_conf);
+  v1::CircuitBreaker* pb_conf = nullptr;
+  ReturnCode ret_code = GetCbPConfPbFromLocalRegistry(service_data, pb_conf);
   if (ret_code != kReturnOk) {
     return kReturnOk;
   }
 
-  if (pb_conf == NULL) {
+  if (pb_conf == nullptr) {
     service_data->DecrementRef();
     return kReturnOk;
   }
   SubSetInfo subset_info;
-  subset_info.subset_map_ = instance_gauge.subset_;
+  if (instance_gauge.subset_ != nullptr) {
+    subset_info.subset_map_ = *instance_gauge.subset_;
+  }
   Labels labels;
-  labels.labels_       = instance_gauge.labels_;
+  if (instance_gauge.labels_ != nullptr) {
+    labels.labels_ = *instance_gauge.labels_;
+  }
   MetricWindow* window = windows_manager_->GetWindow(subset_info, labels);
-  if (window == NULL || window->GetVersion() != pb_conf->revision().value()) {
-    if (window != NULL) {
+  if (window == nullptr || window->GetVersion() != pb_conf->revision().value()) {
+    if (window != nullptr) {
       window->DecrementRef();
     }
     v1::DestinationSet* dst_conf_ptr;
@@ -247,9 +247,8 @@ ReturnCode SetCircuitBreakerImpl::RealTimeCircuitBreak(const InstanceGauge& inst
       POLARIS_LOG(POLARIS_DEBUG, "[SET-CIRCUIT-BREAKER] not match");
       return kReturnOk;
     }
-    window = windows_manager_->UpdateWindow(service_key_, subset_info, labels,
-                                            pb_conf->revision().value(), dst_conf_ptr,
-                                            pb_conf->id().value(), chain_data_impl_);
+    window = windows_manager_->UpdateWindow(service_key_, subset_info, labels, pb_conf->revision().value(),
+                                            dst_conf_ptr, pb_conf->id().value(), chain_data_impl_);
   }
   ret_code = window->AddCount(instance_gauge);
   service_data->DecrementRef();
@@ -260,8 +259,7 @@ ReturnCode SetCircuitBreakerImpl::RealTimeCircuitBreak(const InstanceGauge& inst
 ReturnCode SetCircuitBreakerImpl::TimingCircuitBreak() {
   ReturnCode return_code = chain_data_impl_->CheckAndSyncToRegistry();
   if (return_code != kReturnOk) {
-    POLARIS_LOG(POLARIS_ERROR, "set circuit breaker check and sync to registry error:%d",
-                return_code);
+    POLARIS_LOG(POLARIS_ERROR, "set circuit breaker check and sync to registry error:%d", return_code);
   }
   windows_manager_->WindowGc();
   return return_code;

@@ -14,7 +14,11 @@
 #ifndef POLARIS_CPP_POLARIS_PROVIDER_API_IMPL_H_
 #define POLARIS_CPP_POLARIS_PROVIDER_API_IMPL_H_
 
+#include <mutex>
 #include "polaris/provider.h"
+
+#include "polaris/defs.h"
+#include "provider/request.h"
 
 namespace polaris {
 
@@ -22,26 +26,28 @@ class Context;
 
 /// @brief POLARIS服务端API的主接口实现
 class ProviderApi::Impl {
-public:
+ public:
   explicit Impl(Context* context);
 
   ~Impl();
 
-private:
+ private:
   friend class ProviderApi;
   Context* context_;
+  std::mutex mutex_;
+  std::map<std::string, ProviderRequestBase*> registeredInstances_;
 };
 
 class ApiStat;
 class ProviderCallbackWrapper : public ProviderCallback {
-public:
+ public:
   ProviderCallbackWrapper(ProviderCallback* callback, ApiStat* stat);
 
   virtual ~ProviderCallbackWrapper();
 
   virtual void Response(ReturnCode code, const std::string& message);
 
-private:
+ private:
   ProviderCallback* callback_;
   ApiStat* stat_;
 };

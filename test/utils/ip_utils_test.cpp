@@ -30,7 +30,7 @@ TEST(IPUtilsTest, Translate) {
   std::string str_ip;
   uint32_t input_ip;
   uint32_t output_ip;
-  srand(time(NULL));
+  srand(time(nullptr));
   for (uint32_t i = 0; i < 1000000; ++i) {
     input_ip = rand() & 0xffffffff;
     ASSERT_TRUE(IpUtils::IntIpToStr(input_ip, str_ip));

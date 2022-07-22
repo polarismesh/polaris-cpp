@@ -15,6 +15,7 @@
 #define POLARIS_CPP_INCLUDE_POLARIS_CONSUMER_H_
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -24,11 +25,9 @@
 
 namespace polaris {
 
-class GetOneInstanceRequestImpl;
-
 /// @brief 获取单个服务实例请求
 class GetOneInstanceRequest : Noncopyable {
-public:
+ public:
   /// @brief 构建获取单个服务实例请求对象
   ///
   /// @param service_key 命名空间和服务名
@@ -108,16 +107,16 @@ public:
   ///                        大于0表示从hash实例后面的第几个副本
   void SetReplicateIndex(int replicate_index);
 
-private:
-  friend class GetOneInstanceRequestAccessor;
-  GetOneInstanceRequestImpl* impl;
-};
+  class Impl;
+  Impl& GetImpl() const;
 
-class GetInstancesRequestImpl;
+ private:
+  Impl* impl_;
+};
 
 /// @brief 获取批量服务实例请求
 class GetInstancesRequest : Noncopyable {
-public:
+ public:
   /// @brief 构造获取批量服务实例请求
   ///
   /// @param service_key 命名空间和服务名
@@ -178,16 +177,16 @@ public:
   /// @param timeout 设置请求超时时间，可选，单位ms
   void SetTimeout(uint64_t timeout);
 
-private:
-  friend class GetInstancesRequestAccessor;
-  GetInstancesRequestImpl* impl;
-};
+  class Impl;
+  Impl& GetImpl() const;
 
-class ServiceCallResultImpl;
+ private:
+  Impl* impl_;
+};
 
 /// @brief 服务实例调用结果上报
 class ServiceCallResult : Noncopyable {
-public:
+ public:
   /// @brief 构造服务实例调用结果上报对象
   ServiceCallResult();
 
@@ -233,7 +232,7 @@ public:
   /// @brief 设置主调服务ServiceKey
   ///
   /// @param ServiceKey 主调服务ServiceKey
-  void SetSource(ServiceKey& source);
+  void SetSource(const ServiceKey& source);
 
   /// @brief 设置被调服务subset信息
   ///
@@ -250,16 +249,16 @@ public:
   /// @param locality_aware_info LocalityAware的信息
   void SetLocalityAwareInfo(uint64_t locality_aware_info);
 
-private:
-  friend class ServiceCallResultGetter;
-  ServiceCallResultImpl* impl;
-};
+  class Impl;
+  Impl& GetImpl() const;
 
-class InstancesResponseImpl;
+ private:
+  Impl* impl_;
+};
 
 /// @brief 服务实例查询应答
 class InstancesResponse : Noncopyable {
-public:
+ public:
   /// @brief 构造服务实例查询应答对象
   InstancesResponse();
 
@@ -306,16 +305,16 @@ public:
   /// @return const std::map<std::string, std::string>& 实例所属的subset
   const std::map<std::string, std::string>& GetSubset();
 
-private:
-  friend class InstancesResponseSetter;
-  InstancesResponseImpl* impl;
-};
+  class Impl;
+  Impl& GetImpl() const;
 
-class InstancesFutureImpl;
+ private:
+  Impl* impl_;
+};
 
 /// @brief 服务数据就绪通知对象接口
 class ServiceCacheNotify {
-public:
+ public:
   virtual ~ServiceCacheNotify() {}
 
   /// @brief 等待的服务数据准备就绪时执行
@@ -327,13 +326,7 @@ public:
 
 /// @brief 异步获取服务实例对象
 class InstancesFuture : Noncopyable {
-public:
-  /// @brief 构造异步获取服务实例对象
-  explicit InstancesFuture(InstancesFutureImpl* impl);
-
-  /// @brief 析构异步获取服务实例对象
-  ~InstancesFuture();
-
+ public:
   /// @brief 查询异步获取服务实例是否完成
   bool IsDone(bool use_disk_data = true);
 
@@ -349,15 +342,25 @@ public:
   /// @brief 设置服务就绪回调，当需要的服务拉取到缓存时执行该回调
   void SetServiceCacheNotify(ServiceCacheNotify* service_cache_notify);
 
-private:
-  InstancesFutureImpl* impl_;
+  class Impl;
+
+  /// @brief 构造异步获取服务实例对象
+  explicit InstancesFuture(InstancesFuture::Impl* impl);
+
+  /// @brief 析构异步获取服务实例对象
+  ~InstancesFuture();
+
+  Impl& GetImpl() const;
+
+ private:
+  Impl* impl_;
 };
 
 class ConsumerApiImpl;
 
 /// @brief 服务消费端API主接口
 class ConsumerApi : Noncopyable {
-public:
+ public:
   ~ConsumerApi();
 
   /// @brief 用于提前初始化服务数据
@@ -422,8 +425,15 @@ public:
   /// @param timeout      预拉取请求超时时间，单位为ms
   /// @param keys         规则里配置的所有key
   /// @return ReturnCode  拉取结果，拉取失败可重试
-  ReturnCode GetRouteRuleKeys(const ServiceKey& service_key, uint64_t timeout,
-                              const std::set<std::string>*& keys);
+  ReturnCode GetRouteRuleKeys(const ServiceKey& service_key, uint64_t timeout, const std::set<std::string>*& keys);
+
+  /// @brief 获取对应服务的路由规则(tRPC)
+  ///
+  /// @param service_key 需要获取路由规则的服务
+  /// @param timeout     获取路由规则的超时时间ms
+  /// @param json_string Json格式的路由规则
+  /// @return ReturnCode 调用结果
+  ReturnCode GetServiceRouteRule(const ServiceKey& service_key, uint64_t timeout, std::string& json_string);
 
   /// @brief 通过Context创建Consumer API对象
   ///
@@ -454,7 +464,7 @@ public:
   /// @return ConsumerApi* 创建失败返回NULL
   static ConsumerApi* CreateWithDefaultFile();
 
-private:
+ private:
   explicit ConsumerApi(ConsumerApiImpl* impl);
   ConsumerApiImpl* impl_;
 };

@@ -17,13 +17,11 @@
 
 #include "logger.h"
 #include "utils/file_utils.h"
-#include "utils/string_utils.h"
 #include "utils/time_clock.h"
 
 namespace polaris {
 
-PersistTask::PersistTask(const std::string& file, const std::string& data, int retry_times,
-                         uint64_t interval)
+PersistTask::PersistTask(const std::string& file, const std::string& data, int retry_times, uint64_t interval)
     : TimingTask(interval), file_(file), data_(data), retry_times_(retry_times) {}
 
 void PersistTask::Run() {
@@ -32,12 +30,10 @@ void PersistTask::Run() {
   }
 }
 
-uint64_t PersistTask::NextRunTime() {
-  return retry_times_ > 0 ? Time::GetCurrentTimeMs() + GetInterval() : 0;
-}
+uint64_t PersistTask::NextRunTime() { return retry_times_ > 0 ? Time::GetCoarseSteadyTimeMs() + GetInterval() : 0; }
 
 bool PersistTask::DoPersist() {
-  std::string tmp_file_name = file_ + "." + StringUtils::TypeToStr(pthread_self()) + ".tmp";
+  std::string tmp_file_name = file_ + "." + std::to_string(pthread_self()) + ".tmp";
   std::ofstream tmp_file(tmp_file_name.c_str(), std::ios::out | std::ios::binary);
   if (tmp_file.good()) {
     tmp_file.write(data_.c_str(), data_.size());

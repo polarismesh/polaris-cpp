@@ -30,9 +30,13 @@ message Route {
 }
 
 message Source {
-	// 主调方服务以及命名空间
+  // 主调方服务以及命名空间,可以是真实服务名,也可以是服务别名
 	google.protobuf.StringValue service = 1;
 	google.protobuf.StringValue namespace = 2;
+
+	//被调方服务以及命名空间,可以是真实服务名,也可以是服务别名
+	google.protobuf.StringValue to_service = 4 [json_name="to_service"];
+	google.protobuf.StringValue to_namespace = 5 [json_name="to_namespace"];
 
 	// 主调方服务实例标签或者请求标签
 	// value支持正则匹配

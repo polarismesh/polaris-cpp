@@ -28,14 +28,14 @@ int total;
 
 void *run(void *arg) {
   polaris::ConsumerApi *consumer = reinterpret_cast<polaris::ConsumerApi *>(arg);
-  int count                      = 0;
+  int count = 0;
   polaris::GetOneInstanceRequest request(service_key);
   polaris::Instance instance;
   polaris::ReturnCode ret;
   while (!stop) {
     if ((ret = consumer->GetOneInstance(request, instance)) != polaris::kReturnOk) {
-      std::cout << "get one instance for service with error:" << ret
-                << "msg: " << polaris::ReturnCodeToMsg(ret).c_str() << std::endl;
+      std::cout << "get one instance for service with error:" << ret << "msg: " << polaris::ReturnCodeToMsg(ret).c_str()
+                << std::endl;
       break;
     }
     count++;
@@ -58,26 +58,25 @@ void *run(void *arg) {
   }
   std::cout << count << std::endl;
   __sync_fetch_and_add(&total, count);
-  return NULL;
+  return nullptr;
 }
 
 int main(int argc, char **argv) {
   if (argc < 3) {
-    std::cout << "usage: " << argv[0]
-              << " namespace service config_file report_flag thread_size run_ms " << std::endl;
+    std::cout << "usage: " << argv[0] << " namespace service config_file report_flag thread_size run_ms " << std::endl;
     return -1;
   }
-  service_key.namespace_  = argv[1];
-  service_key.name_       = argv[2];
+  service_key.namespace_ = argv[1];
+  service_key.name_ = argv[2];
   std::string config_file = argv[3];
   std::string report_flag = argv[4];
-  report                  = (report_flag == "true" ? true : false);
-  int thread_size         = atoi(argv[5]);
-  int run_seconds         = atoi(argv[6]);
+  report = (report_flag == "true" ? true : false);
+  int thread_size = atoi(argv[5]);
+  int run_seconds = atoi(argv[6]);
 
   // 创建Consumer对象
   polaris::ConsumerApi *consumer = polaris::ConsumerApi::CreateFromFile(config_file);
-  if (consumer == NULL) {
+  if (consumer == nullptr) {
     std::cout << "create consumer api failed" << std::endl;
     return -1;
   }
@@ -85,7 +84,7 @@ int main(int argc, char **argv) {
   std::vector<pthread_t> thread_list;
   for (int i = 0; i < thread_size; i++) {
     pthread_t tid;
-    pthread_create(&tid, NULL, run, reinterpret_cast<void *>(consumer));
+    pthread_create(&tid, nullptr, run, reinterpret_cast<void *>(consumer));
     thread_list.push_back(tid);
   }
 
@@ -93,7 +92,7 @@ int main(int argc, char **argv) {
   stop = true;
 
   for (int i = 0; i < thread_size; i++) {
-    pthread_join(thread_list[i], NULL);
+    pthread_join(thread_list[i], nullptr);
   }
 
   std::cout << total / run_seconds << std::endl;

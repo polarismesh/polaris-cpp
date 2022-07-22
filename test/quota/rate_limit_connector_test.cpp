@@ -26,15 +26,14 @@
 namespace polaris {
 
 class RateLimitConnectorForTest : public RateLimitConnector {
-public:
+ public:
   RateLimitConnectorForTest(Reactor& reactor, Context* context)
-      : RateLimitConnector(reactor, context, 1000), server_host_("127.0.0.1") {}
+      : RateLimitConnector(reactor, context, 1000, 40), server_host_("127.0.0.1") {}
 
   std::map<std::string, RateLimitConnection*>& GetConnectionMgr() { return connection_mgr_; }
 
-protected:
-  virtual ReturnCode SelectInstance(const ServiceKey&, const std::string& hash_key,
-                                    Instance** instance) {
+ protected:
+  virtual ReturnCode SelectInstance(const ServiceKey&, const std::string& hash_key, Instance** instance) {
     if (hash_key.empty()) {
       return kReturnTimeout;
     }
@@ -45,16 +44,16 @@ protected:
     return kReturnOk;
   }
 
-public:
+ public:
   std::string server_host_;
 };
 
 class RateLimitConnectorTest : public ::testing::Test {
   virtual void SetUp() {
-    context_   = TestContext::CreateContext();
+    context_ = TestContext::CreateContext();
     connector_ = new RateLimitConnectorForTest(reactor_, context_);
     RateLimitWindowKey window_key;
-    window_ = new RateLimitWindow(reactor_, NULL, window_key);
+    window_ = new RateLimitWindow(reactor_, nullptr, window_key);
     v1::Rule rule;
     rule.set_type(v1::Rule::LOCAL);
     v1::Amount* amount = rule.add_amounts();
@@ -64,28 +63,27 @@ class RateLimitConnectorTest : public ::testing::Test {
     rule.mutable_service()->set_value("service");
     rule.mutable_id()->set_value("id123");
     ASSERT_TRUE(rate_limit_rule_.Init(rule));
-    ASSERT_EQ(window_->Init(NULL, &rate_limit_rule_, rate_limit_rule_.GetId(), connector_),
-              kReturnOk);
+    ASSERT_EQ(window_->Init(nullptr, &rate_limit_rule_, rate_limit_rule_.GetId(), connector_), kReturnOk);
     connection_id_ = "127.0.0.1:8081";
   }
 
   virtual void TearDown() {
     reactor_.Stop();
-    if (context_ != NULL) {
+    if (context_ != nullptr) {
       delete context_;
-      context_ = NULL;
+      context_ = nullptr;
     }
-    if (connector_ != NULL) {
+    if (connector_ != nullptr) {
       delete connector_;
-      connector_ = NULL;
+      connector_ = nullptr;
     }
-    if (window_ != NULL) {
+    if (window_ != nullptr) {
       window_->DecrementRef();
-      window_ = NULL;
+      window_ = nullptr;
     }
   }
 
-protected:
+ protected:
   Reactor reactor_;
   Context* context_;
   RateLimitConnectorForTest* connector_;
@@ -97,32 +95,32 @@ protected:
 TEST_F(RateLimitConnectorTest, ConnectionFailed) {
   connector_->SyncTask(window_);
   RateLimitConnection* connection = connector_->GetConnectionMgr()[connection_id_];
-  ASSERT_TRUE(connection != NULL);
+  ASSERT_TRUE(connection != nullptr);
   reactor_.RunOnce();
-  connection->OnConnectFailed();
+  connection->OnConnect(kReturnNetworkFailed);
 }
 
 TEST_F(RateLimitConnectorTest, ConnectionInitFailed) {
   connector_->SyncTask(window_);
   RateLimitConnection* connection = connector_->GetConnectionMgr()[connection_id_];
-  ASSERT_TRUE(connection != NULL);
+  ASSERT_TRUE(connection != nullptr);
   reactor_.RunOnce();
-  connection->OnConnectSuccess();
-  connection->OnRemoteClose(grpc::kGrpcStatusUnavailable, "unavailable");
+  connection->OnConnect(kReturnOk);
+  connection->OnRemoteClose("unavailable");
 }
 
 TEST_F(RateLimitConnectorTest, ConnectionInit) {
   connector_->SyncTask(window_);
   RateLimitConnection* connection = connector_->GetConnectionMgr()[connection_id_];
-  ASSERT_TRUE(connection != NULL);
-  connection->OnConnectSuccess();
+  ASSERT_TRUE(connection != nullptr);
+  connection->OnConnect(kReturnOk);
   metric::v2::RateLimitResponse* response = new metric::v2::RateLimitResponse();
   connection->OnReceiveMessage(response);
   response = new metric::v2::RateLimitResponse();
   response->set_cmd(metric::v2::INIT);
   metric::v2::RateLimitInitResponse* init_response = response->mutable_ratelimitinitresponse();
   init_response->set_code(v1::ExecuteSuccess);
-  init_response->set_timestamp(Time::GetCurrentTimeMs());
+  init_response->set_timestamp(Time::GetSystemTimeMs());
   init_response->set_clientkey(12);
   init_response->mutable_target()->set_namespace_("Test");
   init_response->mutable_target()->set_service("service");
@@ -136,7 +134,7 @@ TEST_F(RateLimitConnectorTest, ConnectionInit) {
 TEST_F(RateLimitConnectorTest, CheckIdleConnection) {
   connector_->SyncTask(window_);
   RateLimitConnection* connection = connector_->GetConnectionMgr()[connection_id_];
-  ASSERT_TRUE(connection != NULL);
+  ASSERT_TRUE(connection != nullptr);
   ASSERT_EQ(connector_->GetConnectionMgr().size(), 1);
   TestUtils::SetUpFakeTime();
   metric::v2::RateLimitResponse* response = new metric::v2::RateLimitResponse();
@@ -155,9 +153,9 @@ TEST_F(RateLimitConnectorTest, CheckIdleConnection) {
 TEST_F(RateLimitConnectorTest, WindowReconnect) {
   connector_->SyncTask(window_);
   RateLimitConnection* connection = connector_->GetConnectionMgr()[connection_id_];
-  ASSERT_TRUE(connection != NULL);
+  ASSERT_TRUE(connection != nullptr);
   ASSERT_EQ(connection_id_, window_->GetConnectionId());
-  connection->OnConnectSuccess();
+  connection->OnConnect(kReturnOk);
   metric::v2::RateLimitResponse* response = new metric::v2::RateLimitResponse();
   connection->OnReceiveMessage(response);
 
@@ -174,7 +172,7 @@ TEST_F(RateLimitConnectorTest, WindowReconnect) {
 TEST_F(RateLimitConnectorTest, WindowReconnectWithNoInstance) {
   connector_->SyncTask(window_);
   RateLimitConnection* connection = connector_->GetConnectionMgr()[connection_id_];
-  ASSERT_TRUE(connection != NULL);
+  ASSERT_TRUE(connection != nullptr);
   ASSERT_EQ(connection_id_, window_->GetConnectionId());
 
   connector_->server_host_ = "";

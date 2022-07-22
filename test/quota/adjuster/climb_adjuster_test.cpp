@@ -19,53 +19,52 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
+
 #include "mock/mock_metric_connector.h"
 #include "quota/quota_bucket_qps.h"
 #include "reactor/reactor.h"
 #include "test_utils.h"
-#include "utils/scoped_ptr.h"
 #include "v1/code.pb.h"
 
 namespace polaris {
 
 class MockRemoteBucket : public RemoteAwareQpsBucket {
-public:
+ public:
   explicit MockRemoteBucket(RateLimitRule *rule) : RemoteAwareQpsBucket(rule) {}
 
   virtual ~MockRemoteBucket() {}
 
-  virtual void UpdateLimitAmount(const std::vector<RateLimitAmount> &amounts) {
-    amounts_ = amounts;
-  }
+  virtual void UpdateLimitAmount(const std::vector<RateLimitAmount> &amounts) { amounts_ = amounts; }
 
   std::vector<RateLimitAmount> amounts_;
 };
 
 class ClimbAdjusterTest : public ::testing::Test {
-protected:
+ protected:
   void SetUp() {
     TestUtils::SetUpFakeTime();
-    climb_adjuster_  = NULL;
+    climb_adjuster_ = nullptr;
     report_interval_ = 10;
     adjust_interval_ = 20;
   }
 
   void TearDown() {
     reactor_.Stop();
-    if (climb_adjuster_ != NULL) {
+    if (climb_adjuster_ != nullptr) {
       climb_adjuster_->DecrementRef();
-      climb_adjuster_ = NULL;
+      climb_adjuster_ = nullptr;
     }
     TestUtils::TearDownFakeTime();
   }
 
-protected:
+ protected:
   void CreateAdjuster(bool enable_adjuster = true);
 
   Reactor reactor_;
   RateLimitRule rule_;
-  ScopedPtr<MockMetricConnector> metric_connector_;
-  ScopedPtr<MockRemoteBucket> remote_bucket_;
+  std::unique_ptr<MockMetricConnector> metric_connector_;
+  std::unique_ptr<MockRemoteBucket> remote_bucket_;
   ClimbAdjuster *climb_adjuster_;
   uint64_t report_interval_;
   uint64_t adjust_interval_;
@@ -82,9 +81,9 @@ void ClimbAdjusterTest::CreateAdjuster(bool enable_adjuster) {
   climb_config->mutable_throttling()->mutable_judgeduration()->set_seconds(adjust_interval_);
   EXPECT_TRUE(rule_.Init(rule));
 
-  metric_connector_.Set(new MockMetricConnector(reactor_, NULL));
-  remote_bucket_.Set(new MockRemoteBucket(&rule_));
-  climb_adjuster_ = new ClimbAdjuster(reactor_, metric_connector_.Get(), remote_bucket_.Get());
+  metric_connector_.reset(new MockMetricConnector(reactor_, nullptr));
+  remote_bucket_.reset(new MockRemoteBucket(&rule_));
+  climb_adjuster_ = new ClimbAdjuster(reactor_, metric_connector_.get(), remote_bucket_.get());
 }
 
 TEST_F(ClimbAdjusterTest, AdjusterNotEnable) {
@@ -118,17 +117,15 @@ TEST_F(ClimbAdjusterTest, Report) {
   EXPECT_CALL(*metric_connector_, IsMetricInit(::testing::_)).WillOnce(::testing::Return(false));
   EXPECT_CALL(*metric_connector_, Initialize(::testing::_, ::testing::_, ::testing::_))
       .WillOnce(::testing::DoAll(
-          ::testing::Invoke(metric_connector_.Get(),
-                            &MockMetricConnector::OnResponse<v1::MetricInitRequest>),
+          ::testing::Invoke(metric_connector_.get(), &MockMetricConnector::OnResponse<v1::MetricInitRequest>),
           ::testing::Return(kReturnOk)));
   TestUtils::FakeNowIncrement(report_interval_ * 1000);
   reactor_.RunOnce();  // 执行上报任务
   EXPECT_CALL(*metric_connector_, IsMetricInit(::testing::_)).WillOnce(::testing::Return(true));
   EXPECT_CALL(*metric_connector_, Report(::testing::_, ::testing::_, ::testing::_))
-      .WillOnce(
-          ::testing::DoAll(::testing::Invoke(metric_connector_.Get(),
-                                             &MockMetricConnector::OnResponse<v1::MetricRequest>),
-                           ::testing::Return(kReturnOk)));
+      .WillOnce(::testing::DoAll(
+          ::testing::Invoke(metric_connector_.get(), &MockMetricConnector::OnResponse<v1::MetricRequest>),
+          ::testing::Return(kReturnOk)));
   TestUtils::FakeNowIncrement(2000);  // 重试上报任务
   reactor_.RunOnce();
 }
@@ -143,16 +140,14 @@ TEST_F(ClimbAdjusterTest, Query) {
   EXPECT_CALL(*metric_connector_, IsMetricInit(::testing::_)).WillOnce(::testing::Return(false));
   EXPECT_CALL(*metric_connector_, Initialize(::testing::_, ::testing::_, ::testing::_))
       .WillOnce(::testing::DoAll(
-          ::testing::Invoke(metric_connector_.Get(),
-                            &MockMetricConnector::OnResponse<v1::MetricInitRequest>),
+          ::testing::Invoke(metric_connector_.get(), &MockMetricConnector::OnResponse<v1::MetricInitRequest>),
           ::testing::Return(kReturnOk)));
   reactor_.RunOnce();
   TestUtils::FakeNowIncrement(2000);
   EXPECT_CALL(*metric_connector_, IsMetricInit(::testing::_)).WillOnce(::testing::Return(true));
   EXPECT_CALL(*metric_connector_, Query(::testing::_, ::testing::_, ::testing::_))
       .WillOnce(::testing::DoAll(
-          ::testing::Invoke(metric_connector_.Get(),
-                            &MockMetricConnector::OnResponse<v1::MetricQueryRequest>),
+          ::testing::Invoke(metric_connector_.get(), &MockMetricConnector::OnResponse<v1::MetricQueryRequest>),
           ::testing::Return(kReturnOk)));
   reactor_.RunOnce();
 }

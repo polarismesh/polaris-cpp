@@ -17,20 +17,22 @@
 #include <pthread.h>
 #include <stdint.h>
 
+#include <atomic>
+#include <mutex>
 #include <set>
-
-#include "sync/mutex.h"
 
 namespace polaris {
 
 struct ThreadTime {
-  volatile uint64_t thread_time_;
+  ThreadTime(uint64_t thread_time, void* mgr_ptr) : thread_time_(thread_time), mgr_ptr_(mgr_ptr) {}
+
+  std::atomic<uint64_t> thread_time_;
   void* mgr_ptr_;
 };
 
 /// @brief 记录线程进入RCU缓存的时间
 class ThreadTimeMgr {
-public:
+ public:
   ThreadTimeMgr();
 
   ~ThreadTimeMgr();
@@ -41,11 +43,11 @@ public:
 
   uint64_t MinTime();
 
-private:
+ private:
   static void OnThreadExit(void* ptr);
 
-private:
-  sync::Mutex lock_;
+ private:
+  std::mutex lock_;
   std::set<ThreadTime*> thread_time_set_;
 
   pthread_key_t thread_time_key_;

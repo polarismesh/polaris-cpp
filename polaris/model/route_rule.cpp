@@ -24,7 +24,7 @@ bool RouteRule::InitFromPb(const v1::Route& route) {
     const v1::Source& pb_source = route.sources(i);
     RouteRuleSource source;
     is_valid_ = is_valid_ && source.InitFromPb(pb_source);
-    sources_.push_back(source);  // 初始化失败也加入礼拜，但不会被匹配
+    sources_.push_back(source);  // 初始化失败也加入列表，但不会被匹配
   }
   for (int i = 0; i < route.destinations_size(); ++i) {
     const v1::Destination& pb_dest = route.destinations(i);
@@ -49,13 +49,13 @@ void RouteRule::FillSystemVariables(const SystemVariables& variables) {
   }
 }
 
-bool RouteRule::MatchSource(ServiceInfo* service_info, std::string& parameters) const {
+bool RouteRule::MatchSource(ServiceInfo* service_info, const ServiceKey& dst_service, std::string& parameters) const {
   if (!is_valid_) {
     return false;
   }
-  if (service_info != NULL) {
+  if (service_info != nullptr) {
     for (std::size_t i = 0; i < sources_.size(); ++i) {
-      if (sources_[i].Match(service_info->service_key_, service_info->metadata_, parameters)) {
+      if (sources_[i].Match(service_info->service_key_, dst_service, service_info->metadata_, parameters)) {
         return true;
       }
     }
@@ -70,13 +70,11 @@ bool RouteRule::MatchSource(ServiceInfo* service_info, std::string& parameters) 
 }
 
 // 根据Destination计算路由结果
-bool RouteRule::CalculateSet(ServiceKey& service_key, bool match_service,
-                             const std::vector<Instance*>& instances,
+bool RouteRule::CalculateSet(ServiceKey& service_key, bool match_service, const std::vector<Instance*>& instances,
                              const std::set<Instance*>& unhealthy_set,
                              const std::map<std::string, std::string>& parameters,
                              std::map<uint32_t, std::vector<RuleRouterSet*> >& result) const {
-  for (std::map<uint32_t, std::vector<RouteRuleDestination> >::const_iterator it =
-           destinations_.begin();
+  for (std::map<uint32_t, std::vector<RouteRuleDestination> >::const_iterator it = destinations_.begin();
        it != destinations_.end(); ++it) {
     for (std::size_t i = 0; i < it->second.size(); ++i) {
       const RouteRuleDestination& dest = it->second[i];

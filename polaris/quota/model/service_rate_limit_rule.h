@@ -26,7 +26,7 @@ namespace polaris {
 
 // 限流配额数据，由PB解析后存储在ServiceData对象中
 class RateLimitData {
-public:
+ public:
   ~RateLimitData();
 
   void AddRule(RateLimitRule* rule);
@@ -42,7 +42,7 @@ public:
 
   const std::vector<RateLimitRule*>& GetRules() const { return rules_; }
 
-private:
+ private:
   std::vector<RateLimitRule*> rules_;
   std::map<int, RateLimitRuleIndex> rule_index_;
   std::set<std::string> label_keys_;
@@ -51,7 +51,7 @@ private:
 class ServiceData;
 // 服务限流配额数据，封装类型为限流的ServiceData
 class ServiceRateLimitRule {
-public:
+ public:
   explicit ServiceRateLimitRule(ServiceData* service_data);
 
   ~ServiceRateLimitRule();
@@ -59,11 +59,14 @@ public:
   RateLimitRule* MatchRateLimitRule(const std::map<std::string, std::string>& subset,
                                     const std::map<std::string, std::string>& labels) const;
 
+  // 检查规则是否还生效
+  bool IsRuleEnable(RateLimitRule* rule);
+
   ServiceData* GetServiceDataWithRef();
 
   const std::set<std::string>& GetLabelKeys() const;
 
-private:
+ private:
   ServiceData* service_data_;
 };
 
