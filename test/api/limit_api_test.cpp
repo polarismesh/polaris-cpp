@@ -179,6 +179,10 @@ TEST_F(LimitApiTest, TestCreateFromString) {
   ASSERT_FALSE(err_msg.empty());
 
   content_ =
+      "global:\n"
+      "  serverConnector:\n"
+      "    addresses:\n"
+      "      - 127.0.0.1:8081\n"  
       "rateLimiter:\n"
       "  batchInterval: 100ms";
   limit_api = LimitApi::CreateFromString(content_);
