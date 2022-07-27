@@ -271,13 +271,8 @@ ReturnCode ContextImpl::InitApiConfig(Config* api_config) {
       } else {
         POLARIS_LOG(LOG_INFO, "get local ip address by bindIf:%s return ip:%s", bind_if.c_str(), bind_ip.c_str());
       }
-    } else if (!NetClient::GetIpByConnect(&bind_ip)) {
-      return kReturnInvalidConfig;
-    } else {
-      POLARIS_LOG(LOG_INFO, "get local ip address by connection return ip:%s", bind_ip.c_str());
-    }
+    } 
   }
-  POLARIS_ASSERT(!bind_ip.empty());
   sdk_token_.set_ip(bind_ip);
   sdk_token_.set_pid(getpid());
   sdk_token_.set_uid(Utils::Uuid());

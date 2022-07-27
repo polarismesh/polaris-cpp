@@ -15,6 +15,7 @@
 #define POLARIS_CPP_POLARIS_UTILS_NETCLIENT_H_
 
 #include <string>
+#include "config/seed_server.h"
 
 namespace polaris {
 
@@ -44,7 +45,7 @@ class NetClient {
 
   static bool GetIpByIf(const std::string& ifname, std::string* ip);
 
-  static bool GetIpByConnect(std::string* ip);
+  static bool GetIpByConnect(std::string* ip, std::vector<SeedServer>& default_servers);
 };
 
 }  // namespace polaris

@@ -52,6 +52,10 @@ class ServiceContextTest : public ::testing::Test {
 TEST_F(ServiceContextTest, TestServiceLevelConfig) {
   std::string err_msg;
   std::string content = R"##(
+global:
+  serverConnector:
+    addresses:
+    - 127.0.0.1:8091
 consumer:
   service:
     - name: polaris.cpp.sdk.test1
@@ -89,6 +93,10 @@ consumer:
 TEST_F(ServiceContextTest, TestHealthCheckConfig) {
   std::string err_msg;
   std::string content = R"##(
+global:
+  serverConnector:
+    addresses:
+    - 127.0.0.1:8091    
 consumer:
   healthCheck:
     when: always
@@ -120,6 +128,10 @@ consumer:
 TEST_F(ServiceContextTest, TestServiceLevelDegrade) {
   std::string err_msg;
   std::string content = R"##(
+global:
+  serverConnector:
+    addresses:
+    - 127.0.0.1:8091    
 consumer:
   serviceRouter:
     enable: true

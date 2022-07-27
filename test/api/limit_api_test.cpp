@@ -234,7 +234,7 @@ TEST_F(LimitApiTest, FetchRuleTimeout) {
   ASSERT_EQ(limit_api->FetchRule(service_key, 100, json_rule), kReturnTimeout);
 
   const std::set<std::string> *label_keys = nullptr;
-  ASSERT_EQ(limit_api->FetchRuleLabelKeys(service_key, 10, label_keys), kReturnTimeout);
+  ASSERT_EQ(limit_api->FetchRuleLabelKeys(service_key, label_keys), kReturnTimeout);
   ASSERT_TRUE(label_keys == nullptr);
   delete limit_api;
 }
@@ -259,12 +259,6 @@ TEST_F(LimitApiTest, GetQuota) {
   ASSERT_EQ(limit_api->GetQuota(request, quota_result, wait_time), kReturnTimeout);
   ASSERT_EQ(quota_result, kQuotaResultWait);
   ASSERT_EQ(wait_time, 99);
-
-  LimitCallResult call_result;
-  call_result.SetServiceNamespace("test");
-  call_result.SetServiceName("test.limit.service");
-  call_result.SetResponseResult(kLimitCallResultLimited);
-  ASSERT_EQ(limit_api->UpdateCallResult(call_result), kReturnNotInit);
   delete limit_api;
 }
 

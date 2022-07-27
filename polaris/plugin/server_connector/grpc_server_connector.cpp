@@ -40,6 +40,7 @@
 #include "provider/request.h"
 #include "sync/future.h"
 #include "utils/time_clock.h"
+#include "utils/netclient.h"
 
 namespace polaris {
 
@@ -181,8 +182,8 @@ ReturnCode GrpcServerConnector::InitTimeoutStrategy(Config* config) {
 
 ReturnCode GrpcServerConnector::Init(Config* config, Context* context) {
   static const char kServerAddressesKey[] = "addresses";
-  static const char kJoinPointKey[] = "joinPoint";
-  static const char kServerDefault[] = "default";
+  //static const char kJoinPointKey[] = "joinPoint";
+  //static const char kServerDefault[] = "default";
 
   static const char kServerSwitchIntervalKey[] = "serverSwitchInterval";
   static const int kServerSwitchIntervalDefault = 10 * 60 * 1000;
@@ -192,25 +193,27 @@ ReturnCode GrpcServerConnector::Init(Config* config, Context* context) {
 
   context_ = context;
 
-  // 先获取接入点
-  SeedServerConfig& seed_config = context_->GetContextImpl()->GetSeedConfig();
-  std::string join_point = config->GetStringOrDefault(kJoinPointKey, "");
-  if (!join_point.empty()) {
-    if (seed_config.UpdateJoinPoint(join_point) != kReturnOk) {
-      POLARIS_LOG(LOG_ERROR, "unkown join point %s", join_point.c_str());
-      return kReturnInvalidConfig;
-    }
-  }
   // 获取埋点地址配置
-  std::vector<std::string> config_server = config->GetListOrDefault(kServerAddressesKey, kServerDefault);
+  std::vector<std::string> config_server = config->GetListOrDefault(kServerAddressesKey, "");
   if (config_server.empty()) {
     POLARIS_LOG(LOG_ERROR, "get polaris server address failed");
     return kReturnInvalidConfig;
-  } else if (config_server.size() == 1 && config_server[0] == kServerDefault) {
-    seed_config.GetSeedServer(server_lists_);
   } else if (SeedServerConfig::ParseSeedServer(config_server, server_lists_) == 0) {
     POLARIS_LOG(LOG_ERROR, "parse polaris server address failed");
     return kReturnInvalidConfig;
+  }
+
+  ContextImpl* contextImpl = context->GetContextImpl();
+  // 获取IP地址
+  if (contextImpl->GetSdkToken().ip().length() == 0) {
+    std::string bind_ip;
+    if (!NetClient::GetIpByConnect(&bind_ip, server_lists_)) {
+      POLARIS_LOG(LOG_ERROR, "get client ip from polaris connection failed");
+    } else {
+      v1::SDKToken& sdkToken = const_cast<v1::SDKToken&>(contextImpl->GetSdkToken());
+      sdkToken.set_ip(bind_ip);
+      POLARIS_LOG(LOG_INFO, "get local ip address by connection return ip:%s", bind_ip.c_str());
+    }
   }
 
   server_switch_interval_ = config->GetMsOrDefault(kServerSwitchIntervalKey,
@@ -332,11 +335,15 @@ bool GrpcServerConnector::SendDiscoverRequest(ServiceListener& service_listener)
   }
   if (discover_stream_state_ != kDiscoverStreamInit) {
     const ServiceKey& discover_service = context_->GetContextImpl()->GetDiscoverService().service_;
-    if (service_key.name_ != discover_service.name_ || service_key.namespace_ != discover_service.namespace_) {
-      POLARIS_LOG(LOG_INFO, "wait discover service before discover %s for service[%s/%s]",
-                  DataTypeToStr(service_listener.service_.data_type_), service_key.namespace_.c_str(),
-                  service_key.name_.c_str());
-      return false;
+    if (isEmpty(discover_service)) {
+      discover_stream_state_ = kDiscoverStreamInit;
+    } else {
+      if (service_key.name_ != discover_service.name_ || service_key.namespace_ != discover_service.namespace_) {
+        POLARIS_LOG(LOG_INFO, "wait discover service before discover %s for service[%s/%s]",
+                    DataTypeToStr(service_listener.service_.data_type_), service_key.namespace_.c_str(),
+                    service_key.name_.c_str());
+        return false;
+      }
     }
   }
   // 已经发送过请求正等待超时

@@ -49,6 +49,10 @@
 
 namespace polaris {
 
+bool isEmpty(ServiceKey const &lhs) {
+  return lhs.name_.empty() || lhs.namespace_.empty();
+}
+
 bool operator<(ServiceKey const& lhs, ServiceKey const& rhs) {
   if (lhs.name_.size() < rhs.name_.size()) {
     return true;
@@ -393,9 +397,6 @@ void ServiceDataImpl::ParseRateLimitData(v1::DiscoverResponse& response) {
     }
   }
   data_.rate_limit_->SortByPriority();
-  if (valid_rule_cout > 20) {
-    data_.rate_limit_->SetupIndexMap();
-  }
 }
 
 void ServiceDataImpl::ParseCircuitBreaker(v1::DiscoverResponse& response) {

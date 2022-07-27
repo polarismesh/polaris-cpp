@@ -20,6 +20,7 @@
 
 #include <string>
 #include <vector>
+#include <cstdlib>
 
 #include "test_utils.h"
 #include "utils/file_utils.h"
@@ -59,6 +60,20 @@ TEST_F(ConfigTest, TestCreateConfigFromFile) {
   ASSERT_TRUE(config_ != nullptr);
 
   FileUtils::RemoveFile(temp_file);
+}
+
+// 从有内容的文件创建
+TEST_F(ConfigTest, TestCreateConfigFromContentFile) {
+  // 创建临时文件
+  char value[] = "polaris_addr=test";
+  putenv(value);
+  std::string content = "{int: 1, string: ${polaris_addr}, string_seq: [seq1, seq2], path1.path2: file}";
+  std::string temp_file;
+  TestUtils::CreateTempFileWithContent(temp_file, content);
+    // 从该临时文件创建配置成功
+  config_ = Config::CreateFromFile(temp_file, err_msg_);
+  ASSERT_TRUE(config_ != nullptr);
+  ASSERT_EQ(config_->GetStringOrDefault("string", ""), "test");
 }
 
 // 从字符串创建

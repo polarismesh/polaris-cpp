@@ -52,12 +52,12 @@ TEST(RateLimitRuleTest, RegexMatchString) {
   (*rule.mutable_labels())["key"] = match_string;
   ASSERT_TRUE(rate_limit_rule.Init(rule));
 
-  std::map<std::string, std::string> subset;
+  std::string method = "*";
   std::map<std::string, std::string> labels;
   labels["key"] = "re111";
-  ASSERT_FALSE(rate_limit_rule.IsMatch(subset, labels));
+  ASSERT_FALSE(rate_limit_rule.IsMatch(method, labels));
   labels["key"] = "regex111";
-  ASSERT_TRUE(rate_limit_rule.IsMatch(subset, labels));
+  ASSERT_TRUE(rate_limit_rule.IsMatch(method, labels));
 }
 
 TEST(RateLimitRuleTest, MatchWithEmptyLabels) {
@@ -66,11 +66,11 @@ TEST(RateLimitRuleTest, MatchWithEmptyLabels) {
   InitRuleAmount(rule);
   ASSERT_TRUE(rate_limit_rule.Init(rule));
 
-  std::map<std::string, std::string> subset;
+  std::string method = "*";
   std::map<std::string, std::string> labels;
-  ASSERT_TRUE(rate_limit_rule.IsMatch(subset, labels));
+  ASSERT_TRUE(rate_limit_rule.IsMatch(method, labels));
   labels["key"] = "re111";
-  ASSERT_TRUE(rate_limit_rule.IsMatch(subset, labels));
+  ASSERT_TRUE(rate_limit_rule.IsMatch(method, labels));
 
   v1::MatchString match_string;
   match_string.set_type(v1::MatchString::EXACT);
@@ -78,9 +78,9 @@ TEST(RateLimitRuleTest, MatchWithEmptyLabels) {
   (*rule.mutable_labels())["key"] = match_string;
   ASSERT_TRUE(rate_limit_rule.Init(rule));
 
-  ASSERT_TRUE(rate_limit_rule.IsMatch(subset, labels));
+  ASSERT_TRUE(rate_limit_rule.IsMatch(method, labels));
   labels.clear();
-  ASSERT_FALSE(rate_limit_rule.IsMatch(subset, labels));
+  ASSERT_FALSE(rate_limit_rule.IsMatch(method, labels));
 }
 
 TEST(RateLimitRuleTest, InitAmount) {
@@ -170,19 +170,19 @@ TEST(RateLimitRuleTest, RegexCombine) {
     v1::MatchString match_string;
     match_string.set_type(v1::MatchString::REGEX);
     match_string.mutable_value()->set_value("r.*");
-    (*rule.mutable_subset())["subset"] = match_string;
+    rule.mutable_method()->set_type(v1::MatchString::REGEX);
+    rule.mutable_method()->mutable_value()->set_value("r.*");
     (*rule.mutable_labels())["label"] = match_string;
     ASSERT_TRUE(rate_limit_rule.Init(rule));
 
-    std::map<std::string, std::string> subset;
+    std::string method = "re1";
     std::map<std::string, std::string> labels;
-    subset["subset"] = "re1";
     labels["label"] = "reg2";
-    ASSERT_TRUE(rate_limit_rule.IsMatch(subset, labels));
+    ASSERT_TRUE(rate_limit_rule.IsMatch(method, labels));
     ASSERT_EQ("rule_id", rate_limit_rule.GetId());
     RateLimitWindowKey window_key;
-    rate_limit_rule.GetWindowKey(subset, labels, window_key);
-    ASSERT_EQ(rate_limit_rule.GetMetricId(window_key), "rule_id#subset:re1#label:reg2");
+    rate_limit_rule.GetWindowKey(method, labels, window_key);
+    ASSERT_EQ(rate_limit_rule.GetMetricId(window_key), "rule_id#re1#label:reg2");
   }
 }
 
@@ -208,15 +208,14 @@ TEST(RateLimitRuleTest, RuleIndex) {
     ASSERT_TRUE(rate_limit_rule->Init(rule));
     limit_data.AddRule(rate_limit_rule);
   }
-  limit_data.SetupIndexMap();
-  std::map<std::string, std::string> subset;
+  std::string method = "*";
   std::map<std::string, std::string> labels;
   for (int i = 0; i < 1000; ++i) {
     int value = rand() % 100;
     labels["k0"] = labels["k1"] = labels["k2"] = labels["k3"] = "v" + std::to_string(value);
-    RateLimitRule* rule = limit_data.MatchRule(subset, labels);
+    RateLimitRule* rule = limit_data.MatchRule(method, labels);
     ASSERT_TRUE(rule != nullptr);
-    ASSERT_TRUE(rule->IsMatch(subset, labels));
+    ASSERT_TRUE(rule->IsMatch(method, labels));
   }
 }
 

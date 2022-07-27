@@ -204,8 +204,7 @@ ReturnCode LimitApi::FetchRule(const ServiceKey& service_key, uint64_t timeout, 
   return ret_code;
 }
 
-ReturnCode LimitApi::FetchRuleLabelKeys(const ServiceKey& service_key, uint64_t timeout,
-                                        const std::set<std::string>*& label_keys) {
+ReturnCode LimitApi::FetchRuleLabelKeys(const ServiceKey& service_key, const std::set<std::string>*& label_keys) {
   QuotaRequest quota_request;
   quota_request.SetServiceNamespace(service_key.namespace_);
   quota_request.SetServiceName(service_key.name_);
@@ -218,7 +217,6 @@ ReturnCode LimitApi::FetchRuleLabelKeys(const ServiceKey& service_key, uint64_t 
   ContextImpl* context_impl = impl_->context_->GetContextImpl();
   POLARIS_FORK_CHECK()
 
-  quota_request.SetTimeout(timeout);
   QuotaInfo quota_info;
   QuotaManager* quota_manager = context_impl->GetQuotaManager();
   if ((ret_code = quota_manager->PrepareQuotaInfo(request, &quota_info)) == kReturnOk) {

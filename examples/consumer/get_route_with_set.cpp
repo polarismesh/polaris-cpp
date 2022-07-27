@@ -44,6 +44,10 @@ int main(int argc, char** argv) {
   // 此处使用配置字符串开启set路由插件，建议将该配置放置在文件中，并通过如下方式创建consumer对象
   // polaris::ConsumerApi* consumer = polaris::ConsumerApi::CreateFromFile(config_file_path);
   std::string config =
+      "global:\n"
+      "  serverConnector:\n"
+      "    addresses:\n"
+      "    - 127.0.0.1:8091\n"
       "consumer:\n"
       "  serviceRouter:\n"
       "    chain:\n"

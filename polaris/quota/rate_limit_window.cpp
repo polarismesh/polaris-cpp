@@ -26,7 +26,6 @@
 #include "logger.h"
 #include "polaris/limit.h"
 #include "polaris/log.h"
-#include "quota/adjuster/quota_adjuster.h"
 #include "quota/quota_bucket_qps.h"
 #include "quota/quota_model.h"
 #include "quota/rate_limit_connector.h"
@@ -50,7 +49,6 @@ RateLimitWindow::RateLimitWindow(Reactor& reactor, MetricConnector* metric_conne
       last_use_time_(Time::GetCoarseSteadyTimeMs()),
       expire_time_(0),
       is_deleted_(false),
-      quota_adjuster_(nullptr),
       traffic_shaping_record_(0),
       is_degrade_(false),
       is_limited_(false),
@@ -69,10 +67,6 @@ RateLimitWindow::~RateLimitWindow() {
   if (traffic_shaping_bucket_ != nullptr) {
     delete traffic_shaping_bucket_;
     traffic_shaping_bucket_ = nullptr;
-  }
-  if (quota_adjuster_ != nullptr) {
-    quota_adjuster_->MakeDeleted();
-    quota_adjuster_ = nullptr;
   }
   for (auto it = limit_record_count_.begin(); it != limit_record_count_.end(); ++it) {
     delete it->second.pass_count_;
@@ -123,7 +117,6 @@ ReturnCode RateLimitWindow::Init(ServiceData* service_rate_limit_data, RateLimit
     record_count.pass_count_ = new std::atomic<uint32_t>(0);
     record_count.limit_count_ = new std::atomic<uint32_t>(0);
   }
-  quota_adjuster_ = QuotaAdjuster::Create(kQuotaAdjusterClimb, this);
   if (rule_->GetRateLimitType() == v1::Rule::LOCAL) {  // 本地模式不需要与Server通信直接
     init_notify_.NotifyAll();
     return kReturnOk;
@@ -182,7 +175,8 @@ void RateLimitWindow::GetInitRequest(metric::v2::RateLimitInitRequest* request) 
   metric::v2::LimitTarget* target = request->mutable_target();
   target->set_namespace_(rule_->GetService().namespace_);
   target->set_service(rule_->GetService().name_);
-  std::size_t sharp_index = metric_id_.find_last_of("#");
+
+  std::size_t sharp_index = metric_id_.find_first_of("#");
   target->set_labels(metric_id_.substr(sharp_index + 1));
   metric::v2::QuotaMode quota_mode =
       rule_->GetAmountMode() == v1::Rule::GLOBAL_TOTAL ? metric::v2::WHOLE : metric::v2::DIVIDE;
@@ -282,12 +276,6 @@ uint64_t RateLimitWindow::OnReportResponse(const std::vector<QuotaLeft>& quota_l
 
 bool RateLimitWindow::IsExpired() { return last_use_time_ + expire_time_ < Time::GetCoarseSteadyTimeMs(); }
 
-void RateLimitWindow::UpdateCallResult(const LimitCallResult::Impl& request) {
-  if (quota_adjuster_ != nullptr) {
-    quota_adjuster_->RecordResult(request);
-  }
-}
-
 bool RateLimitWindow::CollectRecord(v1::RateLimitRecord& rate_limit_record) {
   uint64_t current_time = Time::GetSystemTimeMs();
   uint32_t shaping_limit_count = traffic_shaping_record_.exchange(0);
@@ -320,27 +308,16 @@ bool RateLimitWindow::CollectRecord(v1::RateLimitRecord& rate_limit_record) {
       Time::Uint64ToTimestamp(current_time, limit_stat->mutable_time());
     }
   }
-  if (quota_adjuster_ != nullptr) {
-    quota_adjuster_->CollectRecord(rate_limit_record);
-  }
   if (rate_limit_record.limit_stats_size() > 0 || rate_limit_record.threshold_changes_size() > 0) {
     // 有数据需要上报
     rate_limit_record.set_namespace_(rule_->GetService().namespace_);
     rate_limit_record.set_service(rule_->GetService().name_);
     rate_limit_record.set_rule_id(rule_->GetId());
     rate_limit_record.set_rate_limiter(rule_->GetActionString());
-    std::size_t label_begin = metric_id_.find_last_of("#");
+    std::size_t label_begin = metric_id_.find_first_of("#");
     if (label_begin != std::string::npos) {
       rate_limit_record.set_labels(metric_id_.substr(label_begin + 1));
-      std::size_t subset_begin = metric_id_.find_last_of("#", label_begin - 1);
-      if (subset_begin != std::string::npos) {
-        subset_begin += 1;
-        rate_limit_record.set_subset(metric_id_.substr(subset_begin, label_begin - subset_begin));
-      } else {
-        rate_limit_record.set_subset(rule_->GetSubsetAsString());
-      }
     } else {
-      rate_limit_record.set_labels(rule_->GetLabelsAsString());
       rate_limit_record.set_labels(rule_->GetLabelsAsString());
     }
     return true;

@@ -31,6 +31,10 @@ class SlowStartTest : public ::testing::Test {
   virtual void SetUp() {
     service_key_ = {"Test", "test.slow.start"};
     std::string err_msg, content = R"###(
+global:
+  serverConnector:
+    addresses:
+    - 127.0.0.1:8091      
 consumer:
   service:
     - name: test.slow.start

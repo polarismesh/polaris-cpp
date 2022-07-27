@@ -32,8 +32,8 @@ class QuotaRequest::Impl {
   Impl() : acquire_amount_(1) {}
 
   ServiceKey service_key_;
-  std::map<std::string, std::string> subset_;
   std::map<std::string, std::string> labels_;
+  std::string method_;
   int acquire_amount_;
   optional<uint64_t> timeout_;
 };
@@ -67,10 +67,10 @@ class LimitCallResult::Impl {
   Impl() : result_type_(kLimitCallResultOk), response_time_(0), response_code_(0) {}
 
   ServiceKey service_key_;
-  std::map<std::string, std::string> subset_;
   std::map<std::string, std::string> labels_;
   LimitCallResultType result_type_;
   uint64_t response_time_;
+  std::string method_;
   int response_code_;
 };
 

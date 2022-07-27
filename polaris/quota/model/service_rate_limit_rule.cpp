@@ -49,28 +49,10 @@ bool RateLimitRulePtrCompare(RateLimitRule* lhs, RateLimitRule* rhs) {
 
 void RateLimitData::SortByPriority() { std::sort(rules_.begin(), rules_.end(), RateLimitRulePtrCompare); }
 
-void RateLimitData::SetupIndexMap() {
+RateLimitRule* RateLimitData::MatchRule(const std::string method, const std::map<std::string, std::string>& labels) const {
   for (std::size_t i = 0; i < rules_.size(); ++i) {
-    RateLimitRule* rule = rules_[i];
-    rule_index_[rule->GetPriority()].AddRule(rule);
-  }
-}
-
-RateLimitRule* RateLimitData::MatchRule(const std::map<std::string, std::string>& subset,
-                                        const std::map<std::string, std::string>& labels) const {
-  if (rule_index_.empty()) {  // 没有索引时，线性查找
-    for (std::size_t i = 0; i < rules_.size(); ++i) {
-      RateLimitRule* const& rule = rules_[i];
-      if (rule->IsMatch(subset, labels)) {
-        return rule;
-      }
-    }
-    return nullptr;
-  }
-  // 使用索引查询
-  for (std::map<int, RateLimitRuleIndex>::const_iterator it = rule_index_.begin(); it != rule_index_.end(); ++it) {
-    RateLimitRule* rule = it->second.MatchRule(subset, labels);
-    if (rule != nullptr) {
+    RateLimitRule* const& rule = rules_[i];
+    if (rule->IsMatch(method, labels)) {
       return rule;
     }
   }
@@ -86,10 +68,9 @@ ServiceRateLimitRule::~ServiceRateLimitRule() {
   }
 }
 
-RateLimitRule* ServiceRateLimitRule::MatchRateLimitRule(const std::map<std::string, std::string>& subset,
-                                                        const std::map<std::string, std::string>& labels) const {
+RateLimitRule* ServiceRateLimitRule::MatchRateLimitRule(const std::string method, const std::map<std::string, std::string>& labels) const {
   RateLimitData* rate_limit_data = service_data_->GetServiceDataImpl()->GetRateLimitData();
-  return rate_limit_data->MatchRule(subset, labels);
+  return rate_limit_data->MatchRule(method, labels);
 }
 
 bool ServiceRateLimitRule::IsRuleEnable(RateLimitRule* rule) {

@@ -55,8 +55,12 @@ ReturnCode SlowStartWeightAdjuster::ServiceInstanceUpdate(ServiceData* new_servi
   }
   ServiceInstances old_instances(old_service_data);
   ServiceInstances new_instances(new_service_data);
-  std::set<Instance*> new_add_instances;
   auto& old_instance_map = old_instances.GetInstances();
+  auto& new_instance_map = old_instances.GetInstances();
+  if (old_instance_map.empty() || new_instance_map.empty()) {
+    return kReturnOk;
+  }
+  std::set<Instance*> new_add_instances;
   for (auto& new_it : new_instances.GetInstances()) {
     if (old_instance_map.count(new_it.first) == 0) {
       new_add_instances.insert(new_it.second);

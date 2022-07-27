@@ -41,8 +41,8 @@ uint32_t RateLimitWindowKeyHash(const RateLimitWindowKey& key) {
   if (!key.regex_labels_.empty()) {
     s ^= MurmurString(key.regex_labels_) + 0x9e3779b9 + (s << 6) + (s >> 2);
   }
-  if (!key.regex_subset_.empty()) {
-    s ^= MurmurString(key.regex_subset_) + 0x9e3779b9 + (s << 6) + (s >> 2);
+  if (!key.method_.empty()) {
+    s ^= MurmurString(key.method_) + 0x9e3779b9 + (s << 6) + (s >> 2);
   }
   return s;
 }
@@ -97,7 +97,7 @@ ReturnCode QuotaManager::Init(Context* context, Config* config) {
   ServiceKey rate_limit_service;
   rate_limit_service.namespace_ =
       service_config->GetStringOrDefault(kRateLimitNamespaceKey, constants::kPolarisNamespace);
-  rate_limit_service.name_ = service_config->GetStringOrDefault(kRateLimitServiceKey, "");
+  rate_limit_service.name_ = service_config->GetStringOrDefault(kRateLimitServiceKey, "polaris.limiter");
   delete service_config;
 
   static const char kMessageTimeoutKey[] = "messageTimeout";
@@ -277,12 +277,12 @@ ReturnCode QuotaManager::InitWindow(const QuotaRequest::Impl& request, const Quo
 ReturnCode QuotaManager::GetRateLimitWindow(const QuotaRequest::Impl& request, const QuotaInfo& quota_info,
                                             RateLimitWindow*& rate_limit_window) {
   RateLimitRule* rate_limit_rule =
-      quota_info.GetServiceRateLimitRule()->MatchRateLimitRule(request.subset_, request.labels_);
+      quota_info.GetServiceRateLimitRule()->MatchRateLimitRule(request.method_, request.labels_);
   if (rate_limit_rule == nullptr) {
     return kReturnResourceNotFound;
   }
   RateLimitWindowKey window_key;
-  rate_limit_rule->GetWindowKey(request.subset_, request.labels_, window_key);
+  rate_limit_rule->GetWindowKey(request.method_, request.labels_, window_key);
 
   // 通过ID查找window
   RateLimitWindow* cached_window = rate_limit_window_lru_ == nullptr ? rate_limit_window_cache_.Get(window_key)
@@ -345,20 +345,19 @@ ReturnCode QuotaManager::UpdateCallResult(const LimitCallResult::Impl& request) 
   }
 
   ServiceRateLimitRule service_rate_limit_rule(rate_limit_data);
-  RateLimitRule* rate_limit_rule = service_rate_limit_rule.MatchRateLimitRule(request.subset_, request.labels_);
+  RateLimitRule* rate_limit_rule = service_rate_limit_rule.MatchRateLimitRule(request.method_, request.labels_);
   if (rate_limit_rule == nullptr) {
     return kReturnNotInit;
   }
 
   // 通过ID查找window
   RateLimitWindowKey window_key;
-  rate_limit_rule->GetWindowKey(request.subset_, request.labels_, window_key);
+  rate_limit_rule->GetWindowKey(request.method_, request.labels_, window_key);
   RateLimitWindow* cached_window = rate_limit_window_lru_ == nullptr ? rate_limit_window_cache_.Get(window_key)
                                                                      : rate_limit_window_lru_->Get(window_key);
   if (cached_window == nullptr) {
     return kReturnNotInit;
   }
-  cached_window->UpdateCallResult(request);
   cached_window->DecrementRef();
   return kReturnOk;
 }

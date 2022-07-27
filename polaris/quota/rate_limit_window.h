@@ -142,8 +142,6 @@ class RateLimitWindow : public ServiceBase {
 
   Reactor& GetReactor() { return reactor_; }
 
-  void UpdateCallResult(const LimitCallResult::Impl& request);
-
   MetricConnector* GetMetricConnector() { return metric_connector_; }
 
   RemoteAwareBucket* GetRemoteBucket() { return allocating_bucket_; }
@@ -181,8 +179,6 @@ class RateLimitWindow : public ServiceBase {
   uint64_t last_use_time_;
   uint64_t expire_time_;  // 淘汰周期
   bool is_deleted_;
-
-  QuotaAdjuster* quota_adjuster_;
 
   std::atomic<uint32_t> traffic_shaping_record_;
   std::atomic<bool> is_degrade_;
