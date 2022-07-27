@@ -32,13 +32,13 @@ void QuotaRequest::SetServiceNamespace(const std::string& service_namespace) {
 
 void QuotaRequest::SetServiceName(const std::string& service_name) { impl_->service_key_.name_ = service_name; }
 
-void QuotaRequest::SetSubset(const std::map<std::string, std::string>& subset) { impl_->subset_ = subset; }
-
 void QuotaRequest::SetLabels(const std::map<std::string, std::string>& labels) { impl_->labels_ = labels; }
 
 void QuotaRequest::SetAcquireAmount(int amount) { impl_->acquire_amount_ = amount; }
 
 void QuotaRequest::SetTimeout(uint64_t timeout) { impl_->timeout_ = timeout; }
+
+void QuotaRequest::SetMethod(const std::string& method) {impl_->method_ = method;}
 
 // ---------------------------------------------------------------------------
 
@@ -97,8 +97,6 @@ void LimitCallResult::SetServiceNamespace(const std::string& service_namespace) 
 }
 
 void LimitCallResult::SetServiceName(const std::string& service_name) { impl_->service_key_.name_ = service_name; }
-
-void LimitCallResult::SetSubset(const std::map<std::string, std::string>& subset) { impl_->subset_ = subset; }
 
 void LimitCallResult::SetLabels(const std::map<std::string, std::string>& labels) { impl_->labels_ = labels; }
 

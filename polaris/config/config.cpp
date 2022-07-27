@@ -31,30 +31,58 @@ Config::~Config() {
   }
 }
 
+/// @brief 将文件内容读入字符串中
+std::string readFileIntoString(const std::string& path) {
+    std::ifstream input_file(path);
+    return std::string((std::istreambuf_iterator<char>(input_file)), std::istreambuf_iterator<char>());
+}
+
 /// @brief 从文件创建配置对象
 Config* Config::CreateFromFile(const std::string& config_file, std::string& err_msg) {
   if (!FileUtils::FileExists(config_file)) {
     err_msg = "create config with file " + config_file + " not exists";
     return nullptr;
   }
-  ConfigImpl* impl = new ConfigImpl();
-  try {
-    std::ifstream fin(config_file.c_str());
-    YAML_0_3::Parser parser(fin);
-    parser.GetNextDocument(*impl->data_);
-  } catch (const YAML_0_3::Exception& e) {
-    err_msg = "create config with config file[ " + config_file + "] error:" + e.what();
-    delete impl;
-    return nullptr;
-  }
-  return new Config(impl);
+  std::string content = readFileIntoString(config_file);
+  return CreateFromString(content, err_msg);
 }
+
+/// @brief 支持环境变量展开
+static std::string expand_environment_variables( const std::string &s ) {
+    if( s.find( "${" ) == std::string::npos ) return s;
+
+    std::string pre  = s.substr( 0, s.find( "${" ) );
+    std::string post = s.substr( s.find( "${" ) + 2 );
+
+    if( post.find( '}' ) == std::string::npos ) return s;
+
+    std::string variable = post.substr( 0, post.find( '}' ) );
+    std::string value    = "";
+
+    post = post.substr( post.find( '}' ) + 1 );
+
+    const char *v = getenv( variable.c_str() );
+    if( v != NULL ) value = std::string( v );
+
+    return expand_environment_variables( pre + value + post );
+}
+
+const std::string emptyConfigContent = R"##(
+global:
+  serverConnector:
+    addresses:
+    - 127.0.0.1:8091
+)##";
 
 /// @brief 从字符串创建配置对象
 Config* Config::CreateFromString(const std::string& content, std::string& err_msg) {
+  std::string expandedContent = expand_environment_variables(content);
+  if (expandedContent.empty()) {
+    expandedContent = emptyConfigContent;
+  }
   ConfigImpl* impl = new ConfigImpl();
   try {
-    std::istringstream strstream(content);
+    std::istringstream strstream(expandedContent);
     YAML_0_3::Parser parser(strstream);
     parser.GetNextDocument(*impl->data_);
   } catch (const YAML_0_3::Exception& e) {
@@ -75,6 +103,9 @@ Config* Config::CreateWithDefaultFile(std::string& err_msg) {
 }
 
 /// @brief 创建空的配置，会使用默认配置
-Config* Config::CreateEmptyConfig() { return new Config(new ConfigImpl()); }
+Config* Config::CreateEmptyConfig() {
+  std::string err_msg;
+  return CreateFromString(emptyConfigContent, err_msg);
+}
 
 }  // namespace polaris

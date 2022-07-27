@@ -145,6 +145,10 @@ TEST_F(LimitApiTest, TestCreateFromFile) {
 
   // 写入配置
   content_ =
+      "global:\n"
+      "  serverConnector:\n"
+      "    addresses:\n"
+      "      - 10.0.0.1:8081\n"    
       "rateLimiter:\n"
       "  batchInterval: 100ms";
   TestUtils::CreateTempFileWithContent(config_file, content_);
@@ -179,6 +183,10 @@ TEST_F(LimitApiTest, TestCreateFromString) {
   ASSERT_FALSE(err_msg.empty());
 
   content_ =
+      "global:\n"
+      "  serverConnector:\n"
+      "    addresses:\n"
+      "      - 10.0.0.1:8081\n"  
       "rateLimiter:\n"
       "  batchInterval: 100ms";
   limit_api = LimitApi::CreateFromString(content_);
@@ -194,7 +202,7 @@ TEST_F(LimitApiTest, TestCreateFromShareContext) {
       "global:\n"
       "  serverConnector:\n"
       "    addresses:\n"
-      "      - 127.0.0.1:8081\n"
+      "      - 10.0.0.1:8081\n"
       "rateLimiter:\n"
       "  batchInterval: 100ms";
   config_ = Config::CreateFromString(content_, err_msg);
@@ -208,7 +216,7 @@ TEST_F(LimitApiTest, TestCreateFromShareContext) {
       "global:\n"
       "  serverConnector:\n"
       "    addresses:\n"
-      "      - 127.0.0.1:8081\n"
+      "      - 10.0.0.1:8081\n"
       "rateLimiter:\n"
       "  rateLimitCluster:\n"
       "    namespace: Polaris\n"
@@ -234,7 +242,7 @@ TEST_F(LimitApiTest, FetchRuleTimeout) {
   ASSERT_EQ(limit_api->FetchRule(service_key, 100, json_rule), kReturnTimeout);
 
   const std::set<std::string> *label_keys = nullptr;
-  ASSERT_EQ(limit_api->FetchRuleLabelKeys(service_key, 10, label_keys), kReturnTimeout);
+  ASSERT_EQ(limit_api->FetchRuleLabelKeys(service_key, label_keys), kReturnTimeout);
   ASSERT_TRUE(label_keys == nullptr);
   delete limit_api;
 }
@@ -259,12 +267,6 @@ TEST_F(LimitApiTest, GetQuota) {
   ASSERT_EQ(limit_api->GetQuota(request, quota_result, wait_time), kReturnTimeout);
   ASSERT_EQ(quota_result, kQuotaResultWait);
   ASSERT_EQ(wait_time, 99);
-
-  LimitCallResult call_result;
-  call_result.SetServiceNamespace("test");
-  call_result.SetServiceName("test.limit.service");
-  call_result.SetResponseResult(kLimitCallResultLimited);
-  ASSERT_EQ(limit_api->UpdateCallResult(call_result), kReturnNotInit);
   delete limit_api;
 }
 

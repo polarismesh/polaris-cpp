@@ -24,6 +24,8 @@
 
 namespace polaris {
 
+static const std::string ALL_MATCH = "*";
+
 class MatchString {
  public:
   MatchString() : type_(v1::MatchString::EXACT), value_type_(v1::MatchString::TEXT) {}
@@ -71,6 +73,7 @@ class MatchString {
   v1::MatchString::ValueType value_type_;  // 值类型
   std::string data_;
   std::shared_ptr<re2::RE2> regex_;
+  bool allMatch;
 };
 
 }  // namespace polaris

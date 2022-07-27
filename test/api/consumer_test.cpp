@@ -23,7 +23,6 @@
 #include "api/consumer_api.h"
 #include "context/context_impl.h"
 #include "mock/fake_server_response.h"
-#include "mock/mock_dynamic_weight_connector.h"
 #include "mock/mock_server_connector.h"
 #include "plugin/load_balancer/hash/hash_manager.h"
 #include "polaris/consumer.h"
@@ -174,8 +173,6 @@ TEST_F(ConsumerApiCreateTest, TestCreateFromString) {
 class ConsumerApiMockServerConnectorTest : public MockServerConnectorTest {
  protected:
   virtual void SetUp() {
-    // inject and mock dynamic weight connector
-    ContextImpl::SetDynamicWeightConnectorCreator(MockDynamicWeightCreator);
     // mock server connector
     MockServerConnectorTest::SetUp();
     context_ = nullptr;
@@ -314,31 +311,6 @@ TEST_F(ConsumerApiMockServerConnectorTest, TestGetOneInstanceRequest) {
   delete response;
 }
 
-TEST_F(ConsumerApiMockServerConnectorTest, TestTrpcGetOneInstanceRequest) {
-  ServiceKey service_key;
-  TrpcInstanceRequestInfo empty_service_name_request;
-  empty_service_name_request.service_key = &service_key;
-  TrpcInstancesResponseInfo empty_service_name_response;
-  ASSERT_EQ(ConsumerApiImpl::TrpcGetOneInstance(context_, empty_service_name_request, empty_service_name_response),
-            kReturnInvalidArgument);
-  ASSERT_TRUE(empty_service_name_response.instances.empty());
-
-  TrpcInstanceRequestInfo request;
-  request.service_key = &service_key_;
-  InitServiceData();
-  EXPECT_CALL(*server_connector_,
-              RegisterEventHandler(::testing::Eq(service_key_), ::testing::_, ::testing::_, ::testing::_, ::testing::_))
-      .Times(::testing::Exactly(2))
-      .WillRepeatedly(
-          ::testing::DoAll(::testing::Invoke(this, &ConsumerApiMockServerConnectorTest::MockFireEventHandler),
-                           ::testing::Return(kReturnOk)));
-
-  TrpcInstancesResponseInfo response;
-  ASSERT_EQ(ConsumerApiImpl::TrpcGetOneInstance(context_, request, response), kReturnOk);
-  ASSERT_EQ(response.instances.size(), 1);
-  ASSERT_FALSE(response.instances[0].GetId().empty());
-}
-
 TEST_F(ConsumerApiMockServerConnectorTest, TestGetOneInstanceTimeout) {
   EXPECT_CALL(*server_connector_,
               RegisterEventHandler(::testing::Eq(service_key_), ::testing::_, ::testing::_, ::testing::_, ::testing::_))
@@ -355,21 +327,6 @@ TEST_F(ConsumerApiMockServerConnectorTest, TestGetOneInstanceTimeout) {
   InstancesResponse *response = nullptr;
   ASSERT_EQ(consumer_api_->GetOneInstance(request, response), kReturnTimeout);
   ASSERT_FALSE(response != nullptr);
-}
-
-TEST_F(ConsumerApiMockServerConnectorTest, TestTrpcGetOneInstanceTimeout) {
-  EXPECT_CALL(*server_connector_,
-              RegisterEventHandler(::testing::Eq(service_key_), ::testing::_, ::testing::_, ::testing::_, ::testing::_))
-      .Times(::testing::Exactly(2))
-      .WillRepeatedly(
-          ::testing::DoAll(::testing::Invoke(this, &ConsumerApiMockServerConnectorTest::MockIgnoreEventHandler),
-                           ::testing::Return(kReturnOk)));
-
-  TrpcInstanceRequestInfo request;
-  request.service_key = &service_key_;
-  TrpcInstancesResponseInfo response;
-  ASSERT_EQ(ConsumerApiImpl::TrpcGetOneInstance(context_, request, response), kReturnTimeout);
-  ASSERT_TRUE(response.instances.empty());
 }
 
 TEST_F(ConsumerApiMockServerConnectorTest, TestGetOneInstanceButNoHealthyInstances) {
@@ -394,25 +351,6 @@ TEST_F(ConsumerApiMockServerConnectorTest, TestGetOneInstanceButNoHealthyInstanc
   delete response;
 }
 
-TEST_F(ConsumerApiMockServerConnectorTest, TestTrpcGetOneInstanceButNoHealthyInstances) {
-  instance_healthy_ = false;
-  InitServiceData();
-  EXPECT_CALL(*server_connector_,
-              RegisterEventHandler(::testing::Eq(service_key_), ::testing::_, ::testing::_, ::testing::_, ::testing::_))
-      .Times(::testing::Exactly(2))
-      .WillRepeatedly(
-          ::testing::DoAll(::testing::Invoke(this, &ConsumerApiMockServerConnectorTest::MockFireEventHandler),
-                           ::testing::Return(kReturnOk)));
-
-  TrpcInstanceRequestInfo request;
-  request.service_key = &service_key_;
-  // 全部实例都不健康，由于路由模块默认最少返回比例大于0，依然会返回实例
-  TrpcInstancesResponseInfo response;
-  ASSERT_EQ(ConsumerApiImpl::TrpcGetOneInstance(context_, request, response), kReturnOk);
-  ASSERT_EQ(response.instances.size(), 1);
-  ASSERT_FALSE(response.instances[0].GetId().empty());
-}
-
 TEST_F(ConsumerApiMockServerConnectorTest, TestGetOneInstanceWithOnlyOneInstance) {
   instance_num_ = 1;
   InitServiceData();
@@ -435,26 +373,6 @@ TEST_F(ConsumerApiMockServerConnectorTest, TestGetOneInstanceWithOnlyOneInstance
     ASSERT_EQ(response->GetInstances().size(), 1);
     ASSERT_EQ(response->GetInstances()[0].GetId(), "instance_0");
     delete response;
-  }
-}
-
-TEST_F(ConsumerApiMockServerConnectorTest, TestTrpcGetOneInstanceWithOnlyOneInstance) {
-  instance_num_ = 1;
-  InitServiceData();
-  EXPECT_CALL(*server_connector_,
-              RegisterEventHandler(::testing::Eq(service_key_), ::testing::_, ::testing::_, ::testing::_, ::testing::_))
-      .Times(::testing::Exactly(2))
-      .WillRepeatedly(
-          ::testing::DoAll(::testing::Invoke(this, &ConsumerApiMockServerConnectorTest::MockFireEventHandler),
-                           ::testing::Return(kReturnOk)));
-
-  for (int i = 0; i < 100; i++) {
-    TrpcInstanceRequestInfo request;
-    request.service_key = &service_key_;
-    TrpcInstancesResponseInfo response;
-    ASSERT_EQ(ConsumerApiImpl::TrpcGetOneInstance(context_, request, response), kReturnOk);
-    ASSERT_EQ(response.instances.size(), 1);
-    ASSERT_EQ(response.instances[0].GetId(), "instance_0");
   }
 }
 
@@ -709,39 +627,6 @@ TEST_F(ConsumerApiMockServerConnectorTest, TestGetRouteRuleKeys) {
 
   ASSERT_EQ(consumer_api_->GetRouteRuleKeys(service_key_, 1000, keys), kReturnOk);
   ASSERT_TRUE(keys->count("key1") == 1);
-}
-
-TEST_F(ConsumerApiMockServerConnectorTest, TestGetOneInstanceByDynamicWeight) {
-  instance_num_ = 1;
-  InitServiceData();
-  EXPECT_CALL(*server_connector_,
-              RegisterEventHandler(::testing::Eq(service_key_), ::testing::_, ::testing::_, ::testing::_, ::testing::_))
-      .Times(::testing::Exactly(2))
-      .WillRepeatedly(
-          ::testing::DoAll(::testing::Invoke(this, &ConsumerApiMockServerConnectorTest::MockFireEventHandler),
-                           ::testing::Return(kReturnOk)));
-
-  // mock function RegisterDynamicDataUpdateEvent
-  DynamicWeightConnector *connector = context_->GetContextImpl()->GetDynamicWeightConnector();
-  MockDynamicWeightConnector &mock_conector = *dynamic_cast<MockDynamicWeightConnector *>(connector);
-  EXPECT_CALL(mock_conector, RegisterDynamicDataUpdateEvent(::testing::_, ::testing::_))
-      .Times(1)
-      .WillRepeatedly(::testing::Return(kReturnOk));
-
-  Instance instance;
-  InstancesResponse *response = nullptr;
-  for (int i = 0; i < 100; i++) {
-    GetOneInstanceRequest request(service_key_);
-    request.SetLoadBalanceType(polaris::kLoadBalanceTypeDynamicWeighted);
-    ASSERT_EQ(consumer_api_->GetOneInstance(request, instance), kReturnOk);
-    ASSERT_EQ(instance.GetId(), "instance_0");
-
-    ASSERT_EQ(consumer_api_->GetOneInstance(request, response), kReturnOk);
-    ASSERT_TRUE(response != nullptr);
-    ASSERT_EQ(response->GetInstances().size(), 1);
-    ASSERT_EQ(response->GetInstances()[0].GetId(), "instance_0");
-    delete response;
-  }
 }
 
 struct CohashFactor {

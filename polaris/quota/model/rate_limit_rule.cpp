@@ -35,12 +35,12 @@ bool RateLimitWindowKey::operator<(const RateLimitWindowKey& rhs) const {
   } else if (this->regex_labels_ > rhs.regex_labels_) {
     return false;
   } else {
-    return this->regex_subset_ < rhs.regex_subset_;
+    return this->method_ < rhs.method_;
   }
 }
 
 bool RateLimitWindowKey::operator==(const RateLimitWindowKey& rhs) const {
-  return this->rule_id_ == rhs.rule_id_ && this->regex_subset_ == rhs.regex_subset_ &&
+  return this->rule_id_ == rhs.rule_id_ && this->method_ == rhs.method_ &&
          this->regex_labels_ == rhs.regex_labels_;
 }
 
@@ -69,7 +69,7 @@ bool RateLimitRule::Init(const v1::Rule& rule) {
   limit_type_ = rule.type();
 
   bool has_regex = false;
-  if (!InitMatch(rule.labels(), labels_, has_regex) || !InitMatch(rule.subset(), subset_, has_regex)) {
+  if (!InitMatch(rule.labels(), labels_, has_regex) || !InitMethod(rule.method(), method_, has_regex)) {
     return false;
   }
   if (has_regex) {
@@ -143,6 +143,16 @@ bool RateLimitRule::InitMatch(const google::protobuf::Map<std::string, v1::Match
   return true;
 }
 
+bool RateLimitRule::InitMethod(const v1::MatchString pb_method, MatchString& method, bool& has_regex) {
+  if (!method.Init(pb_method)) {
+    return false;
+  }
+  if (method.IsRegex()) {
+      has_regex = true;
+  }
+  return true;
+}
+
 bool RateLimitRule::InitReportConfig(const v1::Rule& rule) {
   static const uint64_t kDefaultLimitReportInterval = 40;        // 默认上报间隔
   static const uint64_t kMinRateLimitReportInterval = 2;         // 最小限流上报周期
@@ -172,11 +182,7 @@ bool RateLimitRule::InitReportConfig(const v1::Rule& rule) {
     report_.interval_ = kDefaultLimitReportInterval;
   }
 
-  if (rule.has_report() && rule.report().has_enablebatch()) {
-    report_.enable_batch_ = rule.report().enablebatch().value();
-  } else {
-    report_.enable_batch_ = false;
-  }
+  report_.enable_batch_ = true;
   return true;
 }
 
@@ -191,12 +197,11 @@ uint64_t RateLimitRule::FindMaxValidDuration() {
   return max_duration;
 }
 
-bool RateLimitRule::IsMatch(const std::map<std::string, std::string>& subset,
-                            const std::map<std::string, std::string>& labels) const {
+bool RateLimitRule::IsMatch(const std::string method, const std::map<std::string, std::string>& labels) const {
   if (disable_) {  // 规则被禁用
     return false;
   }
-  return MatchString::MapMatch(labels_, labels) && MatchString::MapMatch(subset_, subset);
+  return method_.Match(method) && MatchString::MapMatch(labels_, labels);
 }
 
 std::string RateLimitRule::GetActionString() { return action_type_ == kRateLimitActionReject ? "reject" : "unirate"; }
@@ -212,39 +217,18 @@ std::string RateLimitRule::MatchMapToStr(const std::map<std::string, MatchString
   return output.str();
 }
 
-std::string RateLimitRule::GetSubsetAsString() { return subset_.empty() ? "*" : MatchMapToStr(subset_); }
+std::string RateLimitRule::GetMethodString() { return method_.GetString(); }
 
 std::string RateLimitRule::GetLabelsAsString() { return labels_.empty() ? "*" : MatchMapToStr(labels_); }
 
 std::string RateLimitRule::GetMetricId(const RateLimitWindowKey& window_key) {
   std::string output = id_;
   output += "#";
-
+  output += window_key.method_;
+  output += "#";
   std::map<std::string, MatchString>::const_iterator it;
   const char* separator = "";
   std::size_t pos = 0;
-  for (it = subset_.begin(); it != subset_.end(); ++it) {
-    output += separator;
-    output += it->first;
-    output += ":";
-    if (it->second.IsExactText()) {
-      output += it->second.GetString();
-    } else {
-      std::size_t next_pos = window_key.regex_subset_.find('|', pos);
-      if (next_pos != std::string::npos) {
-        output += window_key.regex_subset_.substr(pos, next_pos - pos);
-        pos = next_pos + 1;
-      } else {
-        output += window_key.regex_subset_.substr(pos);
-      }
-    }
-    separator = "|";
-  }
-
-  output += "#";
-
-  separator = "";
-  pos = 0;
   for (it = labels_.begin(); it != labels_.end(); ++it) {
     output += separator;
     output += it->first;
@@ -265,20 +249,12 @@ std::string RateLimitRule::GetMetricId(const RateLimitWindowKey& window_key) {
   return output;
 }
 
-void RateLimitRule::GetWindowKey(const std::map<std::string, std::string>& subset,
-                                 const std::map<std::string, std::string>& labels, RateLimitWindowKey& window_key) {
+void RateLimitRule::GetWindowKey(const std::string& method, const std::map<std::string, std::string>& labels, RateLimitWindowKey& window_key) {
   window_key.rule_id_ = id_;
+  window_key.method_ = method;
   const char* separator = "";
   std::map<std::string, MatchString>::const_iterator it;
   std::map<std::string, std::string>::const_iterator match_it;
-  for (it = subset_.begin(); it != subset_.end(); ++it) {
-    if (it->second.IsRegex()) {
-      match_it = subset.find(it->first);
-      window_key.regex_subset_ += (separator + match_it->second);
-      separator = "|";
-    }
-  }
-  separator = "";
   for (it = labels_.begin(); it != labels_.end(); ++it) {
     if (it->second.IsRegex()) {
       match_it = labels.find(it->first);

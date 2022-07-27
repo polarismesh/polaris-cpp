@@ -33,7 +33,6 @@
 
 #include <vector>
 
-#include "config/seed_server.h"
 #include "logger.h"
 #include "utils/time_clock.h"
 
@@ -336,9 +335,7 @@ bool NetClient::GetIpByIf(const std::string& ifname, std::string* ip) {
   return false;
 }
 
-bool NetClient::GetIpByConnect(std::string* ip) {
-  std::vector<SeedServer> default_servers;
-  SeedServerConfig::GetDefaultSeedServer(default_servers);
+bool NetClient::GetIpByConnect(std::string* ip, std::vector<SeedServer>& default_servers) {
   POLARIS_ASSERT(!default_servers.empty());
   SeedServer& server = default_servers[time(nullptr) % default_servers.size()];
 

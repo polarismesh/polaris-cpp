@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "quota/model/rate_limit_rule.h"
-#include "quota/model/rate_limit_rule_index.h"
 
 namespace polaris {
 
@@ -33,10 +32,7 @@ class RateLimitData {
 
   void SortByPriority();  // 按优先级排序，相同优先级按ID排序
 
-  void SetupIndexMap();  // 构建索引用于加快匹配
-
-  RateLimitRule* MatchRule(const std::map<std::string, std::string>& subset,
-                           const std::map<std::string, std::string>& labels) const;
+  RateLimitRule* MatchRule(const std::string method, const std::map<std::string, std::string>& labels) const;
 
   const std::set<std::string>& GetLabelKeys() const { return label_keys_; }
 
@@ -44,7 +40,6 @@ class RateLimitData {
 
  private:
   std::vector<RateLimitRule*> rules_;
-  std::map<int, RateLimitRuleIndex> rule_index_;
   std::set<std::string> label_keys_;
 };
 
@@ -56,8 +51,7 @@ class ServiceRateLimitRule {
 
   ~ServiceRateLimitRule();
 
-  RateLimitRule* MatchRateLimitRule(const std::map<std::string, std::string>& subset,
-                                    const std::map<std::string, std::string>& labels) const;
+  RateLimitRule* MatchRateLimitRule(const std::string method, const std::map<std::string, std::string>& labels) const;
 
   // 检查规则是否还生效
   bool IsRuleEnable(RateLimitRule* rule);

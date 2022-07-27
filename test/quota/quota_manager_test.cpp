@@ -118,9 +118,7 @@ TEST_F(QuotaManagerTest, GetQuotaWithRule) {
     labels["label"] = "value";
     labels["label2"] = "value2";
     req.SetLabels(labels);
-    std::map<std::string, std::string> subset;
-    subset["subset"] = "value";
-    req.SetSubset(subset);
+    req.SetMethod("value");
     QuotaInfo quota_info;
     ASSERT_EQ(quota_manager_->PrepareQuotaInfo(req.GetImpl(), &quota_info), kReturnOk);
     if (i < 40) {

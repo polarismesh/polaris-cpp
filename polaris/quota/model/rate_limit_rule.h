@@ -56,8 +56,8 @@ enum RateLimitActionType {
 
 struct RateLimitWindowKey {
   std::string rule_id_;
+  std::string method_;
   std::string regex_labels_;
-  std::string regex_subset_;
 
   bool operator<(const RateLimitWindowKey& rhs) const;
 
@@ -71,8 +71,7 @@ class RateLimitRule {
   bool Init(const v1::Rule& rule);
 
   // 检查该规则是否能够匹配传入的subset和lables
-  bool IsMatch(const std::map<std::string, std::string>& subset,
-               const std::map<std::string, std::string>& labels) const;
+  bool IsMatch(const std::string method, const std::map<std::string, std::string>& labels) const;
 
   const std::string& GetId() const { return id_; }
 
@@ -102,14 +101,13 @@ class RateLimitRule {
 
   std::string GetActionString();
 
-  std::string GetSubsetAsString();
+  std::string GetMethodString();
 
   std::string GetLabelsAsString();
 
   const std::map<std::string, MatchString>& GetLabels() const { return labels_; }
 
-  void GetWindowKey(const std::map<std::string, std::string>& subset, const std::map<std::string, std::string>& labels,
-                    RateLimitWindowKey& window_key);
+  void GetWindowKey(const std::string& method, const std::map<std::string, std::string>& labels, RateLimitWindowKey& window_key);
 
   std::string GetMetricId(const RateLimitWindowKey& window_key);
 
@@ -129,6 +127,8 @@ class RateLimitRule {
   static bool InitMatch(const google::protobuf::Map<std::string, v1::MatchString>& pb_match,
                         std::map<std::string, MatchString>& match, bool& has_regex);
 
+  static bool InitMethod(const v1::MatchString pb_method, MatchString& method, bool& has_regex);                      
+
   static std::string MatchMapToStr(const std::map<std::string, MatchString>& match);
 
  private:
@@ -137,7 +137,7 @@ class RateLimitRule {
   uint32_t priority_;  // 优先级，0是最高优先级
   v1::Rule::Resource limit_resource_;
   v1::Rule::Type limit_type_;
-  std::map<std::string, MatchString> subset_;
+  MatchString method_;
   std::map<std::string, MatchString> labels_;
   std::vector<RateLimitAmount> amounts_;
   v1::Rule::AmountMode amount_mode_;

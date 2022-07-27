@@ -44,6 +44,8 @@ int main(int argc, char** argv) {
   std::string err_msg, content =
                            "global:\n"
                            "  serverConnector:\n"
+                           "    addresses:\n"
+                           "    - 127.0.0.1:8091\n"                           
                            "consumer:\n"
                            "  healthCheck:\n"
                            "    when: always\n"

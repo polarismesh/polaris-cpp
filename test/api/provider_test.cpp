@@ -22,7 +22,6 @@
 
 #include "context/context_impl.h"
 #include "mock/fake_server_response.h"
-#include "mock/mock_dynamic_weight_connector.h"
 #include "mock/mock_server_connector.h"
 #include "polaris/plugin.h"
 #include "polaris/provider.h"
@@ -173,8 +172,6 @@ TEST_F(ProviderApiCreateTest, TestCreateFromString) {
 class ProviderApiMockServerConnectorTest : public MockServerConnectorTest {
  protected:
   virtual void SetUp() {
-    // inject and mock dynamic weight connector
-    ContextImpl::SetDynamicWeightConnectorCreator(MockDynamicWeightCreator);
     // mock server connector
     MockServerConnectorTest::SetUp();
     TestUtils::CreateTempDir(persist_dir_);
@@ -440,20 +437,6 @@ TEST_F(ProviderApiMockServerConnectorTest, TestInstanceAsyncHeartbeatFailed) {
                                                     "instance_host", 8000);
   TestProviderCallback *callback = new TestProviderCallback(kReturnInvalidArgument, __LINE__);
   EXPECT_EQ(provider_api_->AsyncHeartbeat(normal_host_port_request, callback), kReturnInvalidArgument);
-}
-
-// test dynamic weight connector
-TEST_F(ProviderApiMockServerConnectorTest, TestReportDynamicWeight) {
-  // mock function InstanceReportDynamicWeight
-  DynamicWeightConnector *connector = context_->GetContextImpl()->GetDynamicWeightConnector();
-  MockDynamicWeightConnector &mock_conector = *dynamic_cast<MockDynamicWeightConnector *>(connector);
-  EXPECT_CALL(mock_conector, InstanceReportDynamicWeight(::testing::_, ::testing::_))
-      .Times(1)
-      .WillRepeatedly(::testing::Return(kReturnOk));
-
-  // call function test
-  DynamicWeightRequest dynamicweight_req("service_namespace", "service_name", "service_token", "instance_host", 8000);
-  EXPECT_EQ(provider_api_->ReportDynamicWeight(dynamicweight_req), kReturnOk);
 }
 
 }  // namespace polaris

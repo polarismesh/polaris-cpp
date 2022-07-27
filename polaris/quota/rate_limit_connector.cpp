@@ -334,7 +334,7 @@ void RateLimitConnection::SendPendingInit() {
     target_key.service_key_.namespace_ = init_request->target().namespace_();
     target_key.service_key_.name_ = init_request->target().service();
     const std::string& metric_id = it->first->GetMetricId();
-    std::size_t sharp_index = metric_id.find_last_of("#");
+    std::size_t sharp_index = metric_id.find_first_of("#");
     target_key.labels_ = metric_id.substr(sharp_index + 1);
     limit_target_map_[target_key] = it->first;
 

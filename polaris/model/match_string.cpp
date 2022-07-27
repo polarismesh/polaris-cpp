@@ -22,8 +22,11 @@ bool MatchString::Init(const v1::MatchString& match_string) {
   value_type_ = match_string.value_type();
   data_ = match_string.value().value();
   regex_.reset();
-  if (type_ == v1::MatchString::REGEX) {
-    return InitRegex(match_string.value().value());
+  allMatch = data_.empty() || data_ == ALL_MATCH;
+  if (!allMatch) {
+    if (type_ == v1::MatchString::REGEX) {
+      return InitRegex(match_string.value().value());
+    }
   }
   return true;
 }
@@ -50,6 +53,9 @@ bool MatchString::FillVariable(const std::string& variable) {
 bool MatchString::Match(const std::string& value) const {
   if (value_type_ == v1::MatchString::PARAMETER) {
     return true;  // 参数类型不在这里匹配value
+  }
+  if (allMatch) {
+    return true;
   }
   if (type_ == v1::MatchString::EXACT) {
     return data_ == value;

@@ -51,10 +51,10 @@ class QuotaRequest {
   /// @brief 设置请求超时时间，可选，单位ms，默认1000ms
   void SetTimeout(uint64_t timeout);
 
-  /// @brief 设置请求的所属服务子集，可选
+  /// @brief 设置请求所属的接口名，可选
   ///
-  /// @param subset 服务子集
-  void SetSubset(const std::map<std::string, std::string>& subset);
+  /// @param method 接口名
+  void SetMethod(const std::string& method);
 
   class Impl;
   Impl& GetImpl() const;
@@ -130,11 +130,6 @@ class LimitCallResult {
   /// @brief 设置服务名
   void SetServiceName(const std::string& service_name);
 
-  /// @brief 设置请求的所属服务子集
-  ///
-  /// @param subset 服务子集
-  void SetSubset(const std::map<std::string, std::string>& subset);
-
   /// @brief 设置标签
   void SetLabels(const std::map<std::string, std::string>& labels);
 
@@ -177,11 +172,9 @@ class LimitApi : Noncopyable {
   /// @brief 拉取服务配置的限流规则配置的所有key
   ///
   /// @param service_key  需要预拉取限流规则的服务
-  /// @param timeout      预拉取请求超时时间，单位为ms
   /// @param label_keys   限流规则里配置的label的所有key
   /// @return ReturnCode  拉取结果，拉取失败可重试
-  ReturnCode FetchRuleLabelKeys(const ServiceKey& service_key, uint64_t timeout,
-                                const std::set<std::string>*& label_keys);
+  ReturnCode FetchRuleLabelKeys(const ServiceKey& service_key, const std::set<std::string>*& label_keys);
 
   /// @brief 获取配额应答
   ///

@@ -24,10 +24,10 @@
 
 namespace polaris {
 
-static const int kDefaultPort = 8081;
+static const int kDefaultPort = 8091;
 
 static const char kDefaultSeedServerName[] = "default";
-static const uint32_t kDefaultSeedServer[] = {16777343};
+static const uint32_t kDefaultSeedServer[] = {};
 static const int kDefaultSeedServerSize    = sizeof(kDefaultSeedServer) / sizeof(uint32_t);
 
 // 内置Polaris Server服务
@@ -54,7 +54,7 @@ SeedServerConfig::SeedServerConfig()
       metric_cluster_(kMetricServiceDefault) {}
 
 ReturnCode SeedServerConfig::UpdateJoinPoint(std::string join_point) {
-  if (StringUtils::IgnoreCaseCmp(join_point, kDefaultSeedServerName)) {  // 国内默认集群
+  if (StringUtils::IgnoreCaseCmp(join_point, kDefaultSeedServerName)) {  // 默认埋点集群
     seed_server_ = kDefaultSeedServerName;
     discover_cluster_.Update(constants::kPolarisNamespace, kDiscoverServiceDefault);
     heartbeat_cluster_.Update(constants::kPolarisNamespace, kHealthCheckServiceDefault);

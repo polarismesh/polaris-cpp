@@ -112,14 +112,15 @@ class ServiceLimitRuleMatchTest : public ::testing::Test {
 };
 
 TEST_F(ServiceLimitRuleMatchTest, MatchRule) {
-  std::map<std::string, std::string> subset, labels;
+  std::map<std::string, std::string> labels;
+  std::string method = "*";
   RateLimitRule* rule;
 
   // k1:v1  k2:v2a.*
   labels.clear();
   labels["k1"] = "v1";
   labels["k2"] = "v2aa";
-  rule = service_rule_->MatchRateLimitRule(subset, labels);
+  rule = service_rule_->MatchRateLimitRule(method, labels);
   ASSERT_TRUE(rule != nullptr);
   ASSERT_EQ(rule->GetId(), "1");
 
@@ -127,7 +128,7 @@ TEST_F(ServiceLimitRuleMatchTest, MatchRule) {
   labels.clear();
   labels["k1"] = "v1";
   labels["k2"] = "v2b";
-  rule = service_rule_->MatchRateLimitRule(subset, labels);
+  rule = service_rule_->MatchRateLimitRule(method, labels);
   ASSERT_TRUE(rule != nullptr);
   ASSERT_EQ(rule->GetId(), "2");
 
@@ -135,7 +136,7 @@ TEST_F(ServiceLimitRuleMatchTest, MatchRule) {
   labels.clear();
   labels["k1"] = "v1a";
   labels["k2"] = "v2";
-  rule = service_rule_->MatchRateLimitRule(subset, labels);
+  rule = service_rule_->MatchRateLimitRule(method, labels);
   ASSERT_TRUE(rule != nullptr);
   ASSERT_EQ(rule->GetId(), "3");
 
@@ -143,7 +144,7 @@ TEST_F(ServiceLimitRuleMatchTest, MatchRule) {
   labels.clear();
   labels["k1"] = "v1b";
   labels["k2"] = "v2";
-  rule = service_rule_->MatchRateLimitRule(subset, labels);
+  rule = service_rule_->MatchRateLimitRule(method, labels);
   ASSERT_TRUE(rule != nullptr);
   ASSERT_EQ(rule->GetId(), "4");
 
@@ -151,7 +152,7 @@ TEST_F(ServiceLimitRuleMatchTest, MatchRule) {
   labels.clear();
   labels["k2"] = "v2";
   labels["k3"] = "v3a";
-  rule = service_rule_->MatchRateLimitRule(subset, labels);
+  rule = service_rule_->MatchRateLimitRule(method, labels);
   ASSERT_TRUE(rule != nullptr);
   ASSERT_EQ(rule->GetId(), "5");
 
@@ -159,7 +160,7 @@ TEST_F(ServiceLimitRuleMatchTest, MatchRule) {
   labels.clear();
   labels["k2"] = "v2";
   labels["k3"] = "v3b";
-  rule = service_rule_->MatchRateLimitRule(subset, labels);
+  rule = service_rule_->MatchRateLimitRule(method, labels);
   ASSERT_TRUE(rule != nullptr);
   ASSERT_EQ(rule->GetId(), "6");
 
@@ -168,19 +169,20 @@ TEST_F(ServiceLimitRuleMatchTest, MatchRule) {
     labels.clear();
     labels["k1"] = "v" + id;
     labels["k2"] = "v" + id + id;
-    rule = service_rule_->MatchRateLimitRule(subset, labels);
+    rule = service_rule_->MatchRateLimitRule(method, labels);
     ASSERT_TRUE(rule != nullptr);
     ASSERT_EQ(rule->GetId(), id);
   }
 }
 
 TEST_F(ServiceLimitRuleMatchTest, CheckRuleEnable) {
-  std::map<std::string, std::string> subset, labels;
+  std::map<std::string, std::string> labels;
+  std::string method = "*";
 
   // 获取第1条规则 k1:v1  k2:v2a.*
   labels["k1"] = "v1";
   labels["k2"] = "v2aa";
-  RateLimitRule* rule1 = service_rule_->MatchRateLimitRule(subset, labels);
+  RateLimitRule* rule1 = service_rule_->MatchRateLimitRule(method, labels);
   ASSERT_TRUE(rule1 != nullptr);
   ASSERT_EQ(rule1->GetId(), "1");
 
@@ -188,7 +190,7 @@ TEST_F(ServiceLimitRuleMatchTest, CheckRuleEnable) {
   labels.clear();
   labels["k1"] = "v1";
   labels["k2"] = "v2b";
-  RateLimitRule* rule2 = service_rule_->MatchRateLimitRule(subset, labels);
+  RateLimitRule* rule2 = service_rule_->MatchRateLimitRule(method, labels);
   ASSERT_TRUE(rule2 != nullptr);
   ASSERT_EQ(rule2->GetId(), "2");
   // 修改第2条规则的版本号
@@ -204,7 +206,7 @@ TEST_F(ServiceLimitRuleMatchTest, CheckRuleEnable) {
   labels.clear();
   labels["k1"] = "v1a";
   labels["k2"] = "v2";
-  RateLimitRule* rule3 = service_rule_->MatchRateLimitRule(subset, labels);
+  RateLimitRule* rule3 = service_rule_->MatchRateLimitRule(method, labels);
   ASSERT_TRUE(rule3 != nullptr);
   ASSERT_EQ(rule3->GetId(), "3");
   // 屏蔽第3条规则
@@ -220,7 +222,7 @@ TEST_F(ServiceLimitRuleMatchTest, CheckRuleEnable) {
   labels.clear();
   labels["k1"] = "v1b";
   labels["k2"] = "v2";
-  RateLimitRule* rule4 = service_rule_->MatchRateLimitRule(subset, labels);
+  RateLimitRule* rule4 = service_rule_->MatchRateLimitRule(method, labels);
   ASSERT_TRUE(rule4 != nullptr);
   ASSERT_EQ(rule4->GetId(), "4");
   // 第4条规则被删除，通过修改规则4的ID模拟被删除
