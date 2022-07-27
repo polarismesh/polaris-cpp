@@ -145,6 +145,10 @@ TEST_F(LimitApiTest, TestCreateFromFile) {
 
   // 写入配置
   content_ =
+      "global:\n"
+      "  serverConnector:\n"
+      "    addresses:\n"
+      "      - 10.0.0.1:8081\n"    
       "rateLimiter:\n"
       "  batchInterval: 100ms";
   TestUtils::CreateTempFileWithContent(config_file, content_);
@@ -182,7 +186,7 @@ TEST_F(LimitApiTest, TestCreateFromString) {
       "global:\n"
       "  serverConnector:\n"
       "    addresses:\n"
-      "      - 127.0.0.1:8081\n"  
+      "      - 10.0.0.1:8081\n"  
       "rateLimiter:\n"
       "  batchInterval: 100ms";
   limit_api = LimitApi::CreateFromString(content_);
@@ -198,7 +202,7 @@ TEST_F(LimitApiTest, TestCreateFromShareContext) {
       "global:\n"
       "  serverConnector:\n"
       "    addresses:\n"
-      "      - 127.0.0.1:8081\n"
+      "      - 10.0.0.1:8081\n"
       "rateLimiter:\n"
       "  batchInterval: 100ms";
   config_ = Config::CreateFromString(content_, err_msg);
@@ -212,7 +216,7 @@ TEST_F(LimitApiTest, TestCreateFromShareContext) {
       "global:\n"
       "  serverConnector:\n"
       "    addresses:\n"
-      "      - 127.0.0.1:8081\n"
+      "      - 10.0.0.1:8081\n"
       "rateLimiter:\n"
       "  rateLimitCluster:\n"
       "    namespace: Polaris\n"
