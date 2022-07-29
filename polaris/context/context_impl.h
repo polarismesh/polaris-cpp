@@ -113,6 +113,8 @@ class ContextImpl {
 
   const v1::SDKToken& GetSdkToken() { return sdk_token_; }
 
+  void SetBindIP(const std::string bind_ip) { sdk_token_.set_ip(bind_ip); }
+
   const ContextConfig& GetContextConfig() { return context_config_; }
 
   const SystemVariables& GetSystemVariables() const { return system_variables_; }

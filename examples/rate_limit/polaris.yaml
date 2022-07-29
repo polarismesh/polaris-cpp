@@ -1,0 +1,8 @@
+global:
+  serverConnector:
+    addresses:
+    - 127.0.0.1:8091
+rateLimiter:
+  rateLimitCluster:
+    namespace: Polaris
+    service: polaris.limiter
