@@ -211,7 +211,7 @@ ReturnCode GrpcServerConnector::Init(Config* config, Context* context) {
       POLARIS_LOG(LOG_ERROR, "get client ip from polaris connection failed");
     } else {
       contextImpl->SetBindIP(bind_ip);
-      POLARIS_LOG(LOG_INFO, "get local ip address by connection, context addr %p, sdk token ip:%s", contextImpl, contextImpl->GetApiBindIp().c_str());
+      POLARIS_LOG(LOG_INFO, "get local ip address by connection, sdk token ip:%s", contextImpl->GetApiBindIp().c_str());
     }
   }
 

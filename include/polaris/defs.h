@@ -64,6 +64,9 @@ struct ServiceKey {
   std::string name_;
 };
 
+/// @brief 判断ServiceKey数据是否为空
+bool isEmpty(ServiceKey const &lhs);
+
 /// @brief 实现比较函数用于ServiceKey作为map的key
 bool operator<(ServiceKey const &lhs, ServiceKey const &rhs);
 
