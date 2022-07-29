@@ -49,10 +49,6 @@
 
 namespace polaris {
 
-bool isEmpty(ServiceKey const &lhs) {
-  return lhs.name_.empty() || lhs.namespace_.empty();
-}
-
 bool operator<(ServiceKey const& lhs, ServiceKey const& rhs) {
   if (lhs.name_.size() < rhs.name_.size()) {
     return true;
