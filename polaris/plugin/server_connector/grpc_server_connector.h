@@ -175,6 +175,7 @@ class GrpcServerConnector : public ServerConnector, public grpc::StreamCallback<
   virtual ReturnCode SelectInstance(const ServiceKey& service_key, uint32_t timeout, Instance** instance,
                                     bool ignore_half_open = false);
 
+  SeedServer& SelectSeed();
  private:
   friend class AsyncRequest;
   Context* context_;
@@ -235,6 +236,8 @@ class BlockRequest : public grpc::RequestCallback<v1::Response> {
 
  protected:  // protected for test
   Instance* instance_;
+  std::string host_;
+  int port_;
   grpc::GrpcClient* grpc_client_;
 };
 
@@ -299,6 +302,8 @@ class AsyncRequest : public grpc::RequestCallback<v1::Response> {
   uint64_t timeout_;
   PolarisCallback callback_;
   Instance* server_;  // 选择连接的服务器
+  std::string host_;
+  int port_;
   grpc::GrpcClient* client_;
   TimingTaskIter timing_task_;
 };

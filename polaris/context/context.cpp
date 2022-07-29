@@ -45,8 +45,9 @@ Context* Context::Create(Config* config, ContextMode mode) {
   if (context_impl->Init(config, context.get(), mode) != kReturnOk) {
     return nullptr;
   }
+  const PolarisCluster& discover_cluster = context_impl->GetDiscoverService();
   // Polaris discover先请求一下
-  if (context_impl->InitSystemService(context_impl->GetDiscoverService()) != kReturnOk) {
+  if (!discover_cluster.service_.name_.empty() && context_impl->InitSystemService(discover_cluster) != kReturnOk) {
     return nullptr;
   }
   // 如果有设置Metric Cluster则提前获取

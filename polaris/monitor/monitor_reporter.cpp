@@ -831,6 +831,9 @@ bool MonitorReporter::GetInstance(ReportBase* report_data) {
   POLARIS_ASSERT(report_data != nullptr);
   POLARIS_ASSERT(report_data->instance_ == nullptr);
   const PolarisCluster& monitor_cluster = context_->GetContextImpl()->GetMonitorService();
+  if (monitor_cluster.service_.name_.empty()) {
+    return false;
+  }
   Criteria criteria;
   criteria.ignore_half_open_ = (rand() % 10 != 0);  // 10分之一的概率选择半开节点
   ReturnCode ret_code = ConsumerApiImpl::GetSystemServer(context_, monitor_cluster.service_, criteria,
