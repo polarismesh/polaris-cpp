@@ -31,18 +31,22 @@ void SignalHandler(int signum) {
 int main(int argc, char** argv) {
   if (argc < 3) {
     std::cout << "usage: " << argv[0] << std::endl
-              << "    service_namespace service_name label1<key:value> label2<key:value> qps" << std::endl
+              << "    service_namespace service_name <method> label1<key:value> label2<key:value> qps" << std::endl
               << "example: " << argv[0] << std::endl
               << "    Test service_name labelK1:labelV1 100" << std::endl;
     return -1;
   }
   std::string service_namespace = argv[1];
   std::string service_name = argv[2];
+  std::string method;
   std::map<std::string, std::string> labels;
-  for (int i = 3; i < argc - 1; ++i) {
-    std::string kv = argv[i];
-    std::size_t pos = kv.find(':');
-    labels.insert(std::make_pair(kv.substr(0, pos), kv.substr(pos + 1)));
+  if (argc > 3) {
+    method = argv[3];
+    for (int i = 4; i < argc - 1; ++i) {
+      std::string kv = argv[i];
+      std::size_t pos = kv.find(':');
+      labels.insert(std::make_pair(kv.substr(0, pos), kv.substr(pos + 1)));
+    }
   }
   int qps = atoi(argv[argc - 1]);
   int interval = 1000 * 1000 / qps;  // 根据传入qps计算每个请求耗时
@@ -60,6 +64,7 @@ int main(int argc, char** argv) {
   polaris::QuotaRequest quota_request;                   // 限流请求
   quota_request.SetServiceNamespace(service_namespace);  // 设置限流规则对应服务的命名空间
   quota_request.SetServiceName(service_name);            // 设置限流规则对应的服务名
+  quota_request.SetMethod(method);                       // 设置限流规则对应的接口名
   quota_request.SetLabels(labels);                       // 设置label用于匹配限流规则
 
   // 调用接口

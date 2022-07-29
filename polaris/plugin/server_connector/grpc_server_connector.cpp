@@ -210,9 +210,8 @@ ReturnCode GrpcServerConnector::Init(Config* config, Context* context) {
     if (!NetClient::GetIpByConnect(&bind_ip, server_lists_)) {
       POLARIS_LOG(LOG_ERROR, "get client ip from polaris connection failed");
     } else {
-      v1::SDKToken& sdkToken = const_cast<v1::SDKToken&>(contextImpl->GetSdkToken());
-      sdkToken.set_ip(bind_ip);
-      POLARIS_LOG(LOG_INFO, "get local ip address by connection return ip:%s", bind_ip.c_str());
+      contextImpl->SetBindIP(bind_ip);
+      POLARIS_LOG(LOG_INFO, "get local ip address by connection, sdk token ip:%s", contextImpl->GetApiBindIp().c_str());
     }
   }
 
@@ -335,7 +334,8 @@ bool GrpcServerConnector::SendDiscoverRequest(ServiceListener& service_listener)
   }
   if (discover_stream_state_ != kDiscoverStreamInit) {
     const ServiceKey& discover_service = context_->GetContextImpl()->GetDiscoverService().service_;
-    if (isEmpty(discover_service)) {
+    if (discover_service.name_.empty()) {
+      POLARIS_LOG(LOG_INFO, "discover service is empty, state transive to DiscoverStreamInit");
       discover_stream_state_ = kDiscoverStreamInit;
     } else {
       if (service_key.name_ != discover_service.name_ || service_key.namespace_ != discover_service.namespace_) {
@@ -572,6 +572,10 @@ ReturnCode GrpcServerConnector::SelectInstance(const ServiceKey& service_key, ui
   return ConsumerApiImpl::GetSystemServer(context_, service_key, criteria, *instance, timeout);
 }
 
+SeedServer& GrpcServerConnector::SelectSeed() {
+  return server_lists_[rand() % server_lists_.size()];
+}
+
 void GrpcServerConnector::ServerSwitch() {
   if (server_switch_state_ == kServerSwitchNormal       // 服务调用出错或超时触发切换
       || server_switch_state_ == kServerSwitchBegin) {  // 切换后异步连接回调触发重新
@@ -590,12 +594,12 @@ void GrpcServerConnector::ServerSwitch() {
   // 选择一个服务器
   std::string host;
   int port = 0;
-  if (discover_stream_state_ >= kDiscoverStreamGetInstance) {  // 说明内部服务已经返回
+  const ServiceKey& discover_service = context_->GetContextImpl()->GetDiscoverService().service_;
+  if (!discover_service.name_.empty() && discover_stream_state_ >= kDiscoverStreamGetInstance) {  // 说明内部服务已经返回
     if (discover_instance_ != nullptr) {
       delete discover_instance_;
       discover_instance_ = nullptr;
     }
-    const ServiceKey& discover_service = context_->GetContextImpl()->GetDiscoverService().service_;
     bool ignore_half_open = server_switch_state_ != kServerSwitchPeriodic;  // 周期切换才选半开节点
     ReturnCode ret_code = SelectInstance(discover_service, 0, &discover_instance_, ignore_half_open);
     if (ret_code == kReturnOk) {
@@ -612,7 +616,7 @@ void GrpcServerConnector::ServerSwitch() {
   }
   if (host.empty()) {
     discover_stream_state_ = kDiscoverStreamNotInit;
-    SeedServer& server = server_lists_[rand() % server_lists_.size()];
+    SeedServer& server = SelectSeed();
     host = server.ip_;
     port = server.port_;
     POLARIS_LOG(LOG_INFO, "discover stream switch to seed server[%s:%d]", host.c_str(), port);
@@ -837,11 +841,19 @@ bool GrpcServerConnector::GetInstance(BlockRequest* block_request) {
   POLARIS_ASSERT(block_request != nullptr);
   POLARIS_ASSERT(block_request->instance_ == nullptr);
   const ServiceKey& service = GetPolarisService(context_, block_request->request_type_);
+  if (service.name_.empty()) {
+    SeedServer& seedServer = SelectSeed();
+    block_request->host_ = seedServer.ip_;
+    block_request->port_ = seedServer.port_;
+    return true;
+  }
   ReturnCode ret_code = SelectInstance(service, block_request->request_timeout_, &block_request->instance_);
   if (ret_code == kReturnOk) {
     POLARIS_ASSERT(block_request->instance_ != nullptr);
     POLARIS_LOG(LOG_DEBUG, "get server:%s:%d for %s", block_request->instance_->GetHost().c_str(),
                 block_request->instance_->GetPort(), PolarisRequestTypeStr(block_request->request_type_));
+    block_request->host_ = block_request->instance_->GetHost();
+    block_request->port_ = block_request->instance_->GetPort();
     return true;
   } else {
     POLARIS_ASSERT(block_request->instance_ == nullptr);
@@ -852,7 +864,9 @@ bool GrpcServerConnector::GetInstance(BlockRequest* block_request) {
 }
 
 void GrpcServerConnector::UpdateCallResult(BlockRequest* block_request) {
-  POLARIS_ASSERT(block_request->instance_ != nullptr);
+  if(block_request->instance_ == nullptr) {
+    return;
+  }
   const ServiceKey& service = GetPolarisService(context_, block_request->request_type_);
   CallRetStatus status = kCallRetOk;
   if (kServerCodeConnectError <= block_request->server_code_ &&
@@ -876,7 +890,9 @@ BlockRequest::BlockRequest(PolarisRequestType request_type, GrpcServerConnector&
       message_(nullptr),
       promise_(nullptr),
       instance_(nullptr),
-      grpc_client_(nullptr) {}
+      host_(""),
+      port_(0),
+      grpc_client_(nullptr)  {}
 
 BlockRequest::~BlockRequest() {
   if (instance_ != nullptr) {
@@ -934,10 +950,10 @@ bool BlockRequest::PrepareClient() {
 
   // 建立grpc客户端，并尝试连接
   grpc_client_ = new grpc::GrpcClient(connector_.GetReactor());
-  if (!grpc_client_->ConnectTo(instance_->GetHost(), instance_->GetPort()) ||
+  if (!grpc_client_->ConnectTo(host_, port_) ||
       !grpc_client_->WaitConnected(request_timeout_)) {
     POLARIS_LOG(LOG_ERROR, "%s connect to server[%s:%d] timeout", PolarisRequestTypeStr(request_type_),
-                instance_->GetHost().c_str(), instance_->GetPort());
+                host_.c_str(), port_);
     server_code_ = kServerCodeConnectError;
     connector_.UpdateCallResult(this);
     return false;
@@ -945,7 +961,7 @@ bool BlockRequest::PrepareClient() {
   uint64_t use_time = Time::GetCoarseSteadyTimeMs() - begin_time;
   if (use_time >= request_timeout_) {
     POLARIS_LOG(LOG_ERROR, "%s connect to server[%s:%d] timeout", PolarisRequestTypeStr(request_type_),
-                instance_->GetHost().c_str(), instance_->GetPort());
+                host_.c_str(), port_);
     server_code_ = kServerCodeConnectError;
     connector_.UpdateCallResult(this);
     return false;
@@ -1020,6 +1036,8 @@ AsyncRequest::AsyncRequest(Reactor& reactor, GrpcServerConnector* connector, Pol
       timeout_(timeout),
       callback_(callback),
       server_(nullptr),
+      host_(""),
+      port_(0),
       client_(nullptr),
       timing_task_(connector->GetReactor().TimingTaskEnd()) {}
 
@@ -1046,16 +1064,23 @@ bool AsyncRequest::Submit() {
   }
 
   const ServiceKey& service = GetPolarisService(connector_->context_, request_type_);
-  ReturnCode ret_code = connector_->SelectInstance(service, 0, &server_);
-  if (ret_code != kReturnOk) {
-    callback_(ret_code, "select server failed", nullptr);
-    return false;
+  if (service.name_.empty()) {
+    SeedServer& seedServer = connector_->SelectSeed();
+    host_ = seedServer.ip_;
+    port_ = seedServer.port_;
+  } else {
+    ReturnCode ret_code = connector_->SelectInstance(service, 0, &server_);
+    if (ret_code != kReturnOk) {
+      callback_(ret_code, "select server failed", nullptr);
+      return false;
+    }
+    host_ = server_->GetHost();
+    port_ = server_->GetPort();
   }
-
   connector_->async_request_map_[request_id_] = this;  // 记录请求
   // 尝试建立连接
   client_ = new grpc::GrpcClient(reactor_);
-  client_->Connect(server_->GetHost(), server_->GetPort(), GetTimeLeft(),
+  client_->Connect(host_, port_, GetTimeLeft(),
                    std::bind(&AsyncRequest::OnConnect, this, std::placeholders::_1));
   return true;
 }

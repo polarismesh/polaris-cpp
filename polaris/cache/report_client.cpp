@@ -28,7 +28,6 @@ void ReportClient::SetupTask() {
 
 void ReportClient::DoTask() {
   ContextImpl* context_impl = context_->GetContextImpl();
-  const std::string& bind_ip = context_impl->GetApiBindIp();
   ServerConnector* server_connector = context_impl->GetServerConnector();
   POLARIS_ASSERT(server_connector != nullptr);
 
@@ -66,6 +65,12 @@ void ReportClient::DoTask() {
     reactor_->SubmitTask(new ReportTaskSubmit(this, context_impl->GetReportClientInterval()));
   };
 
+  const std::string& bind_ip = context_impl->GetApiBindIp();
+  if (bind_ip.empty()) {
+    //TODO: 当前通过连接自动获取IP并设置后，这里会获取不到，后续需要解决
+    reactor_->AddTimingTask(new TimingFuncTask<ReportClient>(DoTask, this, context_impl->GetReportClientInterval()));
+    return;
+  }
   ReturnCode ret_code =
       server_connector->AsyncReportClient(bind_ip, context_impl->GetApiDefaultTimeout(), polaris_callback);
   if (ret_code != kReturnOk) {

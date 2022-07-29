@@ -230,6 +230,8 @@ ReturnCode ContextImpl::InitSystemConfig(Config* system_config) {
 
 ReturnCode ContextImpl::InitSystemService(const PolarisCluster& cluster) {
   ServiceContext* service_context = this->GetServiceContext(cluster.service_);
+  POLARIS_LOG(LOG_ERROR, "init system service for service[%s/%s] failed", cluster.service_.namespace_.c_str(),
+                cluster.service_.name_.c_str());
   if (service_context == nullptr) {
     POLARIS_LOG(LOG_ERROR, "create service context for service[%s/%s] failed", cluster.service_.namespace_.c_str(),
                 cluster.service_.name_.c_str());
