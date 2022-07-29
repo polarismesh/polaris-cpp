@@ -395,7 +395,7 @@ rateLimiter:
     # 限流服务器集群所在命名空间
     namespace: Polaris
     # 限流服务器集群名字
-    service: poalris.limiter
+    service: polaris.limiter
   # 描述：批量上报间隔
   # 类型: string
   # 格式: ^\d+(ms|s|m|h)$

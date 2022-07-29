@@ -210,9 +210,8 @@ ReturnCode GrpcServerConnector::Init(Config* config, Context* context) {
     if (!NetClient::GetIpByConnect(&bind_ip, server_lists_)) {
       POLARIS_LOG(LOG_ERROR, "get client ip from polaris connection failed");
     } else {
-      v1::SDKToken& sdkToken = const_cast<v1::SDKToken&>(contextImpl->GetSdkToken());
-      sdkToken.set_ip(bind_ip);
-      POLARIS_LOG(LOG_INFO, "get local ip address by connection return ip:%s", bind_ip.c_str());
+      contextImpl->SetBindIP(bind_ip);
+      POLARIS_LOG(LOG_INFO, "get local ip address by connection, sdk token ip:%s", contextImpl->GetApiBindIp().c_str());
     }
   }
 

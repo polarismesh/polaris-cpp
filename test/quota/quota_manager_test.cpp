@@ -257,7 +257,7 @@ TEST_F(QuotaManagerTest, TestWindowExpired) {
   mock_local_registry->service_data_list_.push_back(service_rate_limit);
   mock_local_registry->service_data_list_.push_back(service_rate_limit);
   TestUtils::FakeNowIncrement(61 * 1000);  // 61s触发淘汰
-  sleep(2);                                // 2s等待过期检查任务执行
+  sleep(10);                                // 2s等待过期检查任务执行
 
   // 第1个窗口，到了过期时间，已经限流，不淘汰，限流
   labels.clear();
