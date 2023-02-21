@@ -86,6 +86,7 @@ class InstanceRegisterRequest::Impl : public ProviderRequestBase {
   bool health_check_flag_;                       ///< 是否开启健康检查，默认不开启
   optional<HealthCheckType> health_check_type_;  ///< 健康检查类型
   optional<int> ttl_;                            ///< ttl超时时间，单位：秒
+  std::string instance_id_;                      ///< 实例本身提供的实例id，可选
 
   // 位置信息
   std::string region_;
