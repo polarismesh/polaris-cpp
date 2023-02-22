@@ -106,6 +106,11 @@ class InstanceRegisterRequest : Noncopyable {
   /// @param campus 节点所在园区
   void SetLocation(const std::string& region, const std::string& zone, const std::string& campus);
 
+  /// @brief 设置实例id，可选，默认会在服务端生产实例id
+  ///
+  /// @param instance_id 提供的实例id
+  void SetInstanceId(const std::string& instance_id);
+
   class Impl;
   Impl& GetImpl() const;
 

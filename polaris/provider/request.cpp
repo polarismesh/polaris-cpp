@@ -63,6 +63,10 @@ void InstanceRegisterRequest::SetLocation(const std::string& region, const std::
   impl_->campus_ = campus;
 }
 
+void InstanceRegisterRequest::SetInstanceId(const std::string& instance_id) {
+  impl_->instance_id_ = instance_id;
+}
+
 // 反注册请求
 InstanceDeregisterRequest::InstanceDeregisterRequest(const std::string& service_token, const std::string& instance_id) {
   impl_ = new Impl();
@@ -149,6 +153,9 @@ v1::Instance* InstanceRegisterRequest::Impl::ToPb() const {
   // 设置实例信息  注册不设置 id 和 health status
   instance->mutable_host()->set_value(host_);
   instance->mutable_port()->set_value(static_cast<uint32_t>(port_));
+  if (!instance_id_.empty()) {
+    instance->mutable_id()->set_value(instance_id_);
+  }
   if (!vpc_id_.empty()) {
     instance->mutable_vpc_id()->set_value(vpc_id_);
   }

@@ -202,6 +202,9 @@ int ProviderServer::Register() {
   register_req.SetHealthCheckFlag(true);
   register_req.SetHealthCheckType(polaris::kHeartbeatHealthCheck);
   register_req.SetTtl(kHeartbeatTtl);
+  // 实例id不是必填，如果不填，服务端会默认生成一个唯一Id，否则当提供实例id时，需要保证实例id是唯一的
+  std::string provided_instance_id = "instance-provided-id";
+  register_req.SetInstanceId(provided_instance_id);
 
   // 注册实例
   auto ret_code = provider_->Register(register_req, instance_id_);
@@ -209,6 +212,8 @@ int ProviderServer::Register() {
     std::cout << "register instance with error:" << polaris::ReturnCodeToMsg(ret_code).c_str() << std::endl;
     return ret_code;
   }
+  std::cout << "register instance with instance id:" << instance_id_ << std::endl;
+  sleep(1);
 
   // 启动心跳上报线程
   heartbeat_thread_ = std::unique_ptr<std::thread>(new std::thread([=] {
