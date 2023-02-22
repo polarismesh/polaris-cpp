@@ -202,6 +202,7 @@ int ProviderServer::Register() {
   register_req.SetHealthCheckFlag(true);
   register_req.SetHealthCheckType(polaris::kHeartbeatHealthCheck);
   register_req.SetTtl(kHeartbeatTtl);
+  // 实例id不是必填，如果不填，服务端会默认生成一个唯一Id，否则当提供实例id时，需要保证实例id是唯一的
   std::string provided_instance_id = "instance-provided-id";
   register_req.SetInstanceId(provided_instance_id);
 
