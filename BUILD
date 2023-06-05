@@ -68,12 +68,12 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
+        ":request_proto",
+        ":response_proto",
         ":code_cc_proto",
         ":murmurhash",
         ":nghttp2",
         ":ratelimit_proto_v2",
-        ":trpc_proto",
-        ":trpcapi_cc_trpc",
         ":yaml-cpp-polaris-internal",
         "@com_googlesource_code_re2//:re2",
     ],
@@ -96,29 +96,12 @@ alias(
 )
 
 cc_proto_library(
-    name = "trpcapi_cc_trpc",
-    srcs = [
-        "polaris/proto/v1/trpcapi.proto",
-    ],
-    include = "polaris/proto",
-    use_grpc_plugin = False,
-    deps = [
-        ":ratelimit_proto",
-        ":request_proto",
-        ":response_proto",
-        ":routing_proto",
-        ":service_proto",
-    ],
-)
-
-cc_proto_library(
     name = "response_proto",
     srcs = ["polaris/proto/v1/response.proto"],
     include = "polaris/proto",
     deps = [
         ":circuit_breaker_proto",
         ":client_proto",
-        ":dynamicweight_proto",
         ":metric_proto",
         ":ratelimit_proto",
         ":routing_proto",
@@ -203,13 +186,6 @@ cc_proto_library(
 )
 
 cc_proto_library(
-    name = "dynamicweight_proto",
-    srcs = ["polaris/proto/v1/dynamicweight.proto"],
-    include = "polaris/proto",
-    deps = ["@com_google_protobuf//:cc_wkt_protos"],
-)
-
-cc_proto_library(
     name = "model_proto",
     srcs = ["polaris/proto/v1/model.proto"],
     include = "polaris/proto",
@@ -222,16 +198,6 @@ cc_proto_library(
     name = "code_cc_proto",
     srcs = ["polaris/proto/v1/code.proto"],
     include = "polaris/proto",
-)
-
-#trpc协议头
-cc_proto_library(
-    name = "trpc_proto",
-    srcs = ["polaris/proto/v1/trpc.proto"],
-    include = "polaris/proto",
-    deps = [
-        "@com_google_protobuf//:cc_wkt_protos",
-    ],
 )
 
 cc_library(
@@ -255,7 +221,6 @@ cc_library(
         ":murmurhash",
         ":nghttp2",
         ":ratelimit_proto_v2",
-        ":trpcapi_cc_trpc",
         ":yaml-cpp-polaris-internal",
         "@com_googlesource_code_re2//:re2",
     ],
