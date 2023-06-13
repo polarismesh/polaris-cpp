@@ -45,6 +45,9 @@ class ServiceRouter : public Plugin {
 
   /// @brief 收集路由统计数据
   virtual RouterStatData* CollectStat() = 0;
+
+  /// @brief  返回路由插件的名称
+  virtual std::string Name() = 0;
 };
 
 }  // namespace polaris

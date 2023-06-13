@@ -36,6 +36,8 @@ class CanaryServiceRouter : public ServiceRouter {
 
   virtual RouterStatData* CollectStat();
 
+  virtual std::string Name();
+
  private:
   bool CalculateResult(const std::vector<Instance*>& instances, const std::set<Instance*>& unhealthy_set,
                        std::vector<Instance*>& result);

@@ -125,7 +125,14 @@ ReturnCode ServiceRouterChain::DoRoute(RouteInfo& route_info, RouteResult* route
   POLARIS_CHECK_ARGUMENT(route_info.GetServiceInstances() != nullptr);
   ReturnCode ret;
   for (std::size_t index = 0; index < service_router_list_.size(); index++) {
-    if ((ret = service_router_list_[index]->DoRoute(route_info, route_result)) != kReturnOk) {
+    auto begin_time = std::chrono::steady_clock::now();
+    ServiceRouter* router = service_router_list_[index];
+    ret = router->DoRoute(route_info, route_result);
+    auto end_time = std::chrono::steady_clock::now();
+    auto delay = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - begin_time).count();
+    POLARIS_LOG(LOG_DEBUG, "router(%s) ns(%s) svc(%s) do route cost(%ld ms)", router->Name().c_str(),
+                route_info.GetServiceKey().namespace_.c_str(), route_info.GetServiceKey().name_.c_str(), delay);
+    if (ret != kReturnOk) {
       POLARIS_LOG(LOG_ERROR, "run service router plugin[%s] for service[%s/%s] return error[%s]",
                   plugin_name_list_[index].c_str(), service_key_.namespace_.c_str(), service_key_.name_.c_str(),
                   ReturnCodeToMsg(ret).c_str());

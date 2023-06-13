@@ -28,6 +28,7 @@
 #include <thread>
 
 #include "polaris/consumer.h"
+#include "polaris/log.h"
 
 class ConsumerServer {
  public:
@@ -90,7 +91,9 @@ int main(int argc, char** argv) {
 
 ConsumerServer::ConsumerServer(const std::string& host, int port, const polaris::ServiceKey& provider_service)
     : host_(host), port_(port), provider_service_(provider_service), stop_(false) {
-  consumer_ = std::unique_ptr<polaris::ConsumerApi>(polaris::ConsumerApi::CreateWithDefaultFile());
+  polaris::GetLogger()->SetLogLevel(polaris::kDebugLogLevel);
+  auto consumer_api_ = polaris::ConsumerApi::CreateWithDefaultFile();
+  consumer_ = std::unique_ptr<polaris::ConsumerApi>(consumer_api_);
 }
 
 ConsumerServer::~ConsumerServer() {}

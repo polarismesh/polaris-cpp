@@ -37,6 +37,8 @@ class MetadataServiceRouter : public ServiceRouter {
 
   virtual RouterStatData* CollectStat();
 
+  virtual std::string Name();
+
  private:
   bool CalculateResult(const std::vector<Instance*>& instances, const std::set<Instance*>& unhealthy_set,
                        const std::map<std::string, std::string>& metadata, MetadataFailoverType failover_type,

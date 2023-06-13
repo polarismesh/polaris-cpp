@@ -331,7 +331,12 @@ ReturnCode ConsumerApiImpl::GetOneInstance(ServiceContext* service_context, Rout
   if (load_balancer == nullptr) {
     return kReturnPluginError;
   }
+  auto begin_time = std::chrono::steady_clock::now();
   ret = load_balancer->ChooseInstance(service_instances, req_impl.criteria_, instance);
+  auto end_time = std::chrono::steady_clock::now();
+  auto delay = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - begin_time).count();
+  POLARIS_LOG(LOG_DEBUG, "LoadBalance(%s) ns(%s) svc(%s) do choose cost(%ld ms)", req_impl.load_balance_type_.c_str(),
+              route_info.GetServiceKey().namespace_.c_str(), route_info.GetServiceKey().name_.c_str(), delay);
   if (ret != kReturnOk) {
     const ServiceKey& service_key = route_info.GetServiceKey();
     POLARIS_LOG(LOG_ERROR, "get one instance for service[%s/%s] with load balancer retrun error:%s",
@@ -386,7 +391,7 @@ void ConsumerApiImpl::GetBackupInstances(ServiceInstances* service_instances, Lo
                   target_num);
       target_num = available_num;  // 修正目标值
     }
-    int cycle_times = available_num;  //循环次数上限
+    int cycle_times = available_num;  // 循环次数上限
     Criteria criteria_tmp = criteria;
 
     for (int i = 1; i <= cycle_times; ++i) {
@@ -927,7 +932,5 @@ void ConsumerApiImpl::UpdateServerResult(Context* context, const ServiceKey& ser
     metric->MetricReport(service_key, instance, ret_code, status, delay);
   }
 }
-
-
 
 }  // namespace polaris
