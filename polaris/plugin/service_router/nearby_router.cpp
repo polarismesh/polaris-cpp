@@ -242,6 +242,8 @@ ReturnCode NearbyServiceRouter::Init(Config* config, Context* context) {
   return kReturnOk;
 }
 
+std::string NearbyServiceRouter::Name() { return "NearbyServiceRouter"; }
+
 bool NearbyServiceRouter::CheckLocation() {
   ContextImpl* context_impl = context_->GetContextImpl();
   Location location;

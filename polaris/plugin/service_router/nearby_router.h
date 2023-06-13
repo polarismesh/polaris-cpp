@@ -115,6 +115,8 @@ class NearbyServiceRouter : public ServiceRouter {
 
   virtual RouterStatData* CollectStat();
 
+  virtual std::string Name();
+
  private:
   bool CheckLocation();
 

@@ -41,6 +41,8 @@ CanaryServiceRouter::~CanaryServiceRouter() {
   }
 }
 
+std::string CanaryServiceRouter::Name() { return "CanaryServiceRouter"; }
+
 ReturnCode CanaryServiceRouter::Init(Config* /*config*/, Context* context) {
   context_ = context;
   router_cache_ = new ServiceCache<CanaryCacheKey, RouterSubsetCache>();

@@ -14,6 +14,8 @@
 #include "metadata_router.h"
 
 #include <stddef.h>
+#include <map>
+#include <string>
 
 #include <utility>
 
@@ -48,6 +50,8 @@ ReturnCode MetadataServiceRouter::Init(Config* /*config*/, Context* context) {
   context->GetContextImpl()->RegisterCache(router_cache_);
   return kReturnOk;
 }
+
+std::string MetadataServiceRouter::Name() { return "MetadataServiceRouter"; }
 
 static bool MetadataMatch(const std::map<std::string, std::string>& metadata,
                           const std::map<std::string, std::string>& instance_metadata) {
@@ -170,6 +174,17 @@ ReturnCode MetadataServiceRouter::DoRoute(RouteInfo& route_info, RouteResult* ro
   RouterSubsetCache* cache_value = router_cache_->GetWithRcuTime(cache_key);
   if (cache_value == nullptr) {
     cache_value = router_cache_->CreateOrGet(cache_key, [&] {
+      // 出现 metadata cache 需要执行 create 时进行打印相关辅助信息日志
+      std::string metadata_str_ = "";
+      for (std::map<std::string, std::string>::iterator it = cache_key.metadata_.begin();
+           it != cache_key.metadata_.end(); it++) {
+        metadata_str_ += it->first + ":" + it->second + ",";
+      }
+      POLARIS_LOG(LOG_DEBUG,
+                  "ns(%s) svc(%s) metadata(%s) failover_type(%d) circuitbreaker_version(%" PRIu64
+                  ") router_cache run create action",
+                  route_info.GetServiceKey().namespace_.c_str(), route_info.GetServiceKey().name_.c_str(),
+                  metadata_str_.c_str(), cache_key.failover_type_, cache_key.circuit_breaker_version_);
       InstancesSet* prior_result = cache_key.prior_data_;
       std::set<Instance*> unhealthy_set;
       route_info.CalculateUnhealthySet(unhealthy_set);

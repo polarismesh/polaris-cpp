@@ -15,11 +15,13 @@
 
 #include <stdlib.h>
 
+#include <inttypes.h>
 #include <map>
 #include <string>
 #include <vector>
 
 #include "context/context_impl.h"
+#include "logger.h"
 #include "model/instance.h"
 #include "model/model_impl.h"
 #include "plugin/plugin_manager.h"
@@ -88,6 +90,12 @@ ReturnCode KetamaLoadBalancer::ChooseInstance(ServiceInstances* service_instance
 
   if (lb_value == nullptr) {
     lb_value = data_cache_->CreateOrGet(cache_key, [&] {
+      // 出现 ringhash cache 需要执行 create 时进行打印相关辅助信息日志
+      POLARIS_LOG(LOG_DEBUG, "ringhash_cache run create action ns(%s) svc(%s) hash_str(%s) hash_key(%" PRIu64 ")",
+                  service_instances->GetService()->GetServiceKey().namespace_.c_str(),
+                  service_instances->GetService()->GetServiceKey().name_.c_str(), criteria.hash_string_.c_str(),
+                  criteria.hash_key_);
+
       RingHashCacheValue* new_lb_value = new RingHashCacheValue();
       new_lb_value->prior_date_ = instances_set;
       new_lb_value->prior_date_->IncrementRef();
