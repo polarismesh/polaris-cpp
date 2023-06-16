@@ -44,6 +44,8 @@ class MockServiceRouter : public ServiceRouter {
 
   MOCK_METHOD0(CollectStat, RouterStatData *());
 
+  MOCK_METHOD0(Name, std::string());
+
   static Plugin *MockServiceRouterFactory() { return mock_service_router_list_[mock_service_router_index_++]; }
 
   static void RegisterMockPlugin() { RegisterPlugin("mockRouter", kPluginServiceRouter, MockServiceRouterFactory); }

@@ -45,6 +45,8 @@ ReturnCode SetDivisionServiceRouter::Init(Config* /*config*/, Context* context) 
   return kReturnOk;
 }
 
+std::string SetDivisionServiceRouter::Name() { return "SetDivisionServiceRouter"; }
+
 // 根据主调和被调的metadata判断是否启用set分组
 bool SetDivisionServiceRouter::IsSetDivisionRouterEnable(const std::string& caller_set_name,
                                                          const std::string& callee_set_name,

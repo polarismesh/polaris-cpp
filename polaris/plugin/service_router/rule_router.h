@@ -72,6 +72,8 @@ class RuleServiceRouter : public ServiceRouter {
 
   virtual RouterStatData* CollectStat();
 
+  virtual std::string Name();
+
  private:
   bool enable_recover_all_;
   float percent_of_min_instances_;

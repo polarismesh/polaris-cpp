@@ -71,7 +71,7 @@ bool RuleRouterCluster::CalculateRouteResult(std::vector<RuleRouterSet*>& result
     if (!result.empty()) {  // 找不到了不用降级
       break;
     }
-    //已经降级寻找了一次，不需要再找了
+    // 已经降级寻找了一次，不需要再找了
     if (downgrade) {
       break;
     }
@@ -85,21 +85,21 @@ bool RuleRouterCluster::CalculateRouteResult(std::vector<RuleRouterSet*>& result
 }
 
 void RuleRouterCluster::CalculateSubset(ServiceInstances* service_instances, Labels& labels) {
-  //检查最高优先级的subset，状态健康则返回其中实例，如果同优先级的有多个subset，则根据权重计算返回实例
-  //如果最高优先级subset不健康，那么按照优先级遍历检查其他subset，如果有健康的，返回其中实例，如有多个同优先级的subset则按权重计算
-  //若无健康的低优先级subset，则无论最高优先级subset健康与否，都返回其中实例
-  //如果是熔断半开状态，要支持按比例放量
-  // PRESERVED：熔断器维持，节点处于保守状态，此时只能正常接收自身流量，不可接受别的集群降级流量
+  // 检查最高优先级的subset，状态健康则返回其中实例，如果同优先级的有多个subset，则根据权重计算返回实例
+  // 如果最高优先级subset不健康，那么按照优先级遍历检查其他subset，如果有健康的，返回其中实例，如有多个同优先级的subset则按权重计算
+  // 若无健康的低优先级subset，则无论最高优先级subset健康与否，都返回其中实例
+  // 如果是熔断半开状态，要支持按比例放量
+  //  PRESERVED：熔断器维持，节点处于保守状态，此时只能正常接收自身流量，不可接受别的集群降级流量
 
-  //为空，直接返回
-  //剔除不健康的subset
+  // 为空，直接返回
+  // 剔除不健康的subset
   if (data_.empty()) {
     return;
   }
   std::map<uint32_t, std::vector<RuleRouterSet*> >::iterator data_it = data_.begin();
   std::vector<RuleRouterSet*>& cluster_highest_priority = data_it->second;
 
-  //通过service_instances直接获取熔断set信息
+  // 通过service_instances直接获取熔断set信息
   std::map<std::string, SetCircuitBreakerUnhealthyInfo> circuit_breaker_sets;
   if (service_instances->GetService() == nullptr) {
     POLARIS_LOG(LOG_ERROR, "Service member is null");
@@ -109,12 +109,12 @@ void RuleRouterCluster::CalculateSubset(ServiceInstances* service_instances, Lab
 
   std::vector<RuleRouterSet*> cluster_halfopen;
   if (GetHealthyAndHalfOpenSubSet(cluster_highest_priority, circuit_breaker_sets, cluster_halfopen, labels)) {
-    //如果有半开的，考虑降级
+    // 如果有半开的，考虑降级
     for (std::vector<RuleRouterSet*>::iterator set_it = cluster_halfopen.begin(); set_it != cluster_halfopen.end();
          ++set_it) {
       RuleRouterSet* downgrade = GetDownGradeSubset(circuit_breaker_sets, labels);
       if (downgrade) {
-        //根据半开放量率计算比例
+        // 根据半开放量率计算比例
         float pass_rate = 1.0;
         SetCircuitBreakerUnhealthyInfo* breaker_info = nullptr;
         GetSetBreakerInfo(circuit_breaker_sets, (*set_it)->subset, labels, &breaker_info);
@@ -122,7 +122,7 @@ void RuleRouterCluster::CalculateSubset(ServiceInstances* service_instances, Lab
           pass_rate = breaker_info->half_open_release_percent;
         }
 
-        //修改权重
+        // 修改权重
         (*set_it)->weight_ *= pass_rate;
         downgrade->weight_ *= (1 - pass_rate);
         cluster_highest_priority.push_back(*set_it);
@@ -133,8 +133,8 @@ void RuleRouterCluster::CalculateSubset(ServiceInstances* service_instances, Lab
     }
     return;
   }
-  //没有
-  //降级寻找,只找健康的set，否则返回最高优先级set
+  // 没有
+  // 降级寻找,只找健康的set，否则返回最高优先级set
   ++data_it;
   for (; data_it != data_.end(); ++data_it) {
     if (GetHealthySubSet(data_it->second, circuit_breaker_sets, labels)) {
@@ -143,14 +143,14 @@ void RuleRouterCluster::CalculateSubset(ServiceInstances* service_instances, Lab
   }
 
   if (data_it == data_.end()) {
-    //依旧取最高优先级的实例,此处什么也不用做
+    // 依旧取最高优先级的实例,此处什么也不用做
     return;
   } else {
-    //找到一个可替换的优先级subset组
+    // 找到一个可替换的优先级subset组
     std::map<uint32_t, std::vector<RuleRouterSet*> > data_tmp;
     data_tmp[data_it->first].swap(data_it->second);
     data_.swap(data_tmp);
-    //释放Set指针的内存
+    // 释放Set指针的内存
     for (std::map<uint32_t, std::vector<RuleRouterSet*> >::iterator tmp_it = data_tmp.begin(); tmp_it != data_tmp.end();
          ++tmp_it) {
       const std::vector<RuleRouterSet*>& set_data = tmp_it->second;
@@ -174,15 +174,15 @@ void RuleRouterCluster::GetSetBreakerInfo(std::map<std::string, SetCircuitBreake
   std::string subset_key = subset.GetSubInfoStrId() + "#" + labels.GetLabelStr();
   std::map<std::string, SetCircuitBreakerUnhealthyInfo>::iterator subset_it = circuit_breaker_sets.find(subset_key);
   if (subset_it != circuit_breaker_sets.end()) {
-    //接口级熔断
+    // 接口级熔断
     *breaker_info = &subset_it->second;
   }
 }
 
 RuleRouterSet* RuleRouterCluster::GetDownGradeSubset(
     std::map<std::string, SetCircuitBreakerUnhealthyInfo>& circuit_breaker_sets, Labels& labels) {
-  //为空或者只有一个优先级组，都直接返回
-  //寻找一个健康的降级subset
+  // 为空或者只有一个优先级组，都直接返回
+  // 寻找一个健康的降级subset
   if (data_.size() <= 1) {
     return nullptr;
   }
@@ -197,7 +197,7 @@ RuleRouterSet* RuleRouterCluster::GetDownGradeSubset(
         cbs = breaker_info->status;
       }
       if (!(*it)->isolated_ && cbs == kCircuitBreakerClose) {
-        //要从vector中移除，免得重复释放，用sharedptr比较好
+        // 要从vector中移除，免得重复释放，用sharedptr比较好
         RuleRouterSet* result = *it;
         data_it->second.erase(it);
         return result;
@@ -213,7 +213,7 @@ bool RuleRouterCluster::GetHealthyAndHalfOpenSubSet(
   if (cluster.empty()) {
     return false;
   }
-  //判断subset状态是否健康，剔除不健康的set
+  // 判断subset状态是否健康，剔除不健康的set
   std::vector<RuleRouterSet*> cluster_healthy;
   std::vector<RuleRouterSet*> cluster_unhealthy;
   std::vector<RuleRouterSet*> cluster_isolated;
@@ -236,22 +236,22 @@ bool RuleRouterCluster::GetHealthyAndHalfOpenSubSet(
       cluster_unhealthy.push_back(*it);
     }
   }
-  //移除隔离的set
+  // 移除隔离的set
   for (std::vector<RuleRouterSet*>::iterator it = cluster_isolated.begin(); it != cluster_isolated.end(); ++it) {
     delete *it;
   }
 
   if (!cluster_healthy.empty() || !cluster_halfopen.empty()) {
-    //只保留健康和半开的set
-    //注意内存释放！
+    // 只保留健康和半开的set
+    // 注意内存释放！
     cluster.swap(cluster_healthy);
     for (std::vector<RuleRouterSet*>::iterator it = cluster_unhealthy.begin(); it != cluster_unhealthy.end(); ++it) {
       delete *it;
     }
     return true;
   }
-  //没有健康的set
-  //隔离的set已经被释放
+  // 没有健康的set
+  // 隔离的set已经被释放
   cluster.swap(cluster_unhealthy);
   return false;
 }
@@ -316,6 +316,8 @@ ReturnCode RuleServiceRouter::Init(Config* config, Context* context) {
   context_->GetContextImpl()->RegisterCache(router_cache_);
   return kReturnOk;
 }
+
+std::string RuleServiceRouter::Name() { return "RuleServiceRouter"; }
 
 ReturnCode RuleServiceRouter::DoRoute(RouteInfo& route_info, RouteResult* route_result) {
   ServiceRouteRule* route_rule = route_info.GetServiceRouteRule();

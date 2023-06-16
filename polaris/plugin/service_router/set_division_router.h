@@ -40,6 +40,8 @@ class SetDivisionServiceRouter : public ServiceRouter {
 
   virtual RouterStatData* CollectStat();
 
+  virtual std::string Name();
+
   // 根据主调set名和被调set名和metadata判断是否启用set分组
   bool IsSetDivisionRouterEnable(const std::string& caller_set_name, const std::string& callee_set_name,
                                  const std::map<std::string, std::string>& callee_metadata);
