@@ -918,25 +918,44 @@ void BlockRequest::OnSuccess(::v1::Response* response) {
   server_code_ = ToPolarisServerCode(response->code().value());
   if (server_code_ != kServerCodeServerError) {
     if (POLARIS_LOG_ENABLE(kTraceLogLevel)) {
-      POLARIS_LOG(LOG_TRACE, "%s for request[%s] to server[%s:%d] success with response[%s]",
-                  PolarisRequestTypeStr(request_type_), message_->ShortDebugString().c_str(),
-                  instance_->GetHost().c_str(), instance_->GetPort(), response->ShortDebugString().c_str());
+      if (instance_ != nullptr) {
+        POLARIS_LOG(LOG_TRACE, "%s for request[%s] to server[%s:%d] success with response[%s]",
+                    PolarisRequestTypeStr(request_type_), message_->ShortDebugString().c_str(),
+                    instance_->GetHost().c_str(), instance_->GetPort(), response->ShortDebugString().c_str());
+      }else{
+        POLARIS_LOG(LOG_TRACE, "%s for request[%s] to server[%s:%d] success with response[%s]",
+                    PolarisRequestTypeStr(request_type_), message_->ShortDebugString().c_str(),
+                    host_.c_str(), port_, response->ShortDebugString().c_str());        
+      }
     }
     promise_->SetValue(response);
   } else {  // 请求处理失败
     promise_->SetError(kReturnServerError);
-    POLARIS_LOG(LOG_ERROR, "%s for request[%s] to server[%s:%d] error with response[%s]",
-                PolarisRequestTypeStr(request_type_), message_->ShortDebugString().c_str(),
-                instance_->GetHost().c_str(), instance_->GetPort(), response->ShortDebugString().c_str());
+    if (instance_ != nullptr) {    
+      POLARIS_LOG(LOG_ERROR, "%s for request[%s] to server[%s:%d] error with response[%s]",
+                  PolarisRequestTypeStr(request_type_), message_->ShortDebugString().c_str(),
+                  instance_->GetHost().c_str(), instance_->GetPort(), response->ShortDebugString().c_str());
+    }else{
+      POLARIS_LOG(LOG_ERROR, "%s for request[%s] to server[%s:%d] error with response[%s]",
+                  PolarisRequestTypeStr(request_type_), message_->ShortDebugString().c_str(),
+                  host_.c_str(), port_, response->ShortDebugString().c_str());      
+    }
     delete response;
   }
   connector_.UpdateCallResult(this);
 }
 
 void BlockRequest::OnFailure(const std::string& message) {
-  POLARIS_LOG(LOG_ERROR, "%s for request[%s] to server[%s:%d] with rpc error %s", PolarisRequestTypeStr(request_type_),
-              message_->ShortDebugString().c_str(), instance_->GetHost().c_str(), instance_->GetPort(),
-              message.c_str());
+  if (instance_ != nullptr) {  
+    POLARIS_LOG(LOG_ERROR, "%s for request[%s] to server[%s:%d] with rpc error %s", PolarisRequestTypeStr(request_type_),
+                message_->ShortDebugString().c_str(), instance_->GetHost().c_str(), instance_->GetPort(),
+                message.c_str());
+  }else{
+    POLARIS_LOG(LOG_ERROR, "%s for request[%s] to server[%s:%d] with rpc error %s", PolarisRequestTypeStr(request_type_),
+                message_->ShortDebugString().c_str(), host_.c_str(), port_,
+                message.c_str());    
+  }
+
   server_code_ = kServerCodeRpcError;
   promise_->SetError(kReturnNetworkFailed);
   connector_.UpdateCallResult(this);
